@@ -1,0 +1,25 @@
+# 构建产物（启动器仓库的大头，检索与统计一律排除）
+bin/
+obj/
+publish/
+artifacts/
+
+# 构建日志（一律落盘只读尾部，不入库）
+*.log
+build.log
+sln-add.log
+scaffold.log
+
+# IDE
+.vs/
+*.user
+*.suo
+*.userprefs
+
+# 设计期生成物
+*.g.cs
+*.g.i.cs
+
+# 本地临时
+*.tmp
+.tmp/

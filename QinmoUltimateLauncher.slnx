@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/QinmoUltimateLauncher/QinmoUltimateLauncher.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Qul.Tests/Qul.Tests.csproj" />
+  </Folder>
+</Solution>

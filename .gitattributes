@@ -1,0 +1,16 @@
+# 默认按文本处理并统一为 LF。
+# 本项目有"逐字节可复现"的要求（启动计划骨架比对），行尾必须确定。
+* text=auto eol=lf
+
+*.slnx    text eol=lf
+*.cs      text eol=lf
+*.csproj  text eol=lf
+*.xaml    text eol=lf
+*.md      text eol=lf
+*.json    text eol=lf
+*.txt     text eol=lf
+*.props   text eol=lf
+*.targets text eol=lf
+
+*.png binary
+*.ico binary

@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Qinmo Launcher · 主程序
+    技术方向（已定）：C# + WPF + net48，单文件、免安装、双击秒开、体积极小。
+    net48 下必须显式指定 LangVersion，否则默认 C# 7.3 会让 Nullable 直接编译失败（CS8630）。
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Qul</RootNamespace>
+    <AssemblyName>QinmoUltimateLauncher</AssemblyName>
+    <Version>0.1.0</Version>
+    <Product>Qinmo Ultimate Launcher</Product>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <!-- 体积与产物整洁：去掉附属资源语言目录，输出目录不带 TFM 子层 -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+  </PropertyGroup>
+
+</Project>
