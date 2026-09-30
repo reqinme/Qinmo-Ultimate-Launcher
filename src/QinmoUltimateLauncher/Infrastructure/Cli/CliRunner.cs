@@ -4,33 +4,21 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Threading;
-using Qul.Application.Java;
-using Qul.Application.Launch;
-using Qul.Application.Ports;
-using Qul.Domain.Assets;
+using Qul.Application.Diagnostics;
 using Qul.Domain.Configuration;
 using Qul.Domain.Diagnostics;
 using Qul.Domain.Downloads;
-using Qul.Domain.Identity;
-using Qul.Domain.Metadata;
-using Qul.Domain.Runtime;
 using Qul.Infrastructure.Boot;
-using Qul.Infrastructure.Downloads;
 using Qul.Infrastructure.Launch;
-using Qul.Infrastructure.Metadata;
-using Qul.Infrastructure.Net;
-using Qul.Infrastructure.Platform;
 using Qul.Infrastructure.Processes;
-using Qul.Infrastructure.Runtime;
 
 namespace Qul.Infrastructure.Cli;
 
 /// <summary>
-/// 无界面驱动整条链路：读元数据 → 选 Java → 生成下载计划 → 下载 → 组装启动计划 → 解压 natives → 拉起进程。
+/// 无界面驱动整条链路。
 ///
-/// 两个用途：
-///   1) 真实验收 —— "能不能启动"这件事必须在没有界面的情况下也能被验证；
-///   2) 架构要求 —— "UI 挂了不影响命令行启动"。
+/// 它不自己实现链路，而是调用 <see cref="LaunchPipeline"/>——
+/// **命令行与界面必须走同一条链路**，否则迟早出现"命令行能启动、界面不能"这种最难查的问题。
 /// </summary>
 public static class CliRunner
 {
@@ -50,16 +38,16 @@ public static class CliRunner
             return Usage(boot);
         }
 
-        string command = args[0].Trim().ToLowerInvariant();
-
-        switch (command)
+        switch (args[0].Trim().ToLowerInvariant())
         {
             case "plan":
-                return RunPlan(boot, args);
+                return Execute(boot, args, LaunchPipelineMode.PlanOnly);
             case "install":
-                return RunInstall(boot, args);
+                return Execute(boot, args, LaunchPipelineMode.Install);
             case "launch":
-                return RunLaunch(boot, args);
+                return Execute(boot, args, LaunchPipelineMode.Launch);
+            case "preflight":
+                return Preflight(boot, args);
             default:
                 return Usage(boot);
         }
@@ -67,7 +55,7 @@ public static class CliRunner
 
     // ---------- 命令 ----------
 
-    private static int RunPlan(BootContext boot, IReadOnlyList<string> args)
+    private static int Execute(BootContext boot, IReadOnlyList<string> args, LaunchPipelineMode requested)
     {
         string versionId = Require(args, 1);
         if (versionId.Length == 0)
@@ -75,16 +63,89 @@ public static class CliRunner
             return Usage(boot);
         }
 
-        Resolved resolved = Resolve(boot, versionId);
-        if (resolved.Error != null)
+        LaunchPipelineMode mode = requested;
+
+        if (requested == LaunchPipelineMode.Launch && HasFlag(args, "--dry-run"))
         {
-            return Fail(boot, resolved.Error.Value);
+            mode = LaunchPipelineMode.Prepare;
         }
 
-        DownloadPlan plan = BuildDownloadPlan(boot, resolved);
-        Report(boot, "下载计划：" + plan.Items.Count + " 项，已知体积 "
-                     + Megabytes(plan.KnownTotalBytes) + "，重复路径 " + plan.DuplicatePaths.Count
-                     + "，内容冲突 " + plan.ConflictingPaths.Count);
+        LaunchPipelineResult result = new LaunchPipeline(boot).Run(
+            new LaunchPipelineRequest
+            {
+                VersionId = versionId,
+                Mode = mode,
+                IdentitySource = IdentitySource.Offline,
+                OfflineUserName = OptionValue(args, "--offline-name", "Player") ?? "Player",
+                MaxMemoryMb = ParseInt(OptionValue(args, "--memory", "2048"), 2048),
+                ServerTarget = OptionValue(args, "--server", null),
+            },
+            new ConsoleProgress(boot),
+            CancellationToken.None);
+
+        if (!result.Succeeded)
+        {
+            return Fail(boot, result.Error ?? ErrorCode.DlFailed, result.ErrorDetail);
+        }
+
+        if (mode == LaunchPipelineMode.PlanOnly)
+        {
+            PrintPlan(boot, result.Plan!);
+            return ExitOk;
+        }
+
+        if (mode == LaunchPipelineMode.Install || mode == LaunchPipelineMode.Prepare)
+        {
+            Report(boot, mode == LaunchPipelineMode.Install ? "安装完成。" : "预演完成（未启动进程）。");
+            return ExitOk;
+        }
+
+        GameProcess? process = result.Process;
+        if (process == null)
+        {
+            return Fail(boot, ErrorCode.ProcStartFailed, "进程未能拉起。");
+        }
+
+        return AwaitWindow(boot, process, ParseInt(OptionValue(args, "--hold", "5"), 5), HasFlag(args, "--keep"));
+    }
+
+    private static int Preflight(BootContext boot, IReadOnlyList<string> args)
+    {
+        string versionId = Require(args, 1);
+        if (versionId.Length == 0)
+        {
+            return Usage(boot);
+        }
+
+        IReadOnlyList<PreflightItem> items = new LaunchPipeline(boot).PreparePreflight(
+            new LaunchPipelineRequest
+            {
+                VersionId = versionId,
+                IdentitySource = IdentitySource.Offline,
+                ServerTarget = OptionValue(args, "--server", null),
+            });
+
+        Report(boot, "启动前预检（" + items.Count + " 项）：");
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            PreflightItem item = items[i];
+            Report(boot, "  [" + item.Scope + "/" + item.Severity + "] " + item.Id + " " + item.Title);
+
+            string[] detailLines = item.Detail.Split('\n');
+            for (int j = 0; j < detailLines.Length; j++)
+            {
+                Report(boot, "      " + detailLines[j]);
+            }
+        }
+
+        return ExitOk;
+    }
+
+    private static void PrintPlan(BootContext boot, DownloadPlan plan)
+    {
+        Report(boot, "下载计划：" + plan.Items.Count + " 项，已知体积 " + Megabytes(plan.KnownTotalBytes)
+                     + "，重复路径 " + plan.DuplicatePaths.Count + "，内容冲突 " + plan.ConflictingPaths.Count);
 
         Dictionary<DownloadItemKind, int> byKind = new Dictionary<DownloadItemKind, int>();
         for (int i = 0; i < plan.Items.Count; i++)
@@ -98,271 +159,6 @@ public static class CliRunner
         {
             Report(boot, "  " + pair.Key + "：" + pair.Value);
         }
-
-        return ExitOk;
-    }
-
-    private static int RunInstall(BootContext boot, IReadOnlyList<string> args)
-    {
-        string versionId = Require(args, 1);
-        if (versionId.Length == 0)
-        {
-            return Usage(boot);
-        }
-
-        Resolved resolved = Resolve(boot, versionId);
-        if (resolved.Error != null)
-        {
-            return Fail(boot, resolved.Error.Value);
-        }
-
-        DownloadPlan plan = BuildDownloadPlan(boot, resolved);
-        Report(boot, "下载计划：" + plan.Items.Count + " 项，已知体积 " + Megabytes(plan.KnownTotalBytes));
-
-        return Download(boot, plan) ? ExitOk : ExitFailed;
-    }
-
-    private static int RunLaunch(BootContext boot, IReadOnlyList<string> args)
-    {
-        string versionId = Require(args, 1);
-        if (versionId.Length == 0)
-        {
-            return Usage(boot);
-        }
-
-        bool dryRun = HasFlag(args, "--dry-run");
-        bool keepRunning = HasFlag(args, "--keep");
-        string offlineName = OptionValue(args, "--offline-name", "Player");
-        int memory = ParseInt(OptionValue(args, "--memory", "2048"), 2048);
-        int holdSeconds = ParseInt(OptionValue(args, "--hold", "5"), 5);
-
-        Resolved resolved = Resolve(boot, versionId);
-        if (resolved.Error != null)
-        {
-            return Fail(boot, resolved.Error.Value);
-        }
-
-        DownloadPlan plan = BuildDownloadPlan(boot, resolved);
-        Report(boot, "下载计划：" + plan.Items.Count + " 项，已知体积 " + Megabytes(plan.KnownTotalBytes));
-
-        if (!HasFlag(args, "--skip-download") && !Download(boot, plan))
-        {
-            return ExitFailed;
-        }
-
-        PlayerIdentity identity;
-        try
-        {
-            identity = OfflineIdentityFactory.Create(offlineName);
-        }
-        catch (LauncherException ex)
-        {
-            return Fail(boot, ex.Code);
-        }
-
-        foreach (string notice in identity.CapabilityNotices)
-        {
-            Report(boot, "告知：" + notice);
-        }
-
-        EnvironmentProfile environment = PlatformProbe.ForJavaRuntime(resolved.Java);
-
-        GameLaunchRequest request = new GameLaunchRequest
-        {
-            CleanNatives = true,
-            GameLogPath = Path.Combine(boot.Layout.LogDirectory, "game-" + versionId + ".log"),
-            Plan = new LaunchPlanRequest
-            {
-                Version = resolved.Version!,
-                Environment = environment,
-                Java = resolved.Java!,
-                Identity = identity,
-                CacheRoot = boot.Layout.CacheDirectory,
-                GameDirectory = boot.Layout.GameRoot,
-                NativesDirectory = Path.Combine(boot.Layout.CacheDirectory, "natives", versionId),
-                MaxMemoryMb = memory,
-                AssetsDirectory = Path.Combine(boot.Layout.CacheDirectory, "assets"),
-                LibraryDirectory = Path.Combine(boot.Layout.CacheDirectory, "libraries"),
-            },
-        };
-
-        GameLauncher launcher = new GameLauncher(boot.Log);
-        GameLaunchOutcome outcome = dryRun ? launcher.Prepare(request) : launcher.Launch(request);
-
-        foreach (string note in outcome.Notes)
-        {
-            Report(boot, "  " + note);
-        }
-
-        if (!outcome.Prepared)
-        {
-            return Fail(boot, outcome.Error ?? ErrorCode.PlanUnresolvedPlaceholder);
-        }
-
-        if (dryRun)
-        {
-            Report(boot, "预演完成（未启动进程）");
-            return ExitOk;
-        }
-
-        if (!outcome.Started || outcome.Process == null)
-        {
-            return Fail(boot, outcome.Error ?? ErrorCode.ProcStartFailed);
-        }
-
-        return AwaitWindow(boot, outcome.Process, holdSeconds, keepRunning);
-    }
-
-    // ---------- 主流程 ----------
-
-    private sealed class Resolved
-    {
-        public VersionDetail? Version { get; set; }
-
-        public AssetIndex? AssetIndex { get; set; }
-
-        public JavaRuntimeCandidate? Java { get; set; }
-
-        public ErrorCode? Error { get; set; }
-    }
-
-    private static Resolved Resolve(BootContext boot, string versionId)
-    {
-        Resolved resolved = new Resolved();
-
-        MetadataClient client = new MetadataClient(new HttpTransport(), boot.Log);
-        string metaDirectory = boot.Layout.CacheMetaDirectory;
-
-        Report(boot, "读取版本清单…");
-        VersionManifest manifest;
-        try
-        {
-            manifest = client.FetchManifest(Path.Combine(metaDirectory, "version_manifest_v2.json"));
-        }
-        catch (LauncherException ex)
-        {
-            resolved.Error = ex.Code;
-            return resolved;
-        }
-
-        Report(boot, "  清单共 " + manifest.Versions.Count + " 个版本；最新正式版 " + manifest.LatestRelease);
-
-        VersionSummary? summary = manifest.Find(versionId);
-        if (summary == null)
-        {
-            Report(boot, "  清单里没有版本 " + versionId);
-            resolved.Error = ErrorCode.MetaIndexFailed;
-            return resolved;
-        }
-
-        Report(boot, "读取 " + versionId + " 的元数据…");
-        try
-        {
-            resolved.Version = client.FetchVersion(
-                summary.Url, versionId, Path.Combine(metaDirectory, "version-" + versionId + ".json"));
-        }
-        catch (LauncherException ex)
-        {
-            resolved.Error = ex.Code;
-            return resolved;
-        }
-
-        VersionDetail version = resolved.Version;
-        int requiredJava = version.JavaVersion?.MajorVersion ?? 8;
-        Report(boot, "  主类 " + version.MainClass + "；库 " + version.Libraries.Count
-                     + " 个；要求 Java " + requiredJava + "；assets=" + version.Assets);
-
-        JavaRuntimeResolver resolver = new JavaRuntimeResolver(
-            new IJavaRuntimeProvider[] { new DetectedJavaRuntimeProvider() });
-
-        JavaResolutionOutcome resolution = resolver.Resolve(
-            new JavaSelectionRequest { RequiredMajorVersion = requiredJava });
-
-        for (int i = 0; i < resolution.Notes.Count; i++)
-        {
-            Report(boot, "  " + resolution.Notes[i]);
-        }
-
-        if (!resolution.Succeeded)
-        {
-            Report(boot, "  找不到满足要求的 Java：" + (resolution.Selection.Explanation ?? string.Empty));
-            resolved.Error = resolution.Selection.Error ?? ErrorCode.JavaNotFound;
-            return resolved;
-        }
-
-        resolved.Java = resolution.Selection.Selected;
-        Report(boot, "  选定 " + resolved.Java!.Describe() + " @ " + resolved.Java.ExecutablePath);
-
-        if (version.AssetIndex?.Url != null)
-        {
-            Report(boot, "读取资源索引 " + version.AssetIndex.Id + "…");
-            try
-            {
-                resolved.AssetIndex = client.FetchAssetIndex(
-                    version.AssetIndex.Url!,
-                    version.AssetIndex.Id,
-                    Path.Combine(metaDirectory, "assets-" + version.AssetIndex.Id + ".json"));
-            }
-            catch (LauncherException ex)
-            {
-                resolved.Error = ex.Code;
-                return resolved;
-            }
-
-            Report(boot, "  " + resolved.AssetIndex!.Count + " 个资源对象，合计 "
-                         + Megabytes(resolved.AssetIndex.TotalSize));
-        }
-
-        return resolved;
-    }
-
-    private static DownloadPlan BuildDownloadPlan(BootContext boot, Resolved resolved)
-    {
-        EnvironmentProfile environment = PlatformProbe.ForJavaRuntime(resolved.Java);
-
-        return new DownloadPlanBuilder().Build(resolved.Version!, environment, resolved.AssetIndex);
-    }
-
-    private static bool Download(BootContext boot, DownloadPlan plan)
-    {
-        Report(boot, "开始下载（并发 8）…");
-
-        DownloadEngine engine = new DownloadEngine(new HttpTransport(), boot.Log);
-        DownloadOptions options = new DownloadOptions
-        {
-            MaxConcurrency = 8,
-            MaxAttempts = 3,
-            MinimumFreeBytes = 128L * 1024 * 1024,
-            BaseRetryDelay = TimeSpan.FromMilliseconds(400),
-        };
-
-        Progress<DownloadProgress> progress = new Progress<DownloadProgress>(p =>
-        {
-            if (p.FilesCompleted % 250 == 0 || p.FilesCompleted == p.FilesTotal)
-            {
-                Report(boot, "  进度 " + p.FilesCompleted + "/" + p.FilesTotal + "，已传 "
-                             + Megabytes(p.BytesTransferred));
-            }
-        });
-
-        DownloadReport report = engine.EnsureAll(plan, boot.Layout.CacheDirectory, options, progress, CancellationToken.None);
-
-        Report(boot, "下载完成：新下 " + report.DownloadedCount + "，命中缓存 " + report.PresentCount
-                     + "，失败 " + report.Failures.Count + "，传输 " + Megabytes(report.BytesTransferred));
-
-        if (report.IsComplete)
-        {
-            return true;
-        }
-
-        for (int i = 0; i < report.Failures.Count; i++)
-        {
-            DownloadItemReport failure = report.Failures[i];
-            Report(boot, "  失败 " + failure.Item.Describe() + " → " + ErrorCodes.Id(failure.Error ?? ErrorCode.DlFailed)
-                         + "（尝试 " + failure.Attempts + " 次）");
-        }
-
-        return false;
     }
 
     /// <summary>
@@ -371,23 +167,13 @@ public static class CliRunner
     /// </summary>
     private static int AwaitWindow(BootContext boot, GameProcess process, int holdSeconds, bool keepRunning)
     {
-        Report(boot, "已拉起进程 pid=" + process.ProcessId + "，等待游戏窗口…");
+        Report(boot, "等待游戏窗口…");
 
         Stopwatch watch = Stopwatch.StartNew();
         TimeSpan windowTimeout = TimeSpan.FromSeconds(180);
 
-        while (watch.Elapsed < windowTimeout)
+        while (watch.Elapsed < windowTimeout && !process.HasMainWindow && !process.HasExited)
         {
-            if (process.HasMainWindow)
-            {
-                break;
-            }
-
-            if (process.HasExited)
-            {
-                break;
-            }
-
             Thread.Sleep(500);
         }
 
@@ -418,7 +204,7 @@ public static class CliRunner
 
         Report(boot, "✘ 未见游戏窗口；进程已退出，退出码 " + result.ExitCode
                      + "，错误码 " + ErrorCodes.Id(result.Error ?? ErrorCode.None));
-        Report(boot, "游戏日志尾部（" + result.LogFilePath + "）：");
+        Report(boot, "游戏日志尾部：" + result.LogFilePath);
 
         foreach (string line in Tail(result.LogFilePath, 40))
         {
@@ -473,20 +259,27 @@ public static class CliRunner
         }
     }
 
-    private static int Fail(BootContext boot, ErrorCode code)
+    private static int Fail(BootContext boot, ErrorCode code, string? detail)
     {
         Report(boot, "✘ 失败：" + ErrorCodes.Id(code) + " " + ErrorCodes.Hint(code));
+
+        if (!string.IsNullOrWhiteSpace(detail))
+        {
+            Report(boot, "   " + detail);
+        }
+
         return ExitFailed;
     }
 
     private static int Usage(BootContext boot)
     {
         Report(boot, "用法：");
-        Report(boot, "  plan    <版本 id>                              只算下载计划，不下载");
-        Report(boot, "  install <版本 id>                              下载该版本所需全部文件");
-        Report(boot, "  launch  <版本 id> [--dry-run] [--skip-download]");
-        Report(boot, "                    [--offline-name 名字] [--memory MB]");
-        Report(boot, "                    [--hold 秒] [--keep]");
+        Report(boot, "  plan      <版本 id> [--server 地址]      只算下载计划，不下载");
+        Report(boot, "  preflight <版本 id> [--server 地址]      只跑启动前预检，不联网");
+        Report(boot, "  install   <版本 id>                      下载该版本所需全部文件");
+        Report(boot, "  launch    <版本 id> [--dry-run]          下载并启动（--dry-run 只准备不启动）");
+        Report(boot, "            [--offline-name 名字] [--memory MB]");
+        Report(boot, "            [--hold 秒] [--keep] [--server 地址]");
         return ExitUsage;
     }
 
@@ -510,7 +303,7 @@ public static class CliRunner
         return false;
     }
 
-    private static string OptionValue(IReadOnlyList<string> args, string name, string fallback)
+    private static string? OptionValue(IReadOnlyList<string> args, string name, string? fallback)
     {
         for (int i = 0; i < args.Count - 1; i++)
         {
@@ -523,7 +316,7 @@ public static class CliRunner
         return fallback;
     }
 
-    private static int ParseInt(string text, int fallback)
+    private static int ParseInt(string? text, int fallback)
     {
         return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) && value > 0
             ? value
@@ -532,7 +325,25 @@ public static class CliRunner
 
     private static string Megabytes(long bytes)
     {
-        double mb = bytes / 1024.0 / 1024.0;
-        return mb.ToString("F1", CultureInfo.InvariantCulture) + " MB";
+        return (bytes / 1024.0 / 1024.0).ToString("F1", CultureInfo.InvariantCulture) + " MB";
+    }
+
+    /// <summary>
+    /// 同步转发进度。用 Progress&lt;T&gt; 会异步投递到线程池，
+    /// 命令行输出就会交错错位——这里必须同步。
+    /// </summary>
+    private sealed class ConsoleProgress : IProgress<string>
+    {
+        private readonly BootContext _boot;
+
+        public ConsoleProgress(BootContext boot)
+        {
+            _boot = boot;
+        }
+
+        public void Report(string value)
+        {
+            CliRunner.Report(_boot, "  " + value);
+        }
     }
 }
