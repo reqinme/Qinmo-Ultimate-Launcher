@@ -270,6 +270,22 @@
                                AutomationProperties.LiveSetting="Polite" />
 
                     <Border Style="{StaticResource Qul.Style.Card.Status.Danger}" Margin="0,12,0,0"
+                            Visibility="{Binding HasStartupNotice, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding StartupNotice}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Qul.Brush.Danger}" TextWrapping="Wrap"
+                                       AutomationProperties.Name="启动提示"
+                                       AutomationProperties.LiveSetting="Assertive" />
+                            <Button Margin="0,8,0,0" HorizontalAlignment="Left"
+                                    Style="{StaticResource Qul.Style.Button.Text}"
+                                    Command="{Binding DismissStartupNoticeCommand}"
+                                    AutomationProperties.Name="知道了">
+                                <TextBlock Text="知道了" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Qul.Style.Card.Status.Danger}" Margin="0,12,0,0"
                             Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
                             <TextBlock Text="{Binding ErrorBanner}" FontWeight="SemiBold"

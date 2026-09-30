@@ -24,9 +24,11 @@ public sealed class BootContext : IDisposable
         ConfigStore configStore,
         ErrorCode? dataRootWarning,
         UpdateStore updates,
-        bool adoptedPendingUpdate)
+        bool adoptedPendingUpdate,
+        string? updateNotice)
     {
         _adoptedPendingUpdate = adoptedPendingUpdate;
+        UpdateNotice = updateNotice;
         Layout = layout;
         Log = log;
         ConfigResult = configResult;
@@ -57,6 +59,15 @@ public sealed class BootContext : IDisposable
     /// <summary>目录创建阶段遇到的非致命错误。非 null 表示已降级运行（例如回退到用户目录）。</summary>
     public ErrorCode? DataRootWarning { get; }
 
+    /// <summary>
+    /// 启动期间发生的、**需要让用户知道**的事（目前只有"更新已回退"）。
+    /// 没有就是 null。
+    ///
+    /// 先前回退成功只写了一条日志：用户看到的是新版界面，而磁盘上已经换回旧版——
+    /// 下次启动版本"倒退"却没有任何解释。这件事必须说出来。
+    /// </summary>
+    public string? UpdateNotice { get; }
+
     public static BootContext Start()
     {
         string executableDirectory = AppDomain.CurrentDomain.BaseDirectory;
@@ -85,7 +96,7 @@ public sealed class BootContext : IDisposable
         // 处理上次更新留下的标记。**必须放在这里**：任何可能失败的初始化之前。
         // 换上来的坏版本如果连窗口都建不出来，这就是唯一的自救机会。
         UpdateStore updates = new UpdateStore(layout.UpdatesDirectory, log);
-        bool adopted = HandlePendingUpdate(layout, log, updates);
+        bool adopted = HandlePendingUpdate(layout, log, updates, out string? updateNotice);
 
         ConfigStore store = new ConfigStore(layout);
         ConfigLoadResult result = store.Load();
@@ -108,7 +119,7 @@ public sealed class BootContext : IDisposable
             }
         }
 
-        return new BootContext(layout, log, result, store, layoutError?.Code, updates, adopted);
+        return new BootContext(layout, log, result, store, layoutError?.Code, updates, adopted, updateNotice);
     }
 
     /// <summary>
@@ -117,8 +128,10 @@ public sealed class BootContext : IDisposable
     /// 三种情况必须分开：我们就是刚上来的新版本（正常，标记为待确认）；
     /// 上次启动打过待确认标记却没确认健康（回滚）；替换根本没发生（清掉残留标记）。
     /// </summary>
-    private static bool HandlePendingUpdate(DataLayout layout, SessionLog log, UpdateStore updates)
+    private static bool HandlePendingUpdate(
+        DataLayout layout, SessionLog log, UpdateStore updates, out string? notice)
     {
+        notice = null;
         string currentVersion = typeof(BootContext).Assembly.GetName().Version?.ToString() ?? "0.0.0";
 
         UpdateBootDecision decision = updates.DecideOnBoot(currentVersion, out PendingUpdate? pending);
@@ -138,7 +151,7 @@ public sealed class BootContext : IDisposable
                 return false;
 
             default:
-                RollBackToPreviousVersion(layout, log, updates, pending!);
+                RollBackToPreviousVersion(layout, log, updates, pending!, out notice);
                 return false;
         }
     }
@@ -147,8 +160,10 @@ public sealed class BootContext : IDisposable
         DataLayout layout,
         SessionLog log,
         UpdateStore updates,
-        PendingUpdate pending)
+        PendingUpdate pending,
+        out string? notice)
     {
+        notice = null;
         string selfPath = CurrentExecutablePath();
         string programDirectory = Path.GetDirectoryName(selfPath) ?? layout.ExecutableDirectory;
         string backupPath = updates.ResolveBackupPath(programDirectory, pending.BackupFileName);
@@ -168,6 +183,11 @@ public sealed class BootContext : IDisposable
         if (outcome.Succeeded)
         {
             log.Info("update", "rolled back; the previous version will run on the next start");
+
+            // **必须告诉用户。** 他眼前跑的还是刚被判定不健康的那一版，
+            // 而磁盘上已经换回去了——不说的话，下次启动版本"倒退"会毫无解释。
+            notice = "上次更新在替换后未能确认健康，已自动回退。"
+                   + "本次运行的仍是刚更新的版本，下次启动会回到上一个版本。";
 
             // **只有真的回退成功才清标记。**
             updates.ClearPending();

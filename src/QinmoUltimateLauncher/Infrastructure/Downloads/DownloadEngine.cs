@@ -189,8 +189,10 @@ public sealed class DownloadEngine
                     }
                     catch (OperationCanceledException)
                     {
+                        // **取消不是失败**：不带错误码，状态单独记，
+                        // 否则界面上"你按了取消"和"下载真的坏了"长得一模一样。
                         reports[index] = new DownloadItemReport(
-                            plan.Items[index], DownloadItemState.Failed, ErrorCode.DlFailed, 0, 0);
+                            plan.Items[index], DownloadItemState.Cancelled, null, 0, 0);
                         return;
                     }
                     catch (LauncherException ex)

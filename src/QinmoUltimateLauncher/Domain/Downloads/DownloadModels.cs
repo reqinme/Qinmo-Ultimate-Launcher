@@ -102,6 +102,15 @@ public enum DownloadItemState
 
     Failed,
 
+    /// <summary>
+    /// 用户取消。**不是失败。**
+    ///
+    /// 先前取消被记成 <see cref="Failed"/> 加一个 DlFailed 错误码，于是
+    /// "你按了取消"和"下载真的坏了"在报告里长得一模一样——
+    /// 用户会去查网络，而界面只是没告诉他取消成功了。
+    /// </summary>
+    Cancelled,
+
     /// <summary>元数据未提供校验值，已拒绝下载（QUL-DL-0003）。</summary>
     RefusedNoChecksum,
 }
@@ -138,6 +147,7 @@ public sealed class DownloadReport
         long bytes = 0;
         int present = 0;
         int downloaded = 0;
+        int cancelled = 0;
 
         for (int i = 0; i < items.Count; i++)
         {
@@ -152,6 +162,11 @@ public sealed class DownloadReport
                 case DownloadItemState.Downloaded:
                     downloaded++;
                     break;
+                case DownloadItemState.Cancelled:
+                    // **取消单独计数**，不进 Failures：
+                    // 把它算作失败会让"取消"与"真的坏了"在汇总里无法区分。
+                    cancelled++;
+                    break;
                 default:
                     failed.Add(report);
                     break;
@@ -162,7 +177,22 @@ public sealed class DownloadReport
         BytesTransferred = bytes;
         PresentCount = present;
         DownloadedCount = downloaded;
+        CancelledCount = cancelled;
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (items[i].State == DownloadItemState.Cancelled)
+            {
+                WasCancelled = true;
+                break;
+            }
+        }
     }
+
+    /// <summary>本次运行是否**因为用户取消**而中止（与"失败"是两回事）。</summary>
+    public bool WasCancelled { get; }
+
+    public int CancelledCount { get; }
 
     public IReadOnlyList<DownloadItemReport> Items { get; }
 

@@ -131,6 +131,7 @@ public sealed class MainViewModel : ObservableObject
     private bool _needsAcknowledgement;
     private bool _hasBlocking;
     private string _errorBanner = string.Empty;
+    private string _startupNotice = string.Empty;
     private string _resultSummary = string.Empty;
     private bool _diagnosticsReady;
     private string _diagnosticReport = string.Empty;
@@ -174,6 +175,24 @@ public sealed class MainViewModel : ObservableObject
             Stages.Add(new StageVm(LaunchStages.Visible[i]));
         }
 
+        // 启动期的告知——**在构造函数里就填好**，界面一出来就能看到。
+        List<string> notices = new List<string>();
+
+        if (boot.DataRootWarning.HasValue)
+        {
+            notices.Add(
+                ErrorCodes.Id(boot.DataRootWarning.Value) + " "
+                + ErrorCodes.Hint(boot.DataRootWarning.Value));
+        }
+
+        if (!string.IsNullOrEmpty(boot.UpdateNotice))
+        {
+            notices.Add(boot.UpdateNotice!);
+        }
+
+        _startupNotice = string.Join(Environment.NewLine, notices);
+
+        DismissStartupNoticeCommand = new RelayCommand(DismissStartupNotice);
         RefreshCommand = new RelayCommand(() => _ = RefreshAsync(), () => !IsBusy);
         LaunchCommand = new RelayCommand(() => _ = LaunchAsync(), () => CanLaunch);
         CancelCommand = new RelayCommand(Cancel, () => IsBusy);
@@ -207,6 +226,8 @@ public sealed class MainViewModel : ObservableObject
     }
 
     // ---------- 命令 ----------
+
+    public RelayCommand DismissStartupNoticeCommand { get; }
 
     public RelayCommand RefreshCommand { get; }
 
@@ -332,6 +353,27 @@ public sealed class MainViewModel : ObservableObject
 
     public bool HasError => _errorBanner.Length > 0;
 
+    /// <summary>
+    /// 启动期间就发生、且**必须让用户知道**的事：数据根建不出来、更新已回退。
+    ///
+    /// 这几件事先前只写进日志——而数据根建不出来时，**日志本身也写不出来**，
+    /// 于是用户完全不知道数据去了哪里、出了什么事。
+    /// </summary>
+    public string StartupNotice
+    {
+        get => _startupNotice;
+    }
+
+    public bool HasStartupNotice => _startupNotice.Length > 0;
+
+    public void DismissStartupNotice()
+    {
+        if (Set(ref _startupNotice, string.Empty, nameof(StartupNotice)))
+        {
+            Raise(nameof(HasStartupNotice));
+        }
+    }
+
     public string ResultSummary
     {
         get => _resultSummary;
@@ -420,6 +462,13 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task RefreshAsync()
     {
+        // **防重入。**
+        // 命令的 CanExecute 走 CommandManager.RequerySuggested，是异步重查的：
+        // 在它重查之前连点两下就能进来两次，两次并发刷新会互相覆盖状态。
+        if (IsBusy)
+        {
+            return;
+        }
         await RestoreAccountAsync();
 
         IsBusy = true;
@@ -469,6 +518,13 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task RebuildPreflightAsync()
     {
+        // **防重入。**
+        // 命令的 CanExecute 走 CommandManager.RequerySuggested，是异步重查的：
+        // 在它重查之前连点两下就能进来两次，两次并发刷新会互相覆盖状态。
+        if (IsBusy)
+        {
+            return;
+        }
         LaunchPipelineRequest request = BuildRequest(LaunchPipelineMode.Prepare);
 
         if (request.VersionId.Length == 0)
@@ -743,6 +799,13 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task CheckUpdateAsync()
     {
+        // **防重入。**
+        // 命令的 CanExecute 走 CommandManager.RequerySuggested，是异步重查的：
+        // 在它重查之前连点两下就能进来两次，两次并发刷新会互相覆盖状态。
+        if (IsBusy)
+        {
+            return;
+        }
         if (!UpdateEndpoints.IsConfigured)
         {
             UpdateMessage = UpdateEndpoints.NotConfiguredHint;
@@ -793,6 +856,13 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task ApplyUpdateAsync()
     {
+        // **防重入。**
+        // 命令的 CanExecute 走 CommandManager.RequerySuggested，是异步重查的：
+        // 在它重查之前连点两下就能进来两次，两次并发刷新会互相覆盖状态。
+        if (IsBusy)
+        {
+            return;
+        }
         UpdateRelease? release = _pendingRelease;
         if (release == null || IsBusy)
         {
