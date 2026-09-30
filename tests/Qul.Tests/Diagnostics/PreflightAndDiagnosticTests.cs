@@ -288,4 +288,23 @@ public sealed class PreflightAndDiagnosticTests
             EstimatedBytes = 200L * 1024 * 1024,
         };
     }
+    [TestMethod]
+    public void Report_KeepsTheLauncherVersionButStillMasksAddresses()
+    {
+        // **实测踩到过**：版本号 0.1.0.0 被 IPv4 脱敏规则当成地址抹成了 <ip>，
+        // 报告里印的是「启动器版本=<ip>」——"支持人员靠它定位版本"这个用途直接失效。
+        //
+        // 这个用例同时守住两边：
+        //   我们自己的常量（版本号）必须原样保留；
+        //   来自环境的内容（地址）仍必须被抹掉。
+        string report = DiagnosticReportBuilder.Build(new DiagnosticReportInput
+        {
+            LauncherVersion = "0.1.0.0",
+            Notes = new[] { "对端地址 203.0.113.7 出现异常" },
+        });
+
+        StringAssert.Contains(report, "启动器版本=0.1.0.0", "版本号不该被当成地址抹掉");
+        Assert.IsFalse(report.Contains("203.0.113.7"), "来自环境的地址仍必须被脱敏");
+        StringAssert.Contains(report, "<ip>");
+    }
 }

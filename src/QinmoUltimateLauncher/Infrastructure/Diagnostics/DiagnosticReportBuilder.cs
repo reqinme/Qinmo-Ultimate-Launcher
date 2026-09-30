@@ -60,7 +60,7 @@ public static class DiagnosticReportBuilder
 
         Line(builder, "# Qinmo Ultimate Launcher 诊断报告");
         Line(builder, "生成时间=" + DateTimeOffset.Now.ToString("u", CultureInfo.InvariantCulture));
-        Line(builder, "启动器版本=" + input.LauncherVersion);
+        OwnConstant(builder, "启动器版本=" + input.LauncherVersion);
         Line(builder, "操作系统=" + Environment.OSVersion.VersionString);
         Line(builder, "进程架构=" + (Environment.Is64BitProcess ? "64-bit" : "32-bit"));
         Line(builder, "数据目录方式=" + input.DataPlacement);
@@ -165,5 +165,22 @@ public static class DiagnosticReportBuilder
     private static void Line(StringBuilder builder, string text)
     {
         builder.Append(Redactor.Scrub(text)).Append('\n');
+    }
+
+    /// <summary>
+    /// **只用于我们自己编译期就确定的常量。**
+    ///
+    /// 先前版本号也走 <see cref="Line"/>，于是 `0.1.0.0` 被 IPv4 规则
+    /// 当成地址抹成了 `<ip>`——诊断报告里最该被看到的一个字段就这么没了。
+    /// 实测确认过：报告里印的是「启动器版本=&lt;ip&gt;」，
+    /// 而"支持人员靠它定位版本"这个用途直接失效。
+    ///
+    /// **这不是在安全边界上让步。** 这些值不来自用户环境、也不是秘密；
+    /// 反过来，任何来自用户环境或外部的值（路径、名称、地址、详情文本）
+    /// 一律走 <see cref="Line"/>。方法名刻意起成这样，就是为了让误用一眼可见。
+    /// </summary>
+    private static void OwnConstant(StringBuilder builder, string text)
+    {
+        builder.Append(text).Append('\n');
     }
 }
