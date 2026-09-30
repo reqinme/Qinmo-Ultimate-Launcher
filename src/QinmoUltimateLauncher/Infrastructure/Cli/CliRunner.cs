@@ -24,7 +24,7 @@ namespace Qul.Infrastructure.Cli;
 /// 它不自己实现链路，而是调用 <see cref="LaunchPipeline"/>——
 /// **命令行与界面必须走同一条链路**，否则迟早出现"命令行能启动、界面不能"这种最难查的问题。
 /// </summary>
-public static class CliRunner
+public static partial class CliRunner
 {
     public const int ExitOk = 0;
     public const int ExitFailed = 1;
@@ -52,6 +52,8 @@ public static class CliRunner
                 return Execute(boot, args, LaunchPipelineMode.Launch);
             case "preflight":
                 return Preflight(boot, args);
+            case "account":
+                return Account(boot, args);
             case "update":
                 return Update(boot, args);
             default:
@@ -378,6 +380,7 @@ public static class CliRunner
         Report(boot, "  plan      <版本 id> [--server 地址]      只算下载计划，不下载");
         Report(boot, "  preflight <版本 id> [--server 地址]      只跑启动前预检，不联网");
         Report(boot, "  install   <版本 id>                      下载该版本所需全部文件");
+        Report(boot, "  account   [status|signout]                查看已保存账户 / 登出");
         Report(boot, "  update    --manifest <地址> [--apply]     检查/下载更新（--apply 才替换主程序）");
         Report(boot, "  launch    <版本 id> [--dry-run]          下载并启动（--dry-run 只准备不启动）");
         Report(boot, "            [--offline-name 名字] [--memory MB]");

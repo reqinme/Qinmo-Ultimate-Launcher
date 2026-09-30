@@ -102,6 +102,7 @@ public partial class App : System.Windows.Application
             case "launch":
             case "preflight":
             case "update":
+            case "account":
                 return true;
             default:
                 return false;
