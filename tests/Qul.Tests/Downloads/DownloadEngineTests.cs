@@ -621,4 +621,51 @@ public sealed class DownloadEngineTests
         Assert.AreEqual(0, transport.Requests.Count(r => string.Equals(r.Url, MirrorUrl, StringComparison.Ordinal)),
             "关掉探测就不该去碰备用源");
     }
+    [TestMethod]
+    public void EnsureAll_FailsOverToTheOfficialSourceWhenTheMirrorServesCorruptBytes()
+    {
+        // **这是"用镜像不降低完整性保证"那句话的直接验证。**
+        // 镜像可以撒谎，但摘要来自官方元数据——撒谎只会让它的字节被丢弃并换源。
+        // 反过来看：如果引擎信任了源声明的任何东西，这个用例就会拿到篡改内容。
+        string sandbox = NewSandbox();
+        byte[] good = Bytes("library-content");
+        byte[] tampered = Bytes("TAMPERED-BY-A-BAD-MIRROR");
+
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(Url, good);
+        transport.Serve(MirrorUrl, tampered);
+
+        // 让镜像显得更快，探测就会把它排到首位——于是第一次尝试必然落在坏源上
+        transport.DelayMilliseconds = url => string.Equals(url, Url, StringComparison.Ordinal) ? 150 : 0;
+
+        DownloadEngine engine = new DownloadEngine(transport);
+
+        // 期望的摘要来自官方内容
+        DownloadItem item = Item(Url, good, @"libraries\a\a\1.0\a-1.0.jar");
+        item.FallbackUrls = new[] { MirrorUrl };
+
+        DownloadOptions options = new DownloadOptions
+        {
+            MaxConcurrency = 1,
+            MaxAttempts = 3,
+            BaseRetryDelay = TimeSpan.Zero,
+            MinimumFreeBytes = 0,
+            ProbeSourceSpeed = true,
+        };
+
+        DownloadReport report = engine.EnsureAll(Plan(item), sandbox, options);
+
+        Assert.IsTrue(report.IsComplete, "坏源必须被换掉，而不是让整次下载失败");
+
+        string destination = Path.Combine(sandbox, @"libraries\a\a\1.0\a-1.0.jar");
+        CollectionAssert.AreEqual(good, File.ReadAllBytes(destination), "落盘内容必须是官方内容，绝不是镜像给的坏字节");
+
+        Assert.IsTrue(
+            transport.Requests.Count(r => string.Equals(r.Url, MirrorUrl, StringComparison.Ordinal)) >= 2,
+            "镜像应当被真正尝试过（探测一次 + 下载一次），否则这个用例什么都没证明");
+
+        // 两次：第一次落在坏源上（摘要不符被丢弃），第二次换到官方源成功。
+        // 这里刻意写死数字——它同时钉住"确实试过坏源"和"确实换源成功了"。
+        Assert.AreEqual(2, report.Items[0].Attempts);
+    }
 }
