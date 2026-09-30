@@ -85,7 +85,11 @@ public sealed class DataLayout
         DataRootPlacement placement = DataRootPlacement.Portable;
         string dataRoot = portableData;
 
-        if (!IsDirectoryWritable(executableDirectory))
+        // 探测的必须是「便携数据根本身能不能建出来」，而不是「exe 目录可不可写」。
+        // 两者不等价：exe 目录可写、但 data 这个名字已被一个文件占住时，
+        // 按 exe 目录判断会选便携模式，随后建目录失败——程序照跑，却一个日志都不写，
+        // 排障时人会发现"哪都没有数据"。
+        if (!CanUsePortableRoot(portableData))
         {
             placement = DataRootPlacement.UserProfile;
             dataRoot = Path.Combine(userProfileDirectory, AppFolderName, "data");
@@ -95,6 +99,27 @@ public sealed class DataLayout
         string gameRoot = Path.Combine(Path.GetDirectoryName(dataRoot) ?? dataRoot, "game");
 
         return new DataLayout(executableDirectory, dataRoot, gameRoot, placement);
+    }
+
+    /// <summary>
+    /// 便携数据根是否真的可用：先把它建出来，再往里写一个探针文件。
+    /// 只判断"父目录可写"是不够的——同名文件占位、权限被改、路径过长都会让它建不出来。
+    /// </summary>
+    private static bool CanUsePortableRoot(string portableData)
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(portableData);
+
+            string probe = Path.Combine(portableData, ".qul-writable-probe");
+            File.WriteAllText(probe, string.Empty);
+            File.Delete(probe);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is NotSupportedException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
