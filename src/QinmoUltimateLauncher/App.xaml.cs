@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using Qul.Domain.Diagnostics;
 using Qul.Infrastructure.Boot;
 using Qul.Infrastructure.Cli;
+using Qul.Presentation;
 using Qul.Infrastructure.Diagnostics;
 
 namespace Qul;
@@ -50,7 +51,11 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        MainWindow window = new MainWindow();
+        ShellWindow window = new ShellWindow
+        {
+            DataContext = new MainViewModel(_boot),
+        };
+
         window.Closed += OnMainWindowClosed;
         window.Show();
     }

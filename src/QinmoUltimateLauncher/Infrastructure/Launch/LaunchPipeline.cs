@@ -113,10 +113,27 @@ public sealed class LaunchPipeline
     private readonly BootContext _boot;
     private readonly SessionLog _log;
 
+    // 探测 Java 要真的把每个 java.exe 跑一遍——19 个运行时就是 19 次进程启动。
+    // 界面每次改选版本都会问一次预检，不缓存的话界面会明显卡顿。
+    private readonly object _javaGate = new object();
+    private readonly Dictionary<int, JavaResolutionOutcome> _javaCache = new Dictionary<int, JavaResolutionOutcome>();
+
     public LaunchPipeline(BootContext boot, SessionLog? log = null)
     {
         _boot = boot ?? throw new ArgumentNullException(nameof(boot));
         _log = log ?? boot.Log;
+    }
+
+    /// <summary>取版本清单（带磁盘缓存）。供界面列出可选版本。</summary>
+    public VersionManifest FetchManifest(IProgress<string>? progress, CancellationToken cancellationToken)
+    {
+        Report(progress, "读取版本清单…");
+
+        MetadataClient metadata = new MetadataClient(new HttpTransport(), _log);
+
+        return metadata.FetchManifest(Path.Combine(
+            _boot.Layout.CacheMetaDirectory,
+            new CachePathConventions().VersionManifestFile()));
     }
 
     /// <summary>
@@ -127,11 +144,7 @@ public sealed class LaunchPipeline
     {
         int requiredMajor = ReadCachedRequiredJava(request.VersionId) ?? 8;
 
-        JavaRuntimeResolver resolver = new JavaRuntimeResolver(
-            new IJavaRuntimeProvider[] { new DetectedJavaRuntimeProvider() });
-
-        JavaResolutionOutcome outcome = resolver.Resolve(
-            new JavaSelectionRequest { RequiredMajorVersion = requiredMajor });
+        JavaResolutionOutcome outcome = ResolveJavaCached(requiredMajor);
 
         bool clientInstalled = File.Exists(AbsoluteCachePath(
             new CachePathConventions().ClientJarFile(request.VersionId)));
@@ -218,11 +231,7 @@ public sealed class LaunchPipeline
         notes.Add("版本要求 Java " + requiredJava + "；库 " + version.Libraries.Count + " 个");
 
         // ---------- Java ----------
-        JavaRuntimeResolver resolver = new JavaRuntimeResolver(
-            new IJavaRuntimeProvider[] { new DetectedJavaRuntimeProvider() });
-
-        JavaResolutionOutcome resolution = resolver.Resolve(
-            new JavaSelectionRequest { RequiredMajorVersion = requiredJava });
+        JavaResolutionOutcome resolution = ResolveJavaCached(requiredJava);
 
         for (int i = 0; i < resolution.Notes.Count; i++)
         {
@@ -403,6 +412,28 @@ public sealed class LaunchPipeline
     }
 
     // ---------- 辅助 ----------
+
+    private JavaResolutionOutcome ResolveJavaCached(int requiredMajor)
+    {
+        lock (_javaGate)
+        {
+            if (_javaCache.TryGetValue(requiredMajor, out JavaResolutionOutcome? cached))
+            {
+                return cached;
+            }
+        }
+
+        JavaResolutionOutcome outcome = new JavaRuntimeResolver(
+            new IJavaRuntimeProvider[] { new DetectedJavaRuntimeProvider() })
+            .Resolve(new JavaSelectionRequest { RequiredMajorVersion = requiredMajor });
+
+        lock (_javaGate)
+        {
+            _javaCache[requiredMajor] = outcome;
+        }
+
+        return outcome;
+    }
 
     private AuthOutcome ResolveIdentity(LaunchPipelineRequest request, CancellationToken cancellationToken)
     {
