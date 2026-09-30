@@ -149,4 +149,81 @@ public sealed class HttpTransportTests
             listener.Stop();
         }
     }
+    [TestMethod]
+    public void Fetch_GivesUpQuicklyWhenCancelledWhileWaitingForTheResponse()
+    {
+        // **这条用例守的是一个实测到的 61 秒取消延迟。**
+        //
+        // 先前只在拿到响应之后（读正文时）才注册取消回调，
+        // 于是卡在 GetResponse() 里的请求取消不掉，只能等满 RequestTimeout：
+        // 实测点取消后界面停在「下载」整整 61 秒（RequestTimeout 是 60 秒），
+        // 而下载其实 3 秒内就停了——管线卡在等工作线程上。
+        //
+        // 这里用一个"接受连接但一个字节都不回"的服务器复现：
+        // 请求会停在 GetResponse() 里，正是取消回调必须覆盖的那一段。
+        TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+
+        Task silence = Task.Run(
+            () =>
+            {
+                try
+                {
+                    using (TcpClient client = listener.AcceptTcpClient())
+                    {
+                        Thread.Sleep(TimeSpan.FromSeconds(60));
+                    }
+                }
+                catch (SocketException)
+                {
+                }
+                catch (ObjectDisposedException)
+                {
+                }
+            });
+
+        try
+        {
+            using (CancellationTokenSource source = new CancellationTokenSource())
+            {
+                HttpTransport transport = new HttpTransport();
+
+                // 请求超时给足 60 秒——这样"提前放弃"只可能来自取消，不可能来自超时。
+                Task<HttpFetchResponse> pending = Task.Run(
+                    () => transport.Fetch(
+                        new HttpFetchRequest
+                        {
+                            Url = "http://127.0.0.1:" + port + "/silent",
+                            Timeout = TimeSpan.FromSeconds(60),
+                        },
+                        source.Token));
+
+                Thread.Sleep(1000);
+                Stopwatch watch = Stopwatch.StartNew();
+                source.Cancel();
+
+                Exception? caught = null;
+                try
+                {
+                    pending.GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    caught = ex;
+                }
+
+                watch.Stop();
+
+                Assert.IsNotNull(caught, "取消之后必须抛出来，而不是等满请求超时");
+                Assert.IsTrue(
+                    watch.Elapsed < TimeSpan.FromSeconds(15),
+                    "取消后应当在数秒内放弃；实际用了 " + watch.Elapsed.TotalSeconds.ToString("0.0") + " 秒");
+            }
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
 }

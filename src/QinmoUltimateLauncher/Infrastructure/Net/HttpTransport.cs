@@ -122,13 +122,29 @@ public sealed class HttpTransport : IHttpTransport
 
         cancellationToken.ThrowIfCancellationRequested();
 
+        // **发请求之前就要挂上取消回调。**
+        //
+        // 先前只在拿到响应之后（IdleTimeoutStream 里）才注册，于是卡在
+        // GetResponse() 里的请求取消不掉，只能等满 RequestTimeout。
+        // 实测：点取消后界面停在「下载」整整 **61 秒**（RequestTimeout 是 60 秒），
+        // 而下载其实在 3 秒内就停了——管线卡在等工作线程这件事上。
+        CancellationTokenRegistration cancellation = cancellationToken.CanBeCanceled
+            ? cancellationToken.Register(AbortRequest, webRequest)
+            : default(CancellationTokenRegistration);
+
         try
         {
             HttpWebResponse response = (HttpWebResponse)webRequest.GetResponse();
+
+            // 响应流的读取由 IdleTimeoutStream 自己挂着取消回调，这里可以放手。
+            cancellation.Dispose();
+
             return BuildResponse(response, request, webRequest, cancellationToken);
         }
         catch (WebException ex)
         {
+            cancellation.Dispose();
+
             HttpWebResponse? errorResponse = ex.Response as HttpWebResponse;
             if (errorResponse != null)
             {
@@ -143,6 +159,22 @@ public sealed class HttpTransport : IHttpTransport
             }
 
             throw Classify(ex);
+        }
+    }
+
+    /// <summary>
+    /// 取消时掐断请求。**必须能在拿到响应之前也生效**——
+    /// 否则取消的实际延迟就等于请求超时（默认 60 秒）。
+    /// </summary>
+    private static void AbortRequest(object? state)
+    {
+        try
+        {
+            ((HttpWebRequest)state!).Abort();
+        }
+        catch (ObjectDisposedException)
+        {
+            // 请求已经被正常释放，说明这次取消来晚了。
         }
     }
 
