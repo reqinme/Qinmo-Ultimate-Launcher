@@ -64,6 +64,24 @@ public partial class App : System.Windows.Application
                 return;
             }
 
+            // **不认识的第一个参数必须报错退出，绝不能静默开界面。**
+            //
+            // 实测踩到过：脚本里把动词写错（`--version-check`），程序把它当成
+            // 界面参数、开出一个窗口并一直挂着——对脚本化使用来说，
+            // **卡死比报错难查得多**（要等到超时才发现，而且看不出原因）。
+            //
+            // 双击启动时没有参数，走不到这里；`--version <id>` 是唯一认识的界面参数。
+            if (!IsGuiOption(e.Args[0]))
+            {
+                Console.Error.WriteLine("未知参数：" + e.Args[0]);
+                Console.Error.WriteLine(
+                    "用法：QinmoUltimateLauncher.exe [plan|install|launch|preflight|update|account] "
+                    + "或 --version <版本号>");
+
+                Shutdown(2);
+                return;
+            }
+
             initialVersion = OptionValue(e.Args, "--version");
         }
 
@@ -91,6 +109,12 @@ public partial class App : System.Windows.Application
         window.Loaded += (_, __) => _boot?.ConfirmUpdateHealthy();
 
         window.Show();
+    }
+
+    /// <summary>界面模式认识的参数。目前只有 <c>--version &lt;id&gt;</c>。</summary>
+    private static bool IsGuiOption(string arg)
+    {
+        return string.Equals(arg, "--version", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsCliVerb(string arg)

@@ -146,7 +146,15 @@ public sealed class BootContext : IDisposable
         string programDirectory = Path.GetDirectoryName(selfPath) ?? layout.ExecutableDirectory;
         string backupPath = updates.ResolveBackupPath(programDirectory, pending.BackupFileName);
 
-        log.Warn("update", "previous update never confirmed health; rolling back to " + pending.TargetVersion, ErrorCode.UpdFailed);
+        // **不要把方向说反。** pending.TargetVersion 是那个**没通过健康确认的新版本**，
+// 而这里要做的是把它换回上一版——先前写成 "rolling back to <新版本>"，
+// 读日志的人会得出完全相反的结论。
+                log.Warn(
+                    "update",
+                    "previous update ("
+                    + pending.TargetVersion
+                    + ") never confirmed health; rolling back to the previous version",
+                    ErrorCode.UpdFailed);
 
         SelfReplaceOutcome outcome = SelfReplacer.Rollback(selfPath, backupPath, selfPath + ".failed");
 
