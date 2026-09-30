@@ -685,4 +685,56 @@ public sealed class DownloadEngineTests
         // 这里刻意写死数字——它同时钉住"确实试过坏源"和"确实换源成功了"。
         Assert.AreEqual(2, report.Items[0].Attempts);
     }
+    [TestMethod]
+    public void EnsureAll_FallsOverToTheOtherSourceWhenOneReportsMissing()
+    {
+        // **一个源的 404 不代表另一个源也没有。**
+        //
+        // 实测踩到过：镜像对一批库返回 404，而官方源上确实有。
+        // 因为 404 被当成终局错误直接跳出重试循环，一次安装里 19 个条目
+        // 连第二个源都没试就失败了（其中包含 lwjgl 这类必需库）。
+        string sandbox = NewSandbox();
+        byte[] body = Bytes(new string('m', 300 * 1024));
+
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(Url, body);   // 只有官方源上有；镜像未注册 → 404
+
+        DownloadEngine engine = new DownloadEngine(transport);
+
+        DownloadItem item = Item(MirrorUrl, body, @"libraries\a\a\1.0\a-1.0.jar");
+        item.FallbackUrls = new[] { Url };
+
+        DownloadOptions options = FastOptions();
+        options.ProbeSourceSpeed = false;
+
+        DownloadReport report = engine.EnsureAll(Plan(item), sandbox, options);
+
+        Assert.IsTrue(report.IsComplete, "第一个源报 404 之后必须去试第二个源");
+        CollectionAssert.AreEqual(body, File.ReadAllBytes(Path.Combine(sandbox, @"libraries\a\a\1.0\a-1.0.jar")));
+    }
+
+    [TestMethod]
+    public void EnsureAll_FailsWithMissingWhenEverySourceReportsMissing()
+    {
+        // 另一个方向也要守住：所有源都没有时，结论应当是"资源不存在"，
+        // 而不是无限重试、也不是报成一个笼统的下载失败。
+        string sandbox = NewSandbox();
+        byte[] body = Bytes(new string('m', 300 * 1024));
+
+        FakeTransport transport = new FakeTransport();
+
+        DownloadEngine engine = new DownloadEngine(transport);
+
+        DownloadItem item = Item(Url, body, @"libraries\a\a\1.0\a-1.0.jar");
+        item.FallbackUrls = new[] { MirrorUrl };
+
+        DownloadOptions options = FastOptions();
+        options.ProbeSourceSpeed = false;
+
+        DownloadReport report = engine.EnsureAll(Plan(item), sandbox, options);
+
+        Assert.IsFalse(report.IsComplete);
+        Assert.AreEqual(ErrorCode.NetResourceMissing, report.Items[0].Error);
+        Assert.AreEqual(2, report.Items[0].Attempts, "两个源各试一次就该收手，不该再多");
+    }
 }

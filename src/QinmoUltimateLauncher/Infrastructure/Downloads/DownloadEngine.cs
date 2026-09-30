@@ -228,7 +228,11 @@ public sealed class DownloadEngine
         long transferred = 0;
         int attempt = 0;
 
-        for (attempt = 1; attempt <= Math.Max(1, options.MaxAttempts); attempt++)
+        // 源的数量决定"至少要试几次"：一个源说没有，不代表另一个源也没有。
+        int sourceCount = 1 + item.FallbackUrls.Count;
+        int maxAttempts = Math.Max(Math.Max(1, options.MaxAttempts), sourceCount);
+
+        for (attempt = 1; attempt <= maxAttempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -251,10 +255,24 @@ public sealed class DownloadEngine
             catch (LauncherException ex)
             {
                 lastError = ex.Code;
+
                 if (!IsRetryable(ex.Code))
                 {
-                    _log.Failure("download", ex.Code, ex, item.RelativePath);
-                    break;
+                    // **一个源的 404 不代表另一个源也没有。**
+                    //
+                    // 实测踩到过：镜像对一批库返回 404，而官方源上确实有；
+                    // 因为 404 被当成终局错误直接 break，一次安装里 19 个条目
+                    // 连第二个源都没试就失败了（其中包含 lwjgl 这类必需库）。
+                    bool anotherSourceMayHaveIt =
+                        ex.Code == ErrorCode.NetResourceMissing && attempt < sourceCount;
+
+                    if (!anotherSourceMayHaveIt)
+                    {
+                        _log.Failure("download", ex.Code, ex, item.RelativePath);
+                        break;
+                    }
+
+                    _log.Warn("download", "this source reports missing; trying another", ex.Code, item.RelativePath);
                 }
             }
             catch (WebException ex)
@@ -281,7 +299,7 @@ public sealed class DownloadEngine
                 break;
             }
 
-            if (attempt < options.MaxAttempts)
+            if (attempt < maxAttempts)
             {
                 Backoff(attempt, options.BaseRetryDelay, cancellationToken);
             }
@@ -293,7 +311,7 @@ public sealed class DownloadEngine
             item,
             DownloadItemState.Failed,
             lastError ?? ErrorCode.DlFailed,
-            Math.Min(attempt, Math.Max(1, options.MaxAttempts)),
+            Math.Min(attempt, maxAttempts),
             transferred);
     }
 
