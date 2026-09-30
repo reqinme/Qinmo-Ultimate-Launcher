@@ -176,21 +176,8 @@ public sealed class MainViewModel : ObservableObject
         }
 
         // 启动期的告知——**在构造函数里就填好**，界面一出来就能看到。
-        List<string> notices = new List<string>();
-
-        if (boot.DataRootWarning.HasValue)
-        {
-            notices.Add(
-                ErrorCodes.Id(boot.DataRootWarning.Value) + " "
-                + ErrorCodes.Hint(boot.DataRootWarning.Value));
-        }
-
-        if (!string.IsNullOrEmpty(boot.UpdateNotice))
-        {
-            notices.Add(boot.UpdateNotice!);
-        }
-
-        _startupNotice = string.Join(Environment.NewLine, notices);
+        // 拼装与命令行共用 StartupNotices，避免"命令行说回退了、界面没说"。
+        _startupNotice = StartupNotices.Build(boot.DataRootWarning, boot.UpdateNotice);
 
         DismissStartupNoticeCommand = new RelayCommand(DismissStartupNotice);
         RefreshCommand = new RelayCommand(() => _ = RefreshAsync(), () => !IsBusy);

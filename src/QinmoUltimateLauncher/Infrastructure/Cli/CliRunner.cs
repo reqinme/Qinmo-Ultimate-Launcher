@@ -37,6 +37,16 @@ public static partial class CliRunner
             throw new ArgumentNullException(nameof(boot));
         }
 
+        // **启动提示必须先说。**
+        // 数据根建不出来时日志本身也写不出来，命令行用户同样是"完全不知情"。
+        // 走 stderr 而不是 stdout：脚本解析 stdout 时不会被这句话干扰。
+        string startupNotice = StartupNotices.Build(boot.DataRootWarning, boot.UpdateNotice);
+
+        if (startupNotice.Length > 0)
+        {
+            Console.Error.WriteLine(startupNotice);
+        }
+
         if (args == null || args.Count == 0)
         {
             return Usage(boot);

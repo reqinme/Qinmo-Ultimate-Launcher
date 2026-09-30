@@ -183,4 +183,33 @@ public sealed class DiagnosticsTests
             try { Directory.Delete(root, recursive: true); } catch (IOException) { }
         }
     }
+    [TestMethod]
+    public void StartupNotices_SaysNothingWhenThereIsNothingToSay()
+    {
+        Assert.AreEqual(string.Empty, StartupNotices.Build(null, null));
+        Assert.AreEqual(string.Empty, StartupNotices.Build(null, "   "));
+    }
+
+    [TestMethod]
+    public void StartupNotices_MentionsTheDataRootFailureWithItsCodeAndHint()
+    {
+        // **这条守的是 F9。**
+        // 数据根建不出来时，日志本身也写不出来——如果界面与命令行都不说，
+        // 用户就完全不知道数据去了哪里。所以这里必须带**错误码 + 人话提示**。
+        string text = StartupNotices.Build(ErrorCode.IoDataRootNotWritable, null);
+
+        StringAssert.Contains(text, ErrorCodes.Id(ErrorCode.IoDataRootNotWritable));
+        StringAssert.Contains(text, ErrorCodes.Hint(ErrorCode.IoDataRootNotWritable));
+        StringAssert.Contains(text, "数据可能无法保存");
+    }
+
+    [TestMethod]
+    public void StartupNotices_ReportsBothWhenBothHappened()
+    {
+        // 两件事同时发生时要**都说**，不能只留最后一条。
+        string text = StartupNotices.Build(ErrorCode.IoDataRootNotWritable, "上次更新已自动回退。");
+
+        StringAssert.Contains(text, "QUL-");
+        StringAssert.Contains(text, "上次更新已自动回退。");
+    }
 }
