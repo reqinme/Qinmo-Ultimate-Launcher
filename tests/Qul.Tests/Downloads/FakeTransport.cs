@@ -81,7 +81,10 @@ internal sealed class FakeTransport : IHttpTransport
             };
         }
 
-        if (from > body.Length)
+        // **等于也算**：区间起点恰好落在文件末尾时，真实服务器回 416
+        // （"你要的那一段不存在"），而不是回 200。假传输要照实模拟，
+        // 否则"本地已有完整文件"这条路径在测试里根本走不到。
+        if (from >= body.Length)
         {
             return new HttpFetchResponse { Status = HttpFetchStatus.RangeNotSatisfiable, StatusCode = 416, Content = Stream.Null };
         }

@@ -959,4 +959,49 @@ public sealed class DownloadEngineTests
         Assert.AreEqual(ErrorCode.IoPathEscapesRoot, report.Items[0].Error);
         Assert.IsFalse(File.Exists(absolute), "绝对路径同样绝不能被写入");
     }
+    [TestMethod]
+    public void EnsureAll_DoesNotRedownloadWhenPublishKeepsFailing()
+    {
+        // **这条用例守的是"白耗流量且永远完不成"。**
+        //
+        // 场景很现实：目标文件被游戏或杀软占用，于是"下载成功、校验通过、发布失败"。
+        // 先前发布失败被当成传输故障继续重试，而下一轮看到 .part 已是全量长度，
+        // 就发 Range: bytes=<size>- → 服务端 416 → **删掉残留** → 全量重下。
+        // 41 MB 的客户端 jar 每轮重来一遍，只要占用还在就永远失败。
+        //
+        // 正确行为：那些字节是对的，不该重下；应当重试**发布**。
+        string sandbox = NewSandbox();
+        byte[] body = Bytes("publish-blocked-payload");
+        string destination = Path.Combine(sandbox, @"libraries\a\a\1.0\a-1.0.jar");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(destination));
+
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(Url, body);
+
+        DownloadEngine engine = new DownloadEngine(transport);
+
+        DownloadItem item = Item(Url, body, @"libraries\a\a\1.0\a-1.0.jar");
+
+        DownloadOptions options = FastOptions();
+        options.ProbeSourceSpeed = false;
+
+        int bodiesServed;
+
+        // 把目标文件占住，让 Publish 必然失败
+        using (FileStream hold = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            hold.WriteByte(0);
+            hold.Flush();
+
+            DownloadReport report = engine.EnsureAll(Plan(item), sandbox, options);
+
+            Assert.IsFalse(report.IsComplete, "目标被占住时本来就该失败");
+            bodiesServed = transport.Requests.Count(
+                r => string.Equals(r.Url, Url, StringComparison.Ordinal) && !(r.RangeFrom > 0));
+        }
+
+        // **正文只应被完整取一次。** 后续重试要落到"校验已有残留"上，而不是重新下载。
+        Assert.AreEqual(1, bodiesServed, "发布失败之后不该重新下载正文；应当重试发布");
+    }
 }

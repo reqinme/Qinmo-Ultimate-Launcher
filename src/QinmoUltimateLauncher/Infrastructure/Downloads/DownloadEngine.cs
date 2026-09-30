@@ -509,9 +509,15 @@ public sealed class DownloadEngine
             switch (response.Status)
             {
                 case HttpFetchStatus.RangeNotSatisfiable:
-                    // 本地残留比远端还长：丢弃残留，让下一轮从头取。
-                    SafeDelete(partial);
-                    throw new LauncherException(ErrorCode.DlFailed, "range not satisfiable; partial discarded");
+                    // **不删残留，正常返回 0 字节，交给调用方去校验它。**
+                    //
+                    // 先前这里直接删掉残留再抛错，于是每次重试都全量重下。
+                    // 而它最常出现的场景恰恰是"下载成功、校验通过、**发布失败**"
+                    // （目标文件被游戏或杀软占用）——此时那些字节**是对的**，
+                    // 41 MB 的客户端 jar 却每轮都要重下一遍，而且只要占用还在就永远完不成。
+                    //
+                    // 现在返回 0：调用方会照常校验残留，通过就直接发布，不通过才删掉重来。
+                    return 0;
 
                 case HttpFetchStatus.NotFound:
                     throw new LauncherException(ErrorCode.NetResourceMissing, "resource not found");
@@ -601,19 +607,29 @@ public sealed class DownloadEngine
         {
             int index = i;
 
+            long start = index * per;
+            long end = Math.Min(total - 1, start + per - 1);
+
+            if (start > end)
+            {
+                workers[index] = Task.CompletedTask;
+                continue;
+            }
+
+            // **先取许可，再起任务。**
+            //
+            // 先前是"起了任务、再在任务里阻塞等许可"——于是 64 个 worker × 每个最多 8 段
+            // 会造出几百个**阻塞在闸门上**的线程池线程，而线程池补线程约每秒一两个。
+            // 这正是我先前在编排层修过的那个病（线程数一路涨向上千、有效并发慢慢爬），
+            // 结果在分段路径上又犯了一次。
+            //
+            // 先取许可就把活着的任务数摁在闸门大小以内：
+            // 总线程数 ≈ worker 数 + 闸门大小。
+            gate.Wait(cancellationToken);
+
             workers[index] = Task.Run(
                 () =>
                 {
-                    long start = index * per;
-                    long end = Math.Min(total - 1, start + per - 1);
-
-                    if (start > end)
-                    {
-                        return;
-                    }
-
-                    gate.Wait(cancellationToken);
-
                     try
                     {
                         written[index] = FetchRange(url, partial, start, end, options, cancellationToken);
@@ -643,8 +659,20 @@ public sealed class DownloadEngine
         {
             Task.WaitAll(workers);
         }
-        catch (AggregateException)
+        catch (AggregateException ex)
         {
+            // **取消要原样抛出去，不能吞掉。**
+            //
+            // 先前这里一律吞掉，于是取消会以"分段总长对不上"的形式浮出来：
+            // 残留被删、条目被记成下载失败——而**取消不是失败**，
+            // 而且那份残留本来是可以续传的。
+            foreach (Exception inner in ex.Flatten().InnerExceptions)
+            {
+                if (inner is OperationCanceledException)
+                {
+                    throw new OperationCanceledException(cancellationToken);
+                }
+            }
         }
 
         if (failure != null)
