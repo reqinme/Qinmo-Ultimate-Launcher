@@ -8,7 +8,9 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
 using Qul.Application.Diagnostics;
+using Qul.Application.Launch;
 using Qul.Domain.Configuration;
 using Qul.Domain.Diagnostics;
 using Qul.Domain.Identity;
@@ -38,25 +40,82 @@ public sealed class IdentityOption
     public bool Enabled { get; }
 }
 
+public enum StageState
+{
+    Pending = 0,
+    Active = 1,
+    Done = 2,
+    Failed = 3,
+}
+
+/// <summary>阶段条上的一格。</summary>
+public sealed class StageVm : ObservableObject
+{
+    private StageState _state;
+
+    public StageVm(LaunchStage stage)
+    {
+        Stage = stage;
+    }
+
+    public LaunchStage Stage { get; }
+
+    public string Title => LaunchStages.Label(Stage);
+
+    public StageState State
+    {
+        get => _state;
+        set
+        {
+            if (Set(ref _state, value))
+            {
+                Raise(nameof(IsActive));
+                Raise(nameof(IsDone));
+            }
+        }
+    }
+
+    public bool IsActive => _state == StageState.Active;
+
+    public bool IsDone => _state == StageState.Done;
+}
+
+public sealed class LogLine
+{
+    public LogLine(string time, string text, LaunchStage stage)
+    {
+        Time = time;
+        Text = text;
+        Stage = stage;
+    }
+
+    public string Time { get; }
+
+    public string Text { get; }
+
+    public LaunchStage Stage { get; }
+
+    public string Display => Time + "  " + Text;
+}
+
 /// <summary>
-/// 主界面的状态机。
-///
-/// 它不自己实现启动链路，而是驱动 <see cref="LaunchPipeline"/>——
+/// 主界面的状态机。它不自己实现启动链路，而是驱动 <see cref="LaunchPipeline"/>——
 /// 与命令行走同一条路。
 /// </summary>
 public sealed class MainViewModel : ObservableObject
 {
-    private const int MaxLogLines = 1000;
+    /// <summary>日志上限。虚拟化列表撑得住更多，但没必要留无限历史。</summary>
+    private const int MaxLogLines = 5000;
 
     private readonly BootContext _boot;
     private readonly LaunchPipeline _pipeline;
-    private readonly List<string> _logLines = new List<string>(MaxLogLines + 1);
+    private readonly ObservableCollection<LogLine> _log = new ObservableCollection<LogLine>();
 
     private CancellationTokenSource? _cancellation;
+    private string _lastLoggedMessage = string.Empty;
 
     private bool _isBusy;
     private string _statusText = "先选择版本与身份来源。";
-    private string _logText = string.Empty;
     private string _offlineName = "Player";
     private string _serverTarget = string.Empty;
     private VersionSummary? _selectedVersion;
@@ -68,6 +127,9 @@ public sealed class MainViewModel : ObservableObject
     private string _resultSummary = string.Empty;
     private bool _diagnosticsReady;
     private string _diagnosticReport = string.Empty;
+    private double _progressValue;
+    private bool _isProgressIndeterminate;
+    private string _currentStageText = "待命";
 
     private LaunchPipelineRequest? _lastRequest;
     private LaunchPipelineResult? _lastResult;
@@ -79,6 +141,13 @@ public sealed class MainViewModel : ObservableObject
 
         Versions = new ObservableCollection<VersionSummary>();
         Preflight = new ObservableCollection<PreflightItem>();
+        LogLines = new ReadOnlyObservableCollection<LogLine>(_log);
+
+        Stages = new ObservableCollection<StageVm>();
+        for (int i = 0; i < LaunchStages.Visible.Count; i++)
+        {
+            Stages.Add(new StageVm(LaunchStages.Visible[i]));
+        }
 
         RefreshCommand = new RelayCommand(() => _ = RefreshAsync(), () => !IsBusy);
         LaunchCommand = new RelayCommand(() => _ = LaunchAsync(), () => CanLaunch);
@@ -86,6 +155,7 @@ public sealed class MainViewModel : ObservableObject
         CopyDiagnosticsCommand = new RelayCommand(CopyDiagnostics, () => DiagnosticsReady);
         OpenDataFolderCommand = new RelayCommand(OpenDataFolder);
         RecheckCommand = new RelayCommand(() => _ = RebuildPreflightAsync(), () => !IsBusy);
+        ThemeCommand = new RelayCommand(CycleTheme);
 
         IdentityOptions = BuildIdentityOptions();
         SelectedIdentity = IdentityOptions[0];
@@ -96,6 +166,11 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<VersionSummary> Versions { get; }
 
     public ObservableCollection<PreflightItem> Preflight { get; }
+
+    public ObservableCollection<StageVm> Stages { get; }
+
+    /// <summary>虚拟化日志数据源。用集合而不是一个大字符串——大字符串没法虚拟化。</summary>
+    public ReadOnlyObservableCollection<LogLine> LogLines { get; }
 
     public IReadOnlyList<IdentityOption> IdentityOptions { get; }
 
@@ -112,6 +187,8 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand OpenDataFolderCommand { get; }
 
     public RelayCommand RecheckCommand { get; }
+
+    public RelayCommand ThemeCommand { get; }
 
     // ---------- 绑定属性 ----------
 
@@ -131,12 +208,6 @@ public sealed class MainViewModel : ObservableObject
     {
         get => _statusText;
         private set => Set(ref _statusText, value);
-    }
-
-    public string LogText
-    {
-        get => _logText;
-        private set => Set(ref _logText, value);
     }
 
     public string OfflineName
@@ -243,9 +314,32 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    public double ProgressValue
+    {
+        get => _progressValue;
+        private set => Set(ref _progressValue, value);
+    }
+
+    public bool IsProgressIndeterminate
+    {
+        get => _isProgressIndeterminate;
+        private set => Set(ref _isProgressIndeterminate, value);
+    }
+
+    public string CurrentStageText
+    {
+        get => _currentStageText;
+        private set => Set(ref _currentStageText, value);
+    }
+
+    public string ThemeLabel => ThemeManager.Describe(ThemeManager.Mode);
+
+    /// <summary>主题按钮的图标。直接从资源取几何，避免把资源键绑进 XAML。</summary>
+    public Geometry? ThemeIcon =>
+        System.Windows.Application.Current?.TryFindResource(ThemeManager.IconKey(ThemeManager.Mode)) as Geometry;
+
     /// <summary>
-    /// 能否启动：不忙、预检无阻断项、且该确认的已确认。
-    /// **三者缺一不可**，尤其是最后一条。
+    /// 能否启动：不忙、预检无阻断项、且该确认的已确认。**三者缺一不可**。
     /// </summary>
     public bool CanLaunch =>
         !IsBusy && !HasBlocking && (!NeedsAcknowledgement || AcknowledgementGiven);
@@ -260,10 +354,10 @@ public sealed class MainViewModel : ObservableObject
 
         try
         {
-            Progress<string> progress = new Progress<string>(AppendLog);
+            LaunchProgressReporter reporter = new LaunchProgressReporter(OnProgress);
 
             VersionManifest manifest = await Task.Run(
-                () => _pipeline.FetchManifest(progress, CancellationToken.None));
+                () => _pipeline.FetchManifest(reporter, CancellationToken.None));
 
             Versions.Clear();
             for (int i = 0; i < manifest.Versions.Count; i++)
@@ -282,7 +376,7 @@ public sealed class MainViewModel : ObservableObject
         {
             ErrorBanner = ErrorCodes.Id(ex.Code) + " " + ErrorCodes.Hint(ex.Code);
             StatusText = "版本清单读取失败。";
-            AppendLog("版本清单读取失败：" + ex.Code);
+            AppendLog(LaunchStage.Failed, "版本清单读取失败：" + ex.Code);
         }
         finally
         {
@@ -326,11 +420,7 @@ public sealed class MainViewModel : ObservableObject
         HasBlocking = PreflightCheck.HasBlocking(items);
 
         _lastRequest = request;
-        _lastResult = new LaunchPipelineResult
-        {
-            Preflight = items,
-            Version = null,
-        };
+        _lastResult = new LaunchPipelineResult { Preflight = items };
 
         UpdateDiagnostics();
         UpdateCommands();
@@ -346,35 +436,33 @@ public sealed class MainViewModel : ObservableObject
         LaunchPipelineRequest request = BuildRequest(LaunchPipelineMode.Launch);
 
         _cancellation = new CancellationTokenSource();
+        _lastLoggedMessage = string.Empty;
         IsBusy = true;
         ErrorBanner = string.Empty;
         ResultSummary = string.Empty;
         DiagnosticsReady = false;
         StatusText = "正在准备启动…";
+        ProgressValue = 0;
+        IsProgressIndeterminate = true;
         UpdateCommands();
 
         LaunchPipelineResult result;
 
         try
         {
-            // Progress<T> 会捕获当前的同步上下文，所以这里从后台线程发出的进度
-            // 会自动回到界面线程——顺序也保持不变。
-            Progress<string> progress = new Progress<string>(AppendLog);
+            // 进度回调在后台线程上同步触发；转发器负责切回界面线程并保持顺序。
+            LaunchProgressReporter reporter = new LaunchProgressReporter(OnProgress);
 
-            result = await Task.Run(
-                () => _pipeline.Run(request, progress, _cancellation!.Token));
+            result = await Task.Run(() => _pipeline.Run(request, reporter, _cancellation!.Token));
         }
         catch (Exception ex)
         {
-            result = new LaunchPipelineResult
-            {
-                Error = ErrorCode.DlFailed,
-                ErrorDetail = ex.Message,
-            };
+            result = new LaunchPipelineResult { Error = ErrorCode.DlFailed, ErrorDetail = ex.Message };
         }
         finally
         {
             IsBusy = false;
+            IsProgressIndeterminate = false;
             _cancellation?.Dispose();
             _cancellation = null;
         }
@@ -389,12 +477,16 @@ public sealed class MainViewModel : ObservableObject
 
         if (result.Cancelled)
         {
+            OnProgress(new LaunchProgress(LaunchStage.Cancelled, "已取消。"));
+            CurrentStageText = LaunchStages.Label(LaunchStage.Cancelled);
             StatusText = "已取消。";
             ResultSummary = "已取消，没有产生任何改动。";
         }
         else if (!result.Succeeded)
         {
             ErrorCode code = result.Error ?? ErrorCode.DlFailed;
+            MarkStagesFailed();
+            CurrentStageText = LaunchStages.Label(LaunchStage.Failed);
             ErrorBanner = ErrorCodes.Id(code) + " " + ErrorCodes.Hint(code);
             StatusText = "启动失败。";
 
@@ -404,6 +496,9 @@ public sealed class MainViewModel : ObservableObject
         }
         else
         {
+            MarkStagesDone();
+            CurrentStageText = LaunchStages.Label(LaunchStage.Completed);
+            ProgressValue = 100;
             StatusText = "已拉起游戏进程。";
             ResultSummary = "游戏窗口出现前请稍候；若长时间无窗口，请点「复制诊断信息」。";
         }
@@ -422,6 +517,96 @@ public sealed class MainViewModel : ObservableObject
         catch (ObjectDisposedException)
         {
         }
+    }
+
+    // ---------- 进度与阶段 ----------
+
+    private void OnProgress(LaunchProgress progress)
+    {
+        UpdateStages(progress.Stage);
+        CurrentStageText = LaunchStages.Label(progress.Stage);
+
+        if (progress.IsDeterminate)
+        {
+            // 带总量的进度只喂进度条，不进日志——否则日志会被几百行"进度 x/y"淹掉。
+            ProgressValue = progress.Fraction * 100.0;
+            IsProgressIndeterminate = false;
+            return;
+        }
+
+        IsProgressIndeterminate = true;
+
+        if (progress.Message.Length > 0 && progress.Message != _lastLoggedMessage)
+        {
+            _lastLoggedMessage = progress.Message;
+            AppendLog(progress.Stage, progress.Message);
+        }
+    }
+
+    private void UpdateStages(LaunchStage current)
+    {
+        int order = LaunchStages.OrderOf(current);
+
+        for (int i = 0; i < Stages.Count; i++)
+        {
+            StageVm chip = Stages[i];
+            int chipOrder = LaunchStages.OrderOf(chip.Stage);
+
+            if (current == LaunchStage.Failed || current == LaunchStage.Cancelled)
+            {
+                if (chip.State == StageState.Active)
+                {
+                    chip.State = StageState.Failed;
+                }
+
+                continue;
+            }
+
+            if (order == 0)
+            {
+                chip.State = StageState.Pending;
+            }
+            else if (chipOrder < order)
+            {
+                chip.State = StageState.Done;
+            }
+            else if (chipOrder == order)
+            {
+                chip.State = StageState.Active;
+            }
+            else
+            {
+                chip.State = StageState.Pending;
+            }
+        }
+    }
+
+    private void MarkStagesDone()
+    {
+        for (int i = 0; i < Stages.Count; i++)
+        {
+            Stages[i].State = StageState.Done;
+        }
+    }
+
+    private void MarkStagesFailed()
+    {
+        for (int i = 0; i < Stages.Count; i++)
+        {
+            if (Stages[i].State == StageState.Active)
+            {
+                Stages[i].State = StageState.Failed;
+            }
+        }
+    }
+
+    // ---------- 主题 ----------
+
+    private void CycleTheme()
+    {
+        ThemeManager.Cycle();
+        Raise(nameof(ThemeLabel));
+        Raise(nameof(ThemeIcon));
     }
 
     // ---------- 诊断 ----------
@@ -444,7 +629,7 @@ public sealed class MainViewModel : ObservableObject
             Error = result?.Error,
             ErrorDetail = result?.ErrorDetail,
             Notes = result?.Notes ?? Array.Empty<string>(),
-            LogTail = _logLines.ToArray(),
+            LogTail = SnapshotLog(),
         };
 
         try
@@ -457,6 +642,17 @@ public sealed class MainViewModel : ObservableObject
             _diagnosticReport = "诊断报告生成失败：" + ex.Message;
             DiagnosticsReady = true;
         }
+    }
+
+    private string[] SnapshotLog()
+    {
+        string[] lines = new string[_log.Count];
+        for (int i = 0; i < _log.Count; i++)
+        {
+            lines[i] = _log[i].Display;
+        }
+
+        return lines;
     }
 
     private void CopyDiagnostics()
@@ -481,8 +677,7 @@ public sealed class MainViewModel : ObservableObject
                 return true;
             }
             catch (Exception ex) when (
-                ex is System.Runtime.InteropServices.COMException
-                || ex is ThreadStateException)
+                ex is System.Runtime.InteropServices.COMException || ex is ThreadStateException)
             {
                 Thread.Sleep(60);
             }
@@ -520,7 +715,7 @@ public sealed class MainViewModel : ObservableObject
 
     private IReadOnlyList<IdentityOption> BuildIdentityOptions()
     {
-        // C1–C4 未满足时，微软登录必须显示为"可见但不可用"，并说明缺什么——
+        // C1–C4 未满足时，微软登录必须显示为"可见但不可用"并说明缺什么，
         // 而不是让用户点进去撞一个笼统的失败。
         MicrosoftAuthPrerequisites prerequisites = new MicrosoftAuthPrerequisites();
 
@@ -531,19 +726,17 @@ public sealed class MainViewModel : ObservableObject
                 "离线账户",
                 "仅在本机有效，无法进入正版验证（online-mode）服务器。",
                 true),
+            new IdentityOption(
+                IdentitySource.Microsoft,
+                "微软正版账户",
+                prerequisites.IsSatisfied ? "使用你的微软账户登录。" : prerequisites.Describe(),
+                prerequisites.IsSatisfied),
+            new IdentityOption(
+                IdentitySource.ThirdParty,
+                "第三方验证（未启用）",
+                "该来源默认关闭，当前版本不提供。",
+                false),
         };
-
-        options.Add(new IdentityOption(
-            IdentitySource.Microsoft,
-            "微软正版账户",
-            prerequisites.IsSatisfied ? "使用你的微软账户登录。" : prerequisites.Describe(),
-            prerequisites.IsSatisfied));
-
-        options.Add(new IdentityOption(
-            IdentitySource.ThirdParty,
-            "第三方验证（未启用）",
-            "该来源默认关闭，当前版本不提供。",
-            false));
 
         return options;
     }
@@ -572,15 +765,43 @@ public sealed class MainViewModel : ObservableObject
         Raise(nameof(CanLaunch));
     }
 
-    private void AppendLog(string line)
+    private void AppendLog(LaunchStage stage, string line)
     {
-        _logLines.Add(DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture) + "  " + line);
+        _log.Add(new LogLine(DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture), line, stage));
 
-        if (_logLines.Count > MaxLogLines)
+        while (_log.Count > MaxLogLines)
         {
-            _logLines.RemoveRange(0, _logLines.Count - MaxLogLines);
+            _log.RemoveAt(0);
+        }
+    }
+
+    /// <summary>
+    /// 把管线在后台线程上同步发出的进度转回界面线程。
+    ///
+    /// 不用 <see cref="Progress{T}"/>：它内部是异步投递的，
+    /// 下载进度会在流程结束之后才到达（界面上表现为进度条不动然后突然跳完）。
+    /// 这里用 BeginInvoke 保住顺序，且不阻塞下载线程。
+    /// </summary>
+    private sealed class LaunchProgressReporter : IProgress<LaunchProgress>
+    {
+        private readonly Action<LaunchProgress> _handler;
+        private readonly System.Windows.Threading.Dispatcher? _dispatcher;
+
+        public LaunchProgressReporter(Action<LaunchProgress> handler)
+        {
+            _handler = handler;
+            _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
         }
 
-        LogText = string.Join(Environment.NewLine, _logLines);
+        public void Report(LaunchProgress value)
+        {
+            if (_dispatcher == null || _dispatcher.CheckAccess())
+            {
+                _handler(value);
+                return;
+            }
+
+            _dispatcher.BeginInvoke(new Action(() => _handler(value)));
+        }
     }
 }

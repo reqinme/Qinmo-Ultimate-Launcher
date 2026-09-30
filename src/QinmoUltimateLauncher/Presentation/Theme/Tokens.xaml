@@ -54,7 +54,8 @@
 
     <!-- ===== 结构尺寸 ===== -->
     <sys:Double x:Key="Qul.Size.SidebarWidth">340</sys:Double>
-    <sys:Double x:Key="Qul.Size.Gutter">12</sys:Double>
+    <!-- 列宽要的是 GridLength，不是 Double —— 用 Double 会在解析时抛"12 不是 Width 的有效值" -->
+    <GridLength x:Key="Qul.Size.Gutter">12</GridLength>
     <sys:Double x:Key="Qul.Size.LogDrawerHeight">200</sys:Double>
     <sys:Double x:Key="Qul.Size.ProgressBarHeight">6</sys:Double>
     <sys:Double x:Key="Qul.Size.IconSmall">14</sys:Double>

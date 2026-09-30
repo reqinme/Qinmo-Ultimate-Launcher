@@ -125,9 +125,9 @@ public sealed class LaunchPipeline
     }
 
     /// <summary>取版本清单（带磁盘缓存）。供界面列出可选版本。</summary>
-    public VersionManifest FetchManifest(IProgress<string>? progress, CancellationToken cancellationToken)
+    public VersionManifest FetchManifest(IProgress<LaunchProgress>? progress, CancellationToken cancellationToken)
     {
-        Report(progress, "读取版本清单…");
+        Report(progress, LaunchStage.Resolving, "读取版本清单…");
 
         MetadataClient metadata = new MetadataClient(new HttpTransport(), _log);
 
@@ -164,7 +164,7 @@ public sealed class LaunchPipeline
 
     public LaunchPipelineResult Run(
         LaunchPipelineRequest request,
-        IProgress<string>? progress,
+        IProgress<LaunchProgress>? progress,
         CancellationToken cancellationToken)
     {
         if (request == null)
@@ -184,7 +184,7 @@ public sealed class LaunchPipeline
         {
             result.Succeeded = false;
             result.Cancelled = true;
-            Report(progress, "已取消。");
+            Report(progress, LaunchStage.Cancelled, "已取消。");
             return result;
         }
         catch (LauncherException ex)
@@ -200,7 +200,7 @@ public sealed class LaunchPipeline
         LaunchPipelineRequest request,
         LaunchPipelineResult result,
         List<string> notes,
-        IProgress<string>? progress,
+        IProgress<LaunchProgress>? progress,
         CancellationToken cancellationToken)
     {
         DataLayout layout = _boot.Layout;
@@ -208,11 +208,11 @@ public sealed class LaunchPipeline
         MetadataClient metadata = new MetadataClient(new HttpTransport(), _log);
 
         // ---------- 元数据 ----------
-        Report(progress, "读取版本清单…");
+        Report(progress, LaunchStage.Resolving, "读取版本清单…");
         VersionManifest manifest = metadata.FetchManifest(
             Path.Combine(layout.CacheMetaDirectory, conventions.VersionManifestFile()));
 
-        Report(progress, "清单共 " + manifest.Versions.Count + " 个版本；最新正式版 " + manifest.LatestRelease);
+        Report(progress, LaunchStage.Resolving, "清单共 " + manifest.Versions.Count + " 个版本；最新正式版 " + manifest.LatestRelease);
 
         VersionSummary? summary = manifest.Find(request.VersionId);
         if (summary == null)
@@ -220,7 +220,7 @@ public sealed class LaunchPipeline
             return Fail(result, ErrorCode.MetaIndexFailed, "版本清单里没有「" + request.VersionId + "」。");
         }
 
-        Report(progress, "读取 " + request.VersionId + " 的元数据…");
+        Report(progress, LaunchStage.Resolving, "读取 " + request.VersionId + " 的元数据…");
         result.Version = metadata.FetchVersion(
             summary.Url,
             request.VersionId,
@@ -247,13 +247,13 @@ public sealed class LaunchPipeline
         }
 
         result.SelectedJava = resolution.Selection.Selected;
-        Report(progress, "选定 " + result.SelectedJava!.Describe());
+        Report(progress, LaunchStage.Resolving, "选定 " + result.SelectedJava!.Describe());
         notes.Add("选定 Java：" + result.SelectedJava.Describe());
 
         // ---------- 资源索引 ----------
         if (version.AssetIndex?.Url != null)
         {
-            Report(progress, "读取资源索引 " + version.AssetIndex.Id + "…");
+            Report(progress, LaunchStage.Resolving, "读取资源索引 " + version.AssetIndex.Id + "…");
             result.AssetIndex = metadata.FetchAssetIndex(
                 version.AssetIndex.Url!,
                 version.AssetIndex.Id,
@@ -303,12 +303,13 @@ public sealed class LaunchPipeline
         if (request.Mode == LaunchPipelineMode.PlanOnly)
         {
             result.Succeeded = true;
-            Report(progress, "计划已生成（未下载）。");
+            Report(progress, LaunchStage.Resolving, "计划已生成（未下载）。");
             return result;
         }
 
         // ---------- 下载 ----------
-        Report(progress, "开始下载（并发 8）…");
+        Report(progress, LaunchStage.Verifying, "正在校验本地文件…");
+        Report(progress, LaunchStage.Downloading, "开始下载（并发 8）…");
 
         DownloadEngine engine = new DownloadEngine(new HttpTransport(), _log);
         result.Download = engine.EnsureAll(
@@ -326,7 +327,7 @@ public sealed class LaunchPipeline
 
         Report(
             progress,
-            "下载完成：新下 " + result.Download.DownloadedCount
+            LaunchStage.Downloading, "下载完成：新下 " + result.Download.DownloadedCount
             + "，命中缓存 " + result.Download.PresentCount
             + "，失败 " + result.Download.Failures.Count);
 
@@ -368,6 +369,13 @@ public sealed class LaunchPipeline
             },
         };
 
+        Report(progress, LaunchStage.Extracting, "正在校验客户端并解压 natives…");
+
+        if (request.Mode != LaunchPipelineMode.Prepare)
+        {
+            Report(progress, LaunchStage.Starting, "正在拉起游戏进程…");
+        }
+
         GameLauncher launcher = new GameLauncher(_log);
 
         result.Launch = request.Mode == LaunchPipelineMode.Prepare
@@ -383,7 +391,7 @@ public sealed class LaunchPipeline
 
         if (result.SkeletonHash != null)
         {
-            Report(progress, "骨架指纹 " + result.SkeletonHash);
+            Report(progress, LaunchStage.Extracting, "骨架指纹 " + result.SkeletonHash);
         }
 
         if (!result.Launch.Prepared)
@@ -397,7 +405,7 @@ public sealed class LaunchPipeline
         if (request.Mode == LaunchPipelineMode.Prepare)
         {
             result.Succeeded = true;
-            Report(progress, "预演完成（未启动进程）。");
+            Report(progress, LaunchStage.Extracting, "预演完成（未启动进程）。");
             return result;
         }
 
@@ -407,7 +415,7 @@ public sealed class LaunchPipeline
         }
 
         result.Succeeded = true;
-        Report(progress, "已拉起进程 pid=" + result.Launch.Process.ProcessId);
+        Report(progress, LaunchStage.Running, "已拉起进程 pid=" + result.Launch.Process.ProcessId);
         return result;
     }
 
@@ -461,7 +469,7 @@ public sealed class LaunchPipeline
             : Array.Empty<string>();
     }
 
-    private static IProgress<DownloadProgress>? WrapDownloadProgress(IProgress<string>? progress)
+    private static IProgress<DownloadProgress>? WrapDownloadProgress(IProgress<LaunchProgress>? progress)
     {
         if (progress == null)
         {
@@ -470,10 +478,16 @@ public sealed class LaunchPipeline
 
         return new SynchronousProgress<DownloadProgress>(p =>
         {
-            if (p.FilesTotal > 0 && (p.FilesCompleted % 250 == 0 || p.FilesCompleted == p.FilesTotal))
+            if (p.FilesTotal > 0 && (p.FilesCompleted % 25 == 0 || p.FilesCompleted == p.FilesTotal))
             {
-                progress.Report("  进度 " + p.FilesCompleted + "/" + p.FilesTotal
-                                + "，已传 " + Megabytes(p.BytesTransferred));
+                // 有实际传输才叫"下载"；一个字节都没传，那一段就是在校验本地已有文件。
+                LaunchStage stage = p.BytesTransferred > 0 ? LaunchStage.Downloading : LaunchStage.Verifying;
+
+                progress.Report(new LaunchProgress(
+                    stage,
+                    "进度 " + p.FilesCompleted + "/" + p.FilesTotal + "，已传 " + Megabytes(p.BytesTransferred),
+                    p.FilesCompleted,
+                    p.FilesTotal));
             }
         });
     }
@@ -592,10 +606,10 @@ public sealed class LaunchPipeline
         return null;
     }
 
-    private void Report(IProgress<string>? progress, string message)
+    private void Report(IProgress<LaunchProgress>? progress, LaunchStage stage, string message)
     {
-        _log.Info("pipeline", message);
-        progress?.Report(message);
+        _log.Info("pipeline", "[" + stage + "] " + message);
+        progress?.Report(new LaunchProgress(stage, message));
     }
 
     private static string Megabytes(long bytes)

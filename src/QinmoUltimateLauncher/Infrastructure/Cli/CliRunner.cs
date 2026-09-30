@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Threading;
 using Qul.Application.Diagnostics;
+using Qul.Application.Launch;
 using Qul.Domain.Configuration;
 using Qul.Domain.Diagnostics;
 using Qul.Domain.Downloads;
@@ -332,18 +333,32 @@ public static class CliRunner
     /// 同步转发进度。用 Progress&lt;T&gt; 会异步投递到线程池，
     /// 命令行输出就会交错错位——这里必须同步。
     /// </summary>
-    private sealed class ConsoleProgress : IProgress<string>
+    private sealed class ConsoleProgress : IProgress<LaunchProgress>
     {
         private readonly BootContext _boot;
+        private LaunchStage _stage = LaunchStage.Idle;
 
         public ConsoleProgress(BootContext boot)
         {
             _boot = boot;
         }
 
-        public void Report(string value)
+        public void Report(LaunchProgress value)
         {
-            CliRunner.Report(_boot, "  " + value);
+            // 阶段切换打一行分隔，否则几百行进度会糊成一片。
+            if (value.Stage != _stage)
+            {
+                _stage = value.Stage;
+                CliRunner.Report(_boot, "  [" + LaunchStages.Label(value.Stage) + "]");
+            }
+
+            // 带总量的进度行太密，命令行里只保留阶段分隔。
+            if (value.Total > 0)
+            {
+                return;
+            }
+
+            CliRunner.Report(_boot, "    " + value.Message);
         }
     }
 }
