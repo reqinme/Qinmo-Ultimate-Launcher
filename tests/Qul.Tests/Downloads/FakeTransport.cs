@@ -18,7 +18,18 @@ internal sealed class FakeTransport : IHttpTransport
 {
     private readonly Dictionary<string, byte[]> _content = new Dictionary<string, byte[]>(StringComparer.Ordinal);
 
+    /// <summary>
+    /// 收到过的请求。
+    ///
+    /// **写入必须加锁。** 分段下载会从多个任务并发调用 <see cref="Fetch"/>，
+    /// 而 <see cref="List{T}"/> 的 Add 不是线程安全的：并发写会**丢条目**
+    /// （测试数出来的请求数偏少），偶尔还会让某个槽位仍是 null
+    /// （读取方的 lambda 直接 NullReferenceException）。
+    /// 这两种表现都是"间歇失败"，而间歇失败的测试很快就会被所有人忽略。
+    /// </summary>
     public List<HttpFetchRequest> Requests { get; } = new List<HttpFetchRequest>();
+
+    private readonly object _requestsGate = new object();
 
     /// <summary>按调用序号注入故障。返回 null 表示交给默认逻辑。</summary>
     public Func<HttpFetchRequest, int, HttpFetchResponse?>? Interceptor { get; set; }
@@ -51,8 +62,13 @@ internal sealed class FakeTransport : IHttpTransport
 
     public HttpFetchResponse Fetch(HttpFetchRequest request, CancellationToken cancellationToken)
     {
-        Requests.Add(request);
-        int call = Requests.Count;
+        int call;
+
+        lock (_requestsGate)
+        {
+            Requests.Add(request);
+            call = Requests.Count;
+        }
 
         int delay = DelayForRequest?.Invoke(request) ?? DelayMilliseconds?.Invoke(request.Url) ?? 0;
         if (delay > 0)

@@ -186,6 +186,23 @@ public sealed class DownloadEngine
                     {
                         report = ProcessItem(
                             plan.Items[index], cacheRoot, effective, preferFallbackFirst, health, segmentGate, cancellationToken);
+
+                        // **取消请求之后产生的任何失败，都算取消。**
+                        //
+                        // 取消会让传输层抛出各种形状的异常（WebException / IOException /
+                        // ObjectDisposedException），它们与"下载真的坏了"在**类型上无法区分**；
+                        // 而且 ProcessItem 内部的失败出口也不抛异常、直接返回 Failed。
+                        // 两条路都得在这里归一。
+                        //
+                        // 这一条是写"取消"用例时发现的：那条用例**间歇失败**——
+                        // 取消正好落在分段任务内部时，异常形状就变了。
+                        if (cancellationToken.IsCancellationRequested
+                            && report.State == DownloadItemState.Failed)
+                        {
+                            reports[index] = new DownloadItemReport(
+                                report.Item, DownloadItemState.Cancelled, null, report.Attempts, report.BytesTransferred);
+                            return;
+                        }
                     }
                     catch (OperationCanceledException)
                     {
@@ -195,8 +212,18 @@ public sealed class DownloadEngine
                             plan.Items[index], DownloadItemState.Cancelled, null, 0, 0);
                         return;
                     }
+
                     catch (LauncherException ex)
                     {
+                        // **取消优先于失败判定**：取消期间抛出的异常形状不可预测，
+                        // 而用户确实按了取消，就不该看到"下载失败"。
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            reports[index] = new DownloadItemReport(
+                                plan.Items[index], DownloadItemState.Cancelled, null, 0, 0);
+                            return;
+                        }
+
                         // **保留具体的错误码。**
                         // 兜底成 DlFailed 会把"路径越界""磁盘不可写"这类**可操作**的结论
                         // 抹平成笼统的"下载失败"——这个项目已经踩过好几次
@@ -208,6 +235,13 @@ public sealed class DownloadEngine
                     }
                     catch (Exception ex)
                     {
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            reports[index] = new DownloadItemReport(
+                                plan.Items[index], DownloadItemState.Cancelled, null, 0, 0);
+                            return;
+                        }
+
                         // 编排层永不因单个条目抛出：一个坏文件不该让整次安装失败。
                         // 走到这里的都是没被分类的异常，才允许兜底成 DlFailed。
                         _log.Failure("download", ErrorCode.DlFailed, ex);
