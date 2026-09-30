@@ -324,7 +324,7 @@
                                     Value="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=ActualWidth}" />
                             <Trigger.EnterActions>
                                 <BeginStoryboard x:Name="Pulse">
-                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                    <Storyboard RepeatBehavior="{qul:MotionRepeat}" AutoReverse="True">
                                         <DoubleAnimation Storyboard.TargetName="Fill" Storyboard.TargetProperty="Opacity"
                                                          From="0.35" To="0.85" Duration="0:0:0.9" />
                                     </Storyboard>
