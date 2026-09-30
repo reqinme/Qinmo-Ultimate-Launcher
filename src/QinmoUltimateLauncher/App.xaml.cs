@@ -11,8 +11,11 @@ namespace Qul;
 /// <summary>
 /// 应用入口。只做三件事：引导、接异常、兜底展示。
 /// 业务逻辑一律不放这里——WPF 入口类不可测，任何决策写进来就等于放弃测试。
+///
+/// 基类必须写全限定名：本程序集存在 <c>Qul.Application</c> 命名空间（应用层），
+/// 在 <c>Qul</c> 命名空间内它会遮蔽 <c>System.Windows.Application</c>。
 /// </summary>
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     private SessionLog _log = SessionLog.Null;
     private BootContext? _boot;

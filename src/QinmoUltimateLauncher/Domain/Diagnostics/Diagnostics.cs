@@ -75,6 +75,7 @@ public enum ErrorCode
     NetCertificateInvalid,
     NetTimeout,
     NetHttpStatus,
+    NetResourceMissing,
 
     MetaIndexFailed,
     MetaVersionInvalid,
@@ -127,6 +128,7 @@ public static class ErrorCodes
         { ErrorCode.NetCertificateInvalid, "QUL-NET-0003" },
         { ErrorCode.NetTimeout, "QUL-NET-0004" },
         { ErrorCode.NetHttpStatus, "QUL-NET-0005" },
+        { ErrorCode.NetResourceMissing, "QUL-NET-0006" },
         { ErrorCode.MetaIndexFailed, "QUL-META-0001" },
         { ErrorCode.MetaVersionInvalid, "QUL-META-0002" },
         { ErrorCode.MetaInheritBroken, "QUL-META-0003" },
@@ -166,6 +168,7 @@ public static class ErrorCodes
         { ErrorCode.NetCertificateInvalid, "服务器证书校验未通过，连接已中止。" },
         { ErrorCode.NetTimeout, "请求超时，重试后仍未成功。" },
         { ErrorCode.NetHttpStatus, "服务器返回了失败状态。" },
+        { ErrorCode.NetResourceMissing, "该资源在官方源上不存在或已被移除。" },
         { ErrorCode.MetaIndexFailed, "无法获取版本列表，请稍后重试。" },
         { ErrorCode.MetaVersionInvalid, "该版本的元数据异常，已拒绝使用。" },
         { ErrorCode.MetaInheritBroken, "该版本的继承关系异常。" },

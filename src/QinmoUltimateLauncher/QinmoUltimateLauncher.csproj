@@ -25,4 +25,15 @@
     <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
   </PropertyGroup>
 
+  <!--
+    net48 的 SDK 风格工程不会自动带上压缩程序集，必须显式引用：
+      System.IO.Compression          → ZipArchive / ZipArchiveEntry
+      System.IO.Compression.FileSystem → ZipFile
+    这两个是框架自带程序集，不构成第三方依赖，也不增加分发体积。
+  -->
+  <ItemGroup>
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+
 </Project>

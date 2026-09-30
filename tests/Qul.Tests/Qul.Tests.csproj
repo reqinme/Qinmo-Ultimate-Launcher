@@ -23,6 +23,12 @@
     <ProjectReference Include="..\..\src\QinmoUltimateLauncher\QinmoUltimateLauncher.csproj" />
   </ItemGroup>
 
+  <!-- 解压安全用例需要真实构造 zip；net48 的 SDK 风格工程不会自动带上压缩程序集。 -->
+  <ItemGroup>
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+
   <!--
     黄金样本随测试输出一起复制，测试因此离线可跑。
     用 Update 而不是 Include：SDK 默认 glob 已经收录了这些文件，再 Include 会触发重复项错误。
