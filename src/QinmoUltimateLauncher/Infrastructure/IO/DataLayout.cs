@@ -107,6 +107,12 @@ public sealed class DataLayout
     /// </summary>
     private static bool CanUsePortableRoot(string portableData)
     {
+        // Resolve 只做决定，不产生副作用：探测过程中建出来的目录要收掉。
+        // 真正的创建由 EnsureCreated 负责。否则便携与回退两条路径会不对称——
+        // 一条顺手把目录建了、另一条没有。
+        bool existed = System.IO.Directory.Exists(portableData);
+        bool usable = false;
+
         try
         {
             System.IO.Directory.CreateDirectory(portableData);
@@ -114,12 +120,25 @@ public sealed class DataLayout
             string probe = Path.Combine(portableData, ".qul-writable-probe");
             File.WriteAllText(probe, string.Empty);
             File.Delete(probe);
-            return true;
+            usable = true;
         }
         catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is NotSupportedException)
         {
-            return false;
+            usable = false;
         }
+
+        if (!existed && System.IO.Directory.Exists(portableData))
+        {
+            try
+            {
+                System.IO.Directory.Delete(portableData, false);
+            }
+            catch (IOException)
+            {
+            }
+        }
+
+        return usable;
     }
 
     /// <summary>

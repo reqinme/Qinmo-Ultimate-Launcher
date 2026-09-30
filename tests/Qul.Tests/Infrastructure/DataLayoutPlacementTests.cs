@@ -42,7 +42,10 @@ public sealed class DataLayoutPlacementTests
 
         Assert.AreEqual(DataRootPlacement.Portable, layout.Placement);
         Assert.AreEqual(Path.Combine(exeDir, "data"), layout.DataRoot);
-        Assert.IsTrue(Directory.Exists(layout.DataRoot), "探测通过就该把它建出来");
+        // Resolve 只做决定、不留副作用；建目录是 EnsureCreated 的职责。
+        Assert.IsFalse(Directory.Exists(layout.DataRoot), "解析阶段不该顺手把目录建出来");
+        Assert.IsNull(layout.EnsureCreated(), "解析之后应当能把目录建出来");
+        Assert.IsTrue(Directory.Exists(layout.DataRoot));
     }
 
     [TestMethod]
@@ -59,6 +62,8 @@ public sealed class DataLayoutPlacementTests
 
         Assert.AreEqual(DataRootPlacement.UserProfile, layout.Placement);
         StringAssert.StartsWith(layout.DataRoot, profile);
+        Assert.IsFalse(File.Exists(layout.DataRoot), "回退目标不该被同名文件占住");
+        Assert.IsNull(layout.EnsureCreated());
         Assert.IsTrue(Directory.Exists(layout.DataRoot));
     }
 
