@@ -15,6 +15,19 @@
     <!-- 更新判定拿它跟发布清单比对，必须是个真实版本号 -->
     <Version>0.1.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- 应用图标：由本项目自制品牌标识生成，不使用任何外部素材 -->
+    <ApplicationIcon>app.ico</ApplicationIcon>
+
+    <!--
+      版本信息不是装饰。一个没有产品名、没有厂商、没有版权声明的可执行文件，
+      在用户眼里和在某些启发式眼里都更像可疑程序。
+    -->
+    <AssemblyTitle>Qinmo Ultimate Launcher</AssemblyTitle>
+    <Product>Qinmo Ultimate Launcher</Product>
+    <Company>Qinmo Ultimate Launcher</Company>
+    <Description>Minecraft 启动器 · 单文件绿色版</Description>
+    <Copyright>Copyright (C) Qinmo Ultimate Launcher · GPL-3.0</Copyright>
     <RootNamespace>Qul</RootNamespace>
     <AssemblyName>QinmoUltimateLauncher</AssemblyName>
     <Version>0.1.0</Version>
