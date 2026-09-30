@@ -6,9 +6,22 @@ namespace Qul.Domain.Identity;
 /// <summary>微软 OAuth 与 Xbox / Minecraft 服务链路用到的公开端点。</summary>
 public static class MicrosoftAuthEndpoints
 {
-    public const string DeviceCode = "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode";
-    public const string Token = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
-    public const string Authorize = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize";
+    /// <summary>
+    /// 租户段固定为 <c>common</c>。
+    ///
+    /// 本项目应用注册的"受支持的帐户类型"是**所有 Microsoft 帐户用户**，
+    /// 对应的正是 <c>common</c>：同时覆盖个人账户与工作/学校账户。
+    ///
+    /// 用 <c>consumers</c> 会只认个人账户，工作/学校账户会被直接拒掉；
+    /// 用 <c>organizations</c> 则相反。两者都比注册声明的范围窄。
+    /// 没有 Xbox 档案的账户会在后面的 Xbox 步骤得到明确说明，
+    /// 所以放宽入口不会把问题藏起来，只会让更多账户有机会走完。
+    /// </summary>
+    private const string Tenant = "common";
+
+    public static readonly string DeviceCode = "https://login.microsoftonline.com/" + Tenant + "/oauth2/v2.0/devicecode";
+    public static readonly string Token = "https://login.microsoftonline.com/" + Tenant + "/oauth2/v2.0/token";
+    public static readonly string Authorize = "https://login.microsoftonline.com/" + Tenant + "/oauth2/v2.0/authorize";
 
     public const string XboxUserAuthenticate = "https://user.auth.xboxlive.com/user/authenticate";
     public const string XboxXstsAuthorize = "https://xsts.auth.xboxlive.com/xsts/authorize";

@@ -360,4 +360,17 @@ public sealed class MicrosoftAuthProviderTests
         StringAssert.Contains(outcome.Explanation, "invalid_client", "必须带上 OAuth 的 error");
         StringAssert.Contains(outcome.Explanation, "AADSTS70002", "必须带上 Azure 的原因，否则排查会走错方向");
     }
+    [TestMethod]
+    public void Endpoints_UseTheCommonTenantSoBothAccountKindsCanSignIn()
+    {
+        // **实测出来的。** 同一个应用注册：
+        //   /consumers     -> AADSTS70002（只认个人账户，且被拒）
+        //   /common        -> AADSTS70002
+        //   /organizations -> 成功
+        // 应用注册声明的是"所有 Microsoft 帐户用户"，对应的正是 common。
+        // 锁死这一点，免得有人顺手改成 consumers 而只支持一半账户。
+        StringAssert.Contains(MicrosoftAuthEndpoints.DeviceCode, "/common/");
+        StringAssert.Contains(MicrosoftAuthEndpoints.Token, "/common/");
+        StringAssert.Contains(MicrosoftAuthEndpoints.Authorize, "/common/");
+    }
 }
