@@ -134,8 +134,11 @@ public sealed class MainViewModel : ObservableObject
     private LaunchPipelineRequest? _lastRequest;
     private LaunchPipelineResult? _lastResult;
 
-    public MainViewModel(BootContext boot)
+    private readonly string? _initialVersionId;
+
+    public MainViewModel(BootContext boot, string? initialVersionId = null)
     {
+        _initialVersionId = initialVersionId;
         _boot = boot ?? throw new ArgumentNullException(nameof(boot));
         _pipeline = new LaunchPipeline(boot);
 
@@ -369,7 +372,7 @@ public sealed class MainViewModel : ObservableObject
 
             if (SelectedVersion == null && Versions.Count > 0)
             {
-                SelectedVersion = FindNewestRelease(manifest);
+                SelectedVersion = FindInitial(manifest);
             }
         }
         catch (LauncherException ex)
@@ -739,6 +742,23 @@ public sealed class MainViewModel : ObservableObject
         };
 
         return options;
+    }
+
+    /// <summary>优先用命令行指定的版本（从快捷方式直接启动某个版本），否则用最新正式版。</summary>
+    private VersionSummary? FindInitial(VersionManifest manifest)
+    {
+        if (!string.IsNullOrWhiteSpace(_initialVersionId))
+        {
+            for (int i = 0; i < manifest.Versions.Count; i++)
+            {
+                if (string.Equals(manifest.Versions[i].Id, _initialVersionId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return manifest.Versions[i];
+                }
+            }
+        }
+
+        return FindNewestRelease(manifest);
     }
 
     private static VersionSummary? FindNewestRelease(VersionManifest manifest)

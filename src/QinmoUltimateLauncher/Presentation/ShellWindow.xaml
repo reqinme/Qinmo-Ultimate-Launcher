@@ -128,6 +128,15 @@
                                   SelectedItem="{Binding SelectedVersion}"
                                   IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}"
                                   AutomationProperties.Name="游戏版本">
+                            <ComboBox.ItemContainerStyle>
+                                <Style TargetType="ComboBoxItem">
+                                    <!-- 不给这个，917 个版本在屏幕阅读器里全都叫
+                                         "Qul.Domain.Metadata.VersionSummary"，完全无法区分。
+                                         列表项的 automation 名称取自数据的 ToString()，
+                                         ItemTemplate 里的文字不会自动成为名称。 -->
+                                    <Setter Property="AutomationProperties.Name" Value="{Binding Id}" />
+                                </Style>
+                            </ComboBox.ItemContainerStyle>
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
                                     <TextBlock Text="{Binding Id}" />
@@ -152,6 +161,7 @@
                         <ComboBox.ItemContainerStyle>
                             <Style TargetType="ComboBoxItem">
                                 <Setter Property="IsEnabled" Value="{Binding Enabled}" />
+                                <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
                             </Style>
                         </ComboBox.ItemContainerStyle>
                         <ComboBox.ItemTemplate>
@@ -262,6 +272,10 @@
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <Setter Property="Padding" Value="8,1" />
+                                <!-- 不设这个，读屏会把每一项念成 "Qul.Presentation.LogLine"（数据类型的名字）。
+                                     列表项的 automation 名称默认取自内容的 ToString()，
+                                     而 DataTemplate 里的 TextBlock 并不会自动成为容器的名称。 -->
+                                <Setter Property="AutomationProperties.Name" Value="{Binding Display}" />
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">

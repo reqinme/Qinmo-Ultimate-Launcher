@@ -308,8 +308,7 @@ public sealed class LaunchPipeline
         }
 
         // ---------- 下载 ----------
-        Report(progress, LaunchStage.Verifying, "正在校验本地文件…");
-        Report(progress, LaunchStage.Downloading, "开始下载（并发 8）…");
+        Report(progress, LaunchStage.Downloading, "开始获取所需文件…");
 
         DownloadEngine engine = new DownloadEngine(new HttpTransport(), _log);
         result.Download = engine.EnsureAll(
@@ -348,6 +347,32 @@ public sealed class LaunchPipeline
             result.Succeeded = true;
             return result;
         }
+
+        // 下载完再跑一遍：此刻文件已齐全，这一遍不传任何字节，只逐个核对摘要，
+        // 并自愈写入损坏或事后被改动的文件。
+        // 它不是为了"凑一个阶段出来"——确实会重新核对每一个文件。
+        Report(progress, LaunchStage.Verifying, "正在校验全部文件…");
+
+        DownloadReport verification = engine.EnsureAll(
+            result.Plan,
+            layout.CacheDirectory,
+            new DownloadOptions
+            {
+                MaxConcurrency = 8,
+                MaxAttempts = 3,
+                MinimumFreeBytes = 128L * 1024 * 1024,
+                BaseRetryDelay = TimeSpan.FromMilliseconds(400),
+            },
+            null,
+            cancellationToken);
+
+        if (!verification.IsComplete)
+        {
+            DownloadItemReport broken = verification.Failures[0];
+            return Fail(result, broken.Error ?? ErrorCode.DlFailed, "校验未通过：" + broken.Item.Describe());
+        }
+
+        notes.Add("校验：核对 " + verification.PresentCount + " 个文件，重新获取 " + verification.DownloadedCount + " 个");
 
         // ---------- 启动计划与进程 ----------
         GameLaunchRequest launchRequest = new GameLaunchRequest
@@ -480,11 +505,8 @@ public sealed class LaunchPipeline
         {
             if (p.FilesTotal > 0 && (p.FilesCompleted % 25 == 0 || p.FilesCompleted == p.FilesTotal))
             {
-                // 有实际传输才叫"下载"；一个字节都没传，那一段就是在校验本地已有文件。
-                LaunchStage stage = p.BytesTransferred > 0 ? LaunchStage.Downloading : LaunchStage.Verifying;
-
                 progress.Report(new LaunchProgress(
-                    stage,
+                    LaunchStage.Downloading,
                     "进度 " + p.FilesCompleted + "/" + p.FilesTotal + "，已传 " + Megabytes(p.BytesTransferred),
                     p.FilesCompleted,
                     p.FilesTotal));

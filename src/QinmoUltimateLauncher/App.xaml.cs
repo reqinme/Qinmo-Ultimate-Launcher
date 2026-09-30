@@ -43,12 +43,20 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        // 带参数即进入命令行模式：不显示窗口，跑完直接带退出码结束。
+        // 第一个参数是命令行动词就进命令行模式：不显示窗口，跑完带退出码结束。
         // 这既是架构要求（UI 挂了不影响命令行启动），也是真实验收的驱动方式。
+        // 不是动词则当作界面参数——例如从快捷方式直接启动某个版本。
+        string? initialVersion = null;
+
         if (e.Args != null && e.Args.Length > 0)
         {
-            Shutdown(CliRunner.Run(_boot, e.Args));
-            return;
+            if (IsCliVerb(e.Args[0]))
+            {
+                Shutdown(CliRunner.Run(_boot, e.Args));
+                return;
+            }
+
+            initialVersion = OptionValue(e.Args, "--version");
         }
 
         // 渲染层级决定了界面是否走硬件加速。Tier 0 = 软件渲染，
@@ -66,11 +74,38 @@ public partial class App : System.Windows.Application
 
         ShellWindow window = new ShellWindow
         {
-            DataContext = new MainViewModel(_boot),
+            DataContext = new MainViewModel(_boot, initialVersion),
         };
 
         window.Closed += OnMainWindowClosed;
         window.Show();
+    }
+
+    private static bool IsCliVerb(string arg)
+    {
+        switch (arg.Trim().ToLowerInvariant())
+        {
+            case "plan":
+            case "install":
+            case "launch":
+            case "preflight":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static string? OptionValue(string[] args, string name)
+    {
+        for (int i = 0; i < args.Length - 1; i++)
+        {
+            if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase))
+            {
+                return args[i + 1];
+            }
+        }
+
+        return null;
     }
 
     private void OnMainWindowClosed(object? sender, EventArgs e)
