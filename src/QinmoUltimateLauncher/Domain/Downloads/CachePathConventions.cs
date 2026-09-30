@@ -10,6 +10,10 @@ namespace Qul.Domain.Downloads;
 /// 分隔符统一用 <c>/</c>：<see cref="DownloadItem.RelativePath"/> 是逻辑路径，
 /// 不是平台路径；Windows 的文件 API 同样接受 <c>/</c>。
 /// 统一分隔符也是启动计划骨架能逐字节比对的前提之一。
+///
+/// **资源必须按游戏期望的布局落盘**：游戏把 <c>--assetsDir</c> 指向的目录当作资源根，
+/// 并在其下找 <c>indexes/&lt;索引 id&gt;.json</c> 与 <c>objects/&lt;哈希前两位&gt;/&lt;哈希&gt;</c>。
+/// 这不是可以自己发挥的地方——布局不对，游戏就找不到任何贴图与语言文件。
 /// </summary>
 public sealed class CachePathConventions
 {
@@ -17,9 +21,19 @@ public sealed class CachePathConventions
 
     public string LibrariesPrefix { get; set; } = "libraries";
 
-    public string ObjectsPrefix { get; set; } = "objects";
+    /// <summary>资源根。启动参数里的 ${assets_root} 就指向它。</summary>
+    public string AssetsPrefix { get; set; } = "assets";
 
     public string LoggingPrefix { get; set; } = "logging";
+
+    /// <summary>资源索引目录。游戏只认这个名字。</summary>
+    public string AssetIndexesPrefix => AssetsPrefix + "/indexes";
+
+    /// <summary>资源对象目录。游戏只认这个名字。</summary>
+    public string ObjectsPrefix => AssetsPrefix + "/objects";
+
+    /// <summary>${assets_root} 的值（相对缓存根）。</summary>
+    public string AssetsRoot => AssetsPrefix;
 
     public string VersionManifestFile()
     {
@@ -38,7 +52,7 @@ public sealed class CachePathConventions
 
     public string AssetIndexFile(string assetIndexId)
     {
-        return MetaPrefix + "/assets-" + Sanitize(assetIndexId) + ".json";
+        return AssetIndexesPrefix + "/" + Sanitize(assetIndexId) + ".json";
     }
 
     public string LoggingFile(string fileName)

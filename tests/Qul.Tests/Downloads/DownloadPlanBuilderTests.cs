@@ -302,7 +302,7 @@ public sealed class DownloadPlanBuilderTests
         foreach (DownloadItem item in objects)
         {
             string hash = item.Sha1!;
-            Assert.AreEqual("objects/" + hash.Substring(0, 2) + "/" + hash, item.RelativePath);
+            Assert.AreEqual("assets/objects/" + hash.Substring(0, 2) + "/" + hash, item.RelativePath);
             Assert.AreEqual(
                 "https://resources.download.minecraft.net/" + hash.Substring(0, 2) + "/" + hash,
                 item.Url);
@@ -348,9 +348,10 @@ public sealed class DownloadPlanBuilderTests
 
         Assert.AreEqual("meta/version-1.16.5.json", paths.VersionDetailFile("1.16.5"));
         Assert.AreEqual("meta/client-1.16.5.jar", paths.ClientJarFile("1.16.5"));
-        Assert.AreEqual("meta/assets-1.16.json", paths.AssetIndexFile("1.16"));
+        Assert.AreEqual("assets/indexes/1.16.json", paths.AssetIndexFile("1.16"));
+        Assert.AreEqual("assets", paths.AssetsRoot, "游戏把 --assetsDir 当作资源根，其下必须有 indexes 与 objects");
         Assert.AreEqual(
-            "objects/ab/abcdef0123456789abcdef0123456789abcdef",
+            "assets/objects/ab/abcdef0123456789abcdef0123456789abcdef",
             paths.ObjectFile("abcdef0123456789abcdef0123456789abcdef"));
 
         LibraryName.TryParse("org.lwjgl:lwjgl:3.2.1", out LibraryName? plain);

@@ -98,6 +98,7 @@ public enum ErrorCode
     AuthNoOwnership,
     AuthThirdPartyUnavailable,
     AuthPrerequisiteMissing,
+    AuthOfflineNameInvalid,
 
     PlanUnresolvedPlaceholder,
     PlanSkeletonMismatch,
@@ -146,6 +147,7 @@ public static class ErrorCodes
         { ErrorCode.AuthNoOwnership, "QUL-AUTH-0003" },
         { ErrorCode.AuthThirdPartyUnavailable, "QUL-AUTH-0004" },
         { ErrorCode.AuthPrerequisiteMissing, "QUL-AUTH-0005" },
+        { ErrorCode.AuthOfflineNameInvalid, "QUL-AUTH-0006" },
         { ErrorCode.PlanUnresolvedPlaceholder, "QUL-PLAN-0001" },
         { ErrorCode.PlanSkeletonMismatch, "QUL-PLAN-0002" },
         { ErrorCode.ProcStartFailed, "QUL-PROC-0001" },
@@ -186,6 +188,7 @@ public static class ErrorCodes
         { ErrorCode.AuthNoOwnership, "该账户不拥有此游戏。" },
         { ErrorCode.AuthThirdPartyUnavailable, "第三方验证服务不可用；不影响其他身份来源。" },
         { ErrorCode.AuthPrerequisiteMissing, "微软正版登录当前不可用。" },
+        { ErrorCode.AuthOfflineNameInvalid, "离线账户名只能包含字母、数字与下划线，且不超过 16 个字符。" },
         { ErrorCode.PlanUnresolvedPlaceholder, "启动计划存在未替换的占位符，已阻止启动。" },
         { ErrorCode.PlanSkeletonMismatch, "启动计划一致性校验失败，已阻止启动。" },
         { ErrorCode.ProcStartFailed, "无法启动游戏进程。" },

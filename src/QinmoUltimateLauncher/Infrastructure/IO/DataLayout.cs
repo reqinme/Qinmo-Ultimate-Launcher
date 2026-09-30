@@ -51,7 +51,14 @@ public sealed class DataLayout
 
     public string CacheLibrariesDirectory => Path.Combine(CacheDirectory, "libraries");
 
-    public string CacheObjectsDirectory => Path.Combine(CacheDirectory, "objects");
+    /// <summary>资源根。启动参数里的 ${assets_root} 指向它，游戏在其下找 indexes/ 与 objects/。</summary>
+    public string CacheAssetsDirectory => Path.Combine(CacheDirectory, "assets");
+
+    /// <summary>资源索引目录。游戏只认 indexes 这个名字。</summary>
+    public string CacheAssetIndexesDirectory => Path.Combine(CacheAssetsDirectory, "indexes");
+
+    /// <summary>资源对象目录。游戏只认 objects 这个名字，且必须在 assets 之下。</summary>
+    public string CacheObjectsDirectory => Path.Combine(CacheAssetsDirectory, "objects");
 
     public string NativesDirectory => Path.Combine(CacheDirectory, "natives");
 
@@ -103,6 +110,8 @@ public sealed class DataLayout
             LogDirectory,
             CacheMetaDirectory,
             CacheLibrariesDirectory,
+            CacheAssetsDirectory,
+            CacheAssetIndexesDirectory,
             CacheObjectsDirectory,
             NativesDirectory,
             SecretsDirectory,
