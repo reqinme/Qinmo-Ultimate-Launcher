@@ -82,7 +82,8 @@ internal static class ConfigMapper
         root.Set("network", new JsonObject()
             .Set("proxyMode", ProxyModeText(config.Network.ProxyMode))
             .Set("proxyAddress", config.Network.ProxyAddress)
-            .Set("allowInvalidCertificate", false));
+            .Set("allowInvalidCertificate", false)
+            .Set("maxConcurrency", config.Network.MaxConcurrency));
 
         root.Set("contentSource", new JsonObject()
             .Set("kind", config.ContentSource.Kind == ContentSourceKind.Mirror ? "mirror" : "official")
@@ -158,6 +159,7 @@ internal static class ConfigMapper
         {
             config.Network.ProxyMode = ParseProxyMode(network.GetString("proxyMode"));
             config.Network.ProxyAddress = network.GetString("proxyAddress");
+            config.Network.MaxConcurrency = network.GetInt("maxConcurrency", config.Network.MaxConcurrency) ?? config.Network.MaxConcurrency;
             // allowInvalidCertificate 恒为 false：配置文件里写了 true 也一律忽略。
         }
 

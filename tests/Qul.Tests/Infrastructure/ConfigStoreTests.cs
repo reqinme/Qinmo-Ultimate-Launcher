@@ -219,4 +219,35 @@ public sealed class ConfigStoreTests
         layout.EnsureCreated();
         return layout;
     }
+    [TestMethod]
+    public void RoundTrip_KeepsTheDownloadConcurrency()
+    {
+        // 并发数既然是配置项，就必须真的能存下来、读回来。
+        // 漏掉映射的话它会静静地回到默认值，而用户改过的设置看起来"没生效"。
+        // 走真实的 Save/Load，而不是直接调映射函数——
+        // 要证明的是"用户改过的设置真的落盘、下次启动还在"。
+        DataLayout layout = NewLayout();
+        layout.EnsureCreated();
+
+        ConfigStore store = new ConfigStore(layout);
+        LauncherConfig config = store.Load().Config;
+        config.Network.MaxConcurrency = 12;
+
+        Assert.IsNull(store.Save(config), "保存不该报错");
+
+        LauncherConfig reloaded = new ConfigStore(layout).Load().Config;
+
+        Assert.AreEqual(12, reloaded.Network.MaxConcurrency);
+    }
+
+    [TestMethod]
+    public void Default_KeepsTheMeasuredDownloadConcurrency()
+    {
+        // 32 是量出来的，不是拍的：
+        //   并发 8  → 307 KB/s
+        //   并发 32 → 884 KB/s   （2.88 倍）
+        //   并发 64 → 1016 KB/s  （只比 32 高 15%）
+        // 谁要改这个默认值，请先重跑一次那个 A/B。
+        Assert.AreEqual(32, new LauncherConfig().Network.MaxConcurrency);
+    }
 }

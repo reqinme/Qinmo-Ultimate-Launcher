@@ -133,6 +133,21 @@ public sealed class NetworkSettings
     /// 保留该成员是为了把"不可绕过"写成显式契约，而不是一句口头约定。
     /// </summary>
     public bool AllowInvalidCertificate => false;
+
+    /// <summary>
+    /// 同时进行的下载条数。
+    ///
+    /// 实测（本机 1.7.10 冷装，前后各插网络基准以校准漂移）：
+    ///   并发 8  → 307 KB/s
+    ///   并发 32 → 884 KB/s   （2.88 倍）
+    ///   并发 64 → 1016 KB/s  （只比 32 高 15%）
+    ///
+    /// 默认取 32：拿到 64 的约 87% 收益、连接数只有一半。
+    /// PCL2 的上限是 64，但它**是自适应的**（先每文件 1 线程，
+    /// 只有全局速度掉到阈值以下才追加分段线程，ModNet.vb:1747、1763）；
+    /// 我们目前是固定并发，所以取更稳妥的中间点。
+    /// </summary>
+    public int MaxConcurrency { get; set; } = 32;
 }
 
 public sealed class ContentSourceSettings
