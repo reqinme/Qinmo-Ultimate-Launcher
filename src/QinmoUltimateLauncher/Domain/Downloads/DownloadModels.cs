@@ -204,11 +204,23 @@ public sealed class DownloadReport
 
     public int DownloadedCount { get; }
 
-    /// <summary>是否存在阻断性失败：可选资源的失败不算阻断。</summary>
+    /// <summary>
+    /// 是否**全部就位**：没有阻断性失败，**且没有任何条目被取消**。
+    ///
+    /// **取消必须算"没完成"。** 先前这里只看 <c>Failures</c>，而取消
+    /// （F14 之后）不在 <c>Failures</c> 里——于是用户按了取消，程序却认为下载已完成，
+    /// 一路往下走去安装、甚至去启动，报的还是"安装完成"。
+    /// **缺的文件要到启动时才炸，而那时已经看不出是取消造成的。**
+    /// </summary>
     public bool IsComplete
     {
         get
         {
+            if (WasCancelled)
+            {
+                return false;
+            }
+
             for (int i = 0; i < Failures.Count; i++)
             {
                 if (!Failures[i].Item.IsOptional)

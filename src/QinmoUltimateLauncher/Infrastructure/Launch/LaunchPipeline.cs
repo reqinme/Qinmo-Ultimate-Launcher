@@ -343,6 +343,16 @@ public sealed class LaunchPipeline
         notes.Add("下载：新下 " + result.Download.DownloadedCount + "，命中 " + result.Download.PresentCount
                   + "，失败 " + result.Download.Failures.Count);
 
+        // **取消要在"失败"之前判。**
+        // 否则取消会掉进下面的失败分支，报一个 QUL-DL-* 的错误码——
+        // 用户按了取消，却收到一条看起来像"下载坏了"的提示。
+        if (result.Download.WasCancelled)
+        {
+            result.Cancelled = true;
+            Report(progress, LaunchStage.Cancelled, "已取消，未下载的文件留待下次继续。");
+            return result;
+        }
+
         if (!result.Download.IsComplete)
         {
             DownloadItemReport first = result.Download.Failures[0];

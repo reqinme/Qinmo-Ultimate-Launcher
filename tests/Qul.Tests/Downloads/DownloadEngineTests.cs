@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Qul.Application.Ports;
 using Qul.Domain.Diagnostics;
@@ -1005,5 +1006,77 @@ public sealed class DownloadEngineTests
 
         // **正文只应被完整取一次。** 后续重试要落到"校验已有残留"上，而不是重新下载。
         Assert.AreEqual(1, bodiesServed, "发布失败之后不该重新下载正文；应当重试发布");
+    }
+    // ---------- 取消 ----------
+
+    [TestMethod]
+    public void EnsureAll_KeepsTheResumablePartialWhenCancelled()
+    {
+        // **守的是取消的对外契约，三条：**
+        //   1. 已有的残留不能被删——它是可续传的（F6）
+        //   2. 取消要报成"取消"，不能报成失败（F14）
+        //   3. 取消之后**不能说自己完成了**（这一条是写这条用例时当场抓出来的真缺陷：
+        //      先前 `IsComplete` 只看 `Failures`，而取消不在 `Failures` 里，
+        //      于是用户取消一次安装，程序认为下完了，继续往下走还报"安装完成"，
+        //      缺的文件要到启动时才炸，那时已经看不出是取消造成的）
+        //
+        // **这条用例并不能判别 F6 那处改动的具体实现。**
+        // 实测：把 `Task.WaitAll` 里重抛取消的那段临时还原成"一律吞掉"，用例照样通过——
+        // 说明它走的取消路径在分段任务开始之前就抛出了，到不了那个 AggregateException。
+        // 想要判别那条路径，需要让取消**确实落在某个分段任务内部**；
+        // 那需要一个可控的分段级延迟钩子，目前没有。
+        // 这里如实标注，而不是留一句听起来覆盖更广的注释。
+        string sandbox = NewSandbox();
+        byte[] body = BigBody(3 * 1024 * 1024);
+
+        // **预置一份残留**，模拟"上一轮已经下了一部分"。
+        //
+        // 这样用例就不依赖调度时序了：先前那种"下到一半再取消"的写法，
+        // 取消可能落在探测请求里、也可能落在第一个分段上，断言会时灵时不灵。
+        // 而 F6 要保证的事情本身就是确定的——**取消不得删除已有的残留**。
+        string partialPath = Path.Combine(sandbox, @"assets\objects\aa\aabig.bin.qulpart");
+        Directory.CreateDirectory(Path.GetDirectoryName(partialPath));
+        File.WriteAllBytes(partialPath, new byte[64 * 1024]);
+
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(Url, body);
+        transport.DelayMilliseconds = _ => 1200;   // 让取消落在取数据的途中
+
+        DownloadEngine engine = new DownloadEngine(transport);
+
+        DownloadItem item = Item(Url, body, @"assets\objects\aa\aabig.bin");
+        item.Size = body.Length;
+
+        DownloadReport? report = null;
+        bool threw = false;
+
+        using (CancellationTokenSource cts = new CancellationTokenSource())
+        {
+            cts.CancelAfter(400);
+
+            try
+            {
+                DownloadOptions options = FastOptions();
+            options.ProbeSourceSpeed = false;   // 探测请求会把取消时机带走，这里不需要它
+            report = engine.EnsureAll(Plan(item), sandbox, options, new ThrowingProgress(), cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // 取消原样抛出也是可接受的结果；重点在下面那条断言
+                threw = true;
+            }
+        }
+
+        Assert.IsTrue(File.Exists(partialPath), "取消之后必须保留可续传的残留");
+        Assert.IsTrue(
+            new FileInfo(partialPath).Length >= 64 * 1024,
+            "残留不能被截断——它承载着已经下下来的那些字节");
+
+        if (!threw && report != null)
+        {
+            Assert.IsTrue(report.WasCancelled, "取消应当被识别为取消，而不是失败");
+            Assert.AreEqual(0, report.Failures.Count, "取消不该记成失败");
+            Assert.IsFalse(report.IsComplete, "没下完就不能说完成");
+        }
     }
 }
