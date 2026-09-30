@@ -436,7 +436,14 @@ public sealed class LaunchPipeline
 
         if (result.SkeletonHash != null)
         {
-            Report(progress, LaunchStage.Extracting, "骨架指纹 " + result.SkeletonHash);
+            // **归到"启动"阶段，不是"解压"。**
+            //
+            // 这一行在 launcher.Launch(...) 之后执行，而那里已经报过"启动"阶段了；
+            // 挂到"解压"下会让阶段顺序变成 解压 → 启动 → 解压，**往回跳**。
+            // 用户看到的是"解压"出现两次，会以为解压跑了两遍。
+            //
+            // 指纹描述的是"将要启动什么"，本来就属于启动阶段。
+            Report(progress, LaunchStage.Starting, "骨架指纹 " + result.SkeletonHash);
         }
 
         if (!result.Launch.Prepared)
