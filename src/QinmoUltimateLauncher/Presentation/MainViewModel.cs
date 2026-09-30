@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using Qul.Application.Diagnostics;
+using Qul.Application.Identity;
 using Qul.Application.Launch;
 using Qul.Application.Update;
 using Qul.Domain.Configuration;
@@ -19,7 +20,9 @@ using Qul.Domain.Metadata;
 using Qul.Infrastructure.Boot;
 using Qul.Infrastructure.Diagnostics;
 using Qul.Infrastructure.Launch;
+using Qul.Infrastructure.Auth;
 using Qul.Infrastructure.Net;
+using Qul.Infrastructure.Security;
 using Qul.Infrastructure.Update;
 
 namespace Qul.Presentation;
@@ -134,6 +137,10 @@ public sealed class MainViewModel : ObservableObject
     private bool _isProgressIndeterminate;
     private string _currentStageText = "待命";
 
+    private readonly AccountManager? _account;
+    private AuthSession? _session;
+    private IReadOnlyList<IdentityOption> _identityOptions = Array.Empty<IdentityOption>();
+
     private UpdateRelease? _pendingRelease;
     private bool _updateAvailable;
     private string _updateMessage = string.Empty;
@@ -169,8 +176,9 @@ public sealed class MainViewModel : ObservableObject
         CheckUpdateCommand = new RelayCommand(() => _ = CheckUpdateAsync(), () => !IsBusy && UpdateEndpoints.IsConfigured);
         ApplyUpdateCommand = new RelayCommand(() => _ = ApplyUpdateAsync(), () => !IsBusy && _pendingRelease != null);
 
-        IdentityOptions = BuildIdentityOptions();
-        SelectedIdentity = IdentityOptions[0];
+        _account = CreateAccountManager(boot);
+
+        RefreshIdentityOptions();
     }
 
     // ---------- 集合 ----------
@@ -184,7 +192,11 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>虚拟化日志数据源。用集合而不是一个大字符串——大字符串没法虚拟化。</summary>
     public ReadOnlyObservableCollection<LogLine> LogLines { get; }
 
-    public IReadOnlyList<IdentityOption> IdentityOptions { get; }
+    public IReadOnlyList<IdentityOption> IdentityOptions
+    {
+        get => _identityOptions;
+        private set => Set(ref _identityOptions, value);
+    }
 
     // ---------- 命令 ----------
 
@@ -387,6 +399,8 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task RefreshAsync()
     {
+        await RestoreAccountAsync();
+
         IsBusy = true;
         ErrorBanner = string.Empty;
         StatusText = "正在读取版本清单…";
@@ -902,6 +916,7 @@ public sealed class MainViewModel : ObservableObject
             VersionId = SelectedVersion?.Id ?? string.Empty,
             Mode = mode,
             IdentitySource = SelectedIdentity?.Source ?? IdentitySource.Offline,
+            Session = _session,
             OfflineUserName = string.IsNullOrWhiteSpace(OfflineName) ? "Player" : OfflineName.Trim(),
             ServerTarget = string.IsNullOrWhiteSpace(ServerTarget) ? null : ServerTarget.Trim(),
             MaxMemoryMb = 2048,
@@ -914,6 +929,22 @@ public sealed class MainViewModel : ObservableObject
         // 而不是让用户点进去撞一个笼统的失败。
         MicrosoftAuthPrerequisites prerequisites = new MicrosoftAuthPrerequisites();
 
+        string microsoftTitle = "微软正版账户";
+        string microsoftDetail;
+
+        if (_session != null)
+        {
+            // 已经有可用会话：这一条与门禁无关——门禁管的是"发起新的登录"。
+            microsoftTitle = "微软正版账户（" + _session.UserName + "）";
+            microsoftDetail = "已登录。会话以 DPAPI 密文保存在本机。";
+        }
+        else
+        {
+            microsoftDetail = prerequisites.IsSatisfied
+                ? "使用你的微软账户登录。"
+                : prerequisites.Describe();
+        }
+
         List<IdentityOption> options = new List<IdentityOption>
         {
             new IdentityOption(
@@ -923,9 +954,9 @@ public sealed class MainViewModel : ObservableObject
                 true),
             new IdentityOption(
                 IdentitySource.Microsoft,
-                "微软正版账户",
-                prerequisites.IsSatisfied ? "使用你的微软账户登录。" : prerequisites.Describe(),
-                prerequisites.IsSatisfied),
+                microsoftTitle,
+                microsoftDetail,
+                prerequisites.IsSatisfied || _session != null),
             new IdentityOption(
                 IdentitySource.ThirdParty,
                 "第三方验证（未启用）",
@@ -934,6 +965,98 @@ public sealed class MainViewModel : ObservableObject
         };
 
         return options;
+    }
+
+    /// <summary>
+    /// 建立账户编排器。
+    ///
+    /// 账户键从存储里现有的键里取——键含 uuid，而启动时我们还不知道 uuid，
+    /// 只能反过来问存储。没有已保存账户时用一个占位键；
+    /// 那种情况下登录本来就会被门禁挡住，走不到写盘那一步。
+    /// </summary>
+    private static AccountManager? CreateAccountManager(BootContext boot)
+    {
+        try
+        {
+            DpapiTokenStore store = new DpapiTokenStore(boot.Layout.SecretsDirectory, boot.Log);
+            IReadOnlyList<string> keys = store.ListAccounts();
+            string key = keys.Count > 0 ? keys[0] : "unbound";
+
+            MicrosoftAuthPrerequisites prerequisites = new MicrosoftAuthPrerequisites();
+
+            return new AccountManager(
+                new MicrosoftAuthProvider(new HttpTransport(), prerequisites, boot.Log),
+                store,
+                key,
+                boot.Log);
+        }
+        catch (LauncherException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>重新生成身份来源列表，并尽量保住当前选择。</summary>
+    private void RefreshIdentityOptions()
+    {
+        IdentitySource keep = SelectedIdentity?.Source ?? IdentitySource.Offline;
+        IReadOnlyList<IdentityOption> options = BuildIdentityOptions();
+        IdentityOptions = options;
+
+        for (int i = 0; i < options.Count; i++)
+        {
+            if (options[i].Source == keep)
+            {
+                SelectedIdentity = options[i];
+                return;
+            }
+        }
+
+        SelectedIdentity = options.Count > 0 ? options[0] : null;
+    }
+
+    /// <summary>
+    /// 启动时恢复本机保存的账户。**刷新可能联网，所以放后台。**
+    /// 没有会话、或恢复失败都不算错误——那只是"这台机器上还没登录过"。
+    /// </summary>
+    private async Task RestoreAccountAsync()
+    {
+        if (_account == null)
+        {
+            return;
+        }
+
+        AuthSession? session;
+
+        try
+        {
+            session = await Task.Run(() => _account.RestoreAny(CancellationToken.None));
+        }
+        catch (LauncherException)
+        {
+            return;
+        }
+
+        if (session == null)
+        {
+            return;
+        }
+
+        _session = session;
+        RefreshIdentityOptions();
+
+        // 上次就是用微软账户登录的，恢复之后没有理由不默认选它。
+        for (int i = 0; i < IdentityOptions.Count; i++)
+        {
+            if (IdentityOptions[i].Source == IdentitySource.Microsoft && IdentityOptions[i].Enabled)
+            {
+                SelectedIdentity = IdentityOptions[i];
+                break;
+            }
+        }
+
+        AppendLog(LaunchStage.Idle, "已恢复本机保存的账户：" + session.UserName);
+        StatusText = "已恢复账户 " + session.UserName + "。";
     }
 
     /// <summary>优先用命令行指定的版本（从快捷方式直接启动某个版本），否则用最新正式版。</summary>
