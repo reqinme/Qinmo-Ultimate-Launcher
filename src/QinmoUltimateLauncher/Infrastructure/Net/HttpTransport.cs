@@ -113,7 +113,7 @@ public sealed class HttpTransport : IHttpTransport
         try
         {
             HttpWebResponse response = (HttpWebResponse)webRequest.GetResponse();
-            return BuildResponse(response, request);
+            return BuildResponse(response, request, webRequest);
         }
         catch (WebException ex)
         {
@@ -122,7 +122,7 @@ public sealed class HttpTransport : IHttpTransport
             {
                 try
                 {
-                    return BuildResponse(errorResponse, request);
+                    return BuildResponse(errorResponse, request, webRequest);
                 }
                 catch (Exception)
                 {
@@ -160,7 +160,7 @@ public sealed class HttpTransport : IHttpTransport
         }
     }
 
-    private static HttpFetchResponse BuildResponse(HttpWebResponse response, HttpFetchRequest request)
+    private static HttpFetchResponse BuildResponse(HttpWebResponse response, HttpFetchRequest request, HttpWebRequest webRequest)
     {
         HttpStatusCode statusCode = response.StatusCode;
         long? contentLength = response.ContentLength >= 0 ? response.ContentLength : (long?)null;
@@ -217,8 +217,25 @@ public sealed class HttpTransport : IHttpTransport
             ContentLength = contentLength,
             TotalLength = totalLength,
             RangeStart = rangeStart,
-            Content = response.GetResponseStream(),
+            // **读取必须带空闲看门狗。**
+            // 实测踩到过：一个 0 字节的 .part 停在那里 20 分钟，
+            // 其余 worker 早已退出，只剩一个线程阻塞在读取上，
+            // 而 RequestTimeout 设的 60 秒并没有让 ReadWriteTimeout 触发。
+            // 那才是先前"完整安装跑不完"的真正原因——不是网络慢，是卡住了。
+            Content = new IdleTimeoutStream(response.GetResponseStream(), webRequest, IdleTimeout(request)),
         };
+    }
+
+    /// <summary>
+    /// 空闲上限：多久没有新数据就认为这条连接已经死了。
+    ///
+    /// 取请求超时本身，但**最多 60 秒**——挂死 60 秒与挂死 20 分钟是决定性的差别。
+    /// 不低于 5 秒，免得把正常的慢响应误判成死连接。
+    /// </summary>
+    private static TimeSpan IdleTimeout(HttpFetchRequest request)
+    {
+        double seconds = Math.Min(request.Timeout.TotalSeconds, 60);
+        return TimeSpan.FromSeconds(Math.Max(5, seconds));
     }
 
     private static void ParseContentRange(string header, out long? rangeStart, out long? totalLength)
