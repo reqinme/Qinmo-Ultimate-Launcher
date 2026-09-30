@@ -5,6 +5,7 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using Qul.Application.Ports;
+using Qul.Domain.Configuration;
 using Qul.Domain.Diagnostics;
 
 namespace Qul.Infrastructure.Net;
@@ -19,6 +20,36 @@ namespace Qul.Infrastructure.Net;
 public sealed class HttpTransport : IHttpTransport
 {
     private const int BufferHint = 81920;
+
+    /// <summary>
+    /// 全局默认代理：<c>null</c> = 跟随系统，空串 = 直连，其他 = 显式地址。
+    ///
+    /// **由启动时从配置注入一次。** 在此之前，配置里的代理三态读写都正常，
+    /// 却从没有传进任何请求——用户选"直连"或填手动代理毫无效果，
+    /// 而且不报错；连"代理地址非法"（QUL-NET-0002）都不可达。
+    /// 放在这里而不是各个调用点，是为了让下载、元数据、认证三条路一起受益。
+    /// </summary>
+    private static string? _defaultProxy;
+
+    private static bool _proxyConfigured;
+
+    /// <summary>把配置里的代理选择注入传输层。启动时调用一次。</summary>
+    public static void ConfigureProxy(ProxyMode mode, string? address)
+    {
+        _defaultProxy = ProxyPolicy.Describe(mode, address);
+        _proxyConfigured = true;
+    }
+
+    /// <summary>请求自己指定的代理优先；没指定才用配置里的默认值。</summary>
+    private static string? EffectiveProxy(string? requestProxy)
+    {
+        if (requestProxy != null)
+        {
+            return requestProxy;
+        }
+
+        return _proxyConfigured ? _defaultProxy : null;
+    }
 
     static HttpTransport()
     {
@@ -63,7 +94,7 @@ public sealed class HttpTransport : IHttpTransport
         webRequest.UserAgent = "QinmoUltimateLauncher/0.1";
         webRequest.AutomaticDecompression = DecompressionMethods.None;
 
-        ApplyProxy(webRequest, request.ProxyAddress);
+        ApplyProxy(webRequest, EffectiveProxy(request.ProxyAddress));
 
         if (!string.IsNullOrEmpty(request.Accept))
         {
@@ -194,14 +225,20 @@ public sealed class HttpTransport : IHttpTransport
             return;
         }
 
-        try
+        // **先自己校验地址，别指望 WebProxy 会拒绝。**
+        // 实测：new WebProxy("这不是合法地址") 照收不误，然后在真正发请求时
+        // 以"网络不可达"失败——于是 QUL-NET-0002（代理地址非法）永远不可达，
+        // 用户会去查网络，而问题其实在代理地址上。
+        string trimmed = proxyAddress.Trim();
+
+        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out Uri? parsed)
+            || (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
         {
-            request.Proxy = new WebProxy(proxyAddress.Trim());
+            throw new LauncherException(
+                ErrorCode.NetProxyInvalid, "proxy address must be an absolute http/https uri");
         }
-        catch (UriFormatException ex)
-        {
-            throw new LauncherException(ErrorCode.NetProxyInvalid, "malformed proxy address", ex);
-        }
+
+        request.Proxy = new WebProxy(parsed);
     }
 
     private static HttpFetchResponse BuildResponse(HttpWebResponse response, HttpFetchRequest request, HttpWebRequest webRequest, CancellationToken cancellationToken)

@@ -249,4 +249,28 @@ public sealed class ConfigStoreTests
         // 谁要改这个默认值，请先重跑一次那个 A/B。
         Assert.AreEqual(64, new LauncherConfig().Network.MaxConcurrency);
     }
+    [TestMethod]
+    public void ProxyPolicy_MapsTheThreeModesToTheTransportsThreeStates()
+    {
+        // **这条用例守的是一个"用户设置被静默忽略"的缺陷。**
+        //
+        // 配置里有三种选择，而传输层需要的是另一种三态字符串：
+        //   null = 跟随系统、空串 = 直连、其他 = 显式地址
+        // 先前这段换算写死在下载选项里，而那个选项**从没有人从配置赋值**——
+        // 于是"手动代理"与"直连"静默失效，连"代理地址非法"的错误码都不可达。
+        Assert.IsNull(ProxyPolicy.Describe(ProxyMode.System, null), "跟随系统必须映射成 null");
+        Assert.IsNull(ProxyPolicy.Describe(ProxyMode.System, "http://ignored"), "跟随系统时地址应被忽略");
+
+        Assert.AreEqual(string.Empty, ProxyPolicy.Describe(ProxyMode.Direct, null), "直连必须映射成空串");
+        Assert.AreEqual(string.Empty, ProxyPolicy.Describe(ProxyMode.Direct, "http://ignored"), "直连时必须忽略地址");
+
+        Assert.AreEqual("http://127.0.0.1:8080", ProxyPolicy.Describe(ProxyMode.Manual, "  http://127.0.0.1:8080  "), "手动代理应保留并去掉首尾空白");
+
+        // 选了手动却没填地址：当作直连，而不是静默回落到系统代理。
+        Assert.AreEqual(string.Empty, ProxyPolicy.Describe(ProxyMode.Manual, null));
+        Assert.AreEqual(string.Empty, ProxyPolicy.Describe(ProxyMode.Manual, "   "));
+
+        // **三态必须互不相同**：只有 null 与空串区分开，"关掉代理"这个意图才表达得出来。
+        Assert.AreNotEqual(ProxyPolicy.Describe(ProxyMode.System, null), ProxyPolicy.Describe(ProxyMode.Direct, null));
+    }
 }

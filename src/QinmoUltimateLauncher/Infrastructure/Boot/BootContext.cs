@@ -5,6 +5,7 @@ using Qul.Domain.Diagnostics;
 using Qul.Infrastructure.Configuration;
 using Qul.Infrastructure.Diagnostics;
 using Qul.Infrastructure.IO;
+using Qul.Infrastructure.Net;
 using Qul.Infrastructure.Update;
 using Qul.Application.Update;
 
@@ -32,6 +33,12 @@ public sealed class BootContext : IDisposable
         ConfigStore = configStore;
         DataRootWarning = dataRootWarning;
         _updates = updates;
+
+        // **代理设置必须在任何请求之前注入。**
+        // 配置里选"直连"或填手动代理时，不注入就等于静默忽略用户的选择——
+        // 先前正是如此：三态读写都正常，却没有任何调用点把它交给请求。
+        HttpTransport.ConfigureProxy(
+            configResult.Config.Network.ProxyMode, configResult.Config.Network.ProxyAddress);
     }
 
     private readonly UpdateStore _updates;
