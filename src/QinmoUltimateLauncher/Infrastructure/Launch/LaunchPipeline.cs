@@ -433,6 +433,9 @@ public sealed class LaunchPipeline
 
         GameLauncher launcher = new GameLauncher(_log);
 
+        // 记下启动时刻：崩溃报告定位要靠它把"本次"与"上一次留下的"分开。
+        DateTimeOffset launchStartedAt = DateTimeOffset.UtcNow;
+
         result.Launch = request.Mode == LaunchPipelineMode.Prepare
             ? launcher.Prepare(launchRequest)
             : launcher.Launch(launchRequest);
@@ -473,7 +476,10 @@ public sealed class LaunchPipeline
 
         if (!result.Launch.Started || result.Launch.Process == null)
         {
-            return Fail(result, result.Launch.Error ?? ErrorCode.ProcStartFailed, "进程未能拉起。");
+            return Fail(
+                result,
+                result.Launch.Error ?? ErrorCode.ProcStartFailed,
+                "进程未能拉起。" + DescribeCrash(layout, launchStartedAt, progress));
         }
 
         result.Succeeded = true;
@@ -481,6 +487,44 @@ public sealed class LaunchPipeline
         return result;
     }
 
+    /// <summary>
+    /// 找**本次启动之后**新写的崩溃报告，读出一条能给玩家看的结论；没有就返回空串。
+    ///
+    /// **绝不让分析失败改变失败本身。** 找不到报告、读不出来、认不出原因，
+    /// 都只是少一句解释——原来的错误码与提示照常返回。
+    ///
+    /// 传给分析器的退出码恒为 0：走到这里时进程可能**还活着**（只是没起窗口），
+    /// 我们并不知道它最终会以什么码退出。传 0 让"仅凭退出码"那条分支不会误触发，
+    /// 而只要报告正文非空，结论就来自正文。
+    /// </summary>
+    private string DescribeCrash(DataLayout layout, DateTimeOffset notBefore, IProgress<LaunchProgress>? progress)
+    {
+        string? path = CrashReportLocator.FindNewest(layout.GameRoot, notBefore);
+        string? text = CrashReportLocator.Read(path);
+        CrashFinding? finding = CrashAnalysis.Analyze(text, 0);
+
+        if (finding == null)
+        {
+            return string.Empty;
+        }
+
+        _log.Warn("launch", "crash analysis: " + finding.Summary + " | " + finding.Evidence);
+
+        if (progress != null)
+        {
+            Report(progress, LaunchStage.Failed, "崩溃分析：" + finding.Summary);
+        }
+
+        string detail = " 崩溃分析：" + finding.Summary;
+
+        for (int i = 0; i < finding.Suggestions.Count; i++)
+        {
+            detail += " " + (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    + ") " + finding.Suggestions[i];
+        }
+
+        return detail;
+    }
     // ---------- 辅助 ----------
 
     private JavaResolutionOutcome ResolveJavaCached(int requiredMajor)
