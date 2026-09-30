@@ -529,7 +529,9 @@ public sealed class LaunchPipeline
                     LaunchStage.Downloading,
                     "进度 " + p.FilesCompleted + "/" + p.FilesTotal + "，已传 " + Megabytes(p.BytesTransferred),
                     p.FilesCompleted,
-                    p.FilesTotal));
+                    p.FilesTotal,
+                    p.BytesTransferred,
+                    p.KnownTotalBytes ?? 0));
             }
         });
     }

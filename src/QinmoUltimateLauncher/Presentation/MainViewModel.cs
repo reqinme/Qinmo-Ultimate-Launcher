@@ -136,6 +136,13 @@ public sealed class MainViewModel : ObservableObject
     private double _progressValue;
     private bool _isProgressIndeterminate;
     private string _currentStageText = "待命";
+    private string _progressDetail = string.Empty;
+
+    /// <summary>窗口取 30 秒：短了数字抖得厉害，长了看不出好转。</summary>
+    private readonly ThroughputEstimator _throughput = new ThroughputEstimator(TimeSpan.FromSeconds(30));
+
+    /// <summary>多久没有新数据就认为"卡住了"。要明显长于单次请求超时，否则会把正常重试误报成停滞。</summary>
+    private static readonly TimeSpan StalledThreshold = TimeSpan.FromSeconds(20);
 
     private readonly AccountManager? _account;
     private AuthSession? _session;
@@ -360,6 +367,19 @@ public sealed class MainViewModel : ObservableObject
         private set => Set(ref _currentStageText, value);
     }
 
+    /// <summary>
+    /// 进度条下面那一行："12 KB/s · 剩余约 8 分 20 秒"。
+    ///
+    /// 冷装一个 1.7.10 在这台机器上实测要 15 分钟以上，而界面上原本只有
+    /// 一行"开始获取所需文件…"——**用户分不清"慢但在推进"和"卡住了"**。
+    /// 这不是带宽问题，是产品问题。
+    /// </summary>
+    public string ProgressDetail
+    {
+        get => _progressDetail;
+        private set => Set(ref _progressDetail, value);
+    }
+
     public string ThemeLabel => ThemeManager.Describe(ThemeManager.Mode);
 
     /// <summary>当前构建有没有配置发布源。没配置时「检查更新」是禁用的。</summary>
@@ -578,6 +598,7 @@ public sealed class MainViewModel : ObservableObject
     {
         UpdateStages(progress.Stage);
         CurrentStageText = LaunchStages.Label(progress.Stage);
+        UpdateThroughput(progress);
 
         if (progress.IsDeterminate)
         {
@@ -594,6 +615,37 @@ public sealed class MainViewModel : ObservableObject
             _lastLoggedMessage = progress.Message;
             AppendLog(progress.Stage, progress.Message);
         }
+    }
+
+    /// <summary>
+    /// 把累计字节变成"速度 + 剩余时间"，并区分"慢但在推进"和"卡住了"。
+    ///
+    /// 停滞时**刻意不显示剩余时间**：那一刻的速率已经不可信，
+    /// 继续报一个数只会让人以为马上就好。
+    /// </summary>
+    private void UpdateThroughput(LaunchProgress progress)
+    {
+        if (progress.Stage != LaunchStage.Downloading || progress.BytesCompleted <= 0)
+        {
+            _throughput.Reset();
+            ProgressDetail = string.Empty;
+            return;
+        }
+
+        _throughput.Sample(progress.BytesCompleted, progress.BytesTotal, DateTimeOffset.Now);
+
+        if (_throughput.SinceProgress >= StalledThreshold)
+        {
+            string stalled = "已 " + ThroughputEstimator.FormatDuration(_throughput.SinceProgress) + "没有新数据，仍在重试";
+
+            ProgressDetail = _throughput.HasRate
+                ? ThroughputEstimator.FormatRate(_throughput.BytesPerSecond) + " · " + stalled
+                : stalled;
+
+            return;
+        }
+
+        ProgressDetail = _throughput.Describe();
     }
 
     private void UpdateStages(LaunchStage current)

@@ -260,6 +260,15 @@
                                  IsIndeterminate="{Binding IsProgressIndeterminate}"
                                  AutomationProperties.Name="启动进度" />
 
+                    <!-- 冷装可能要走十几分钟，这一行是用户判断"该不该继续等"的唯一依据。
+                         刻意**不设** AutomationProperties.Name：TextBlock 的可访问名称默认就是它的文本，
+                         设成固定文案会让屏幕阅读器永远念"下载速度与剩余时间"而念不出真正的速度。
+                         LiveSetting=Polite 让它在变化时被播报，但不抢焦点。 -->
+                    <TextBlock Margin="0,6,0,0" Text="{Binding ProgressDetail}"
+                               Foreground="{DynamicResource Qul.Brush.Text.Secondary}"
+                               TextWrapping="Wrap"
+                               AutomationProperties.LiveSetting="Polite" />
+
                     <Border Style="{StaticResource Qul.Style.Card.Status.Danger}" Margin="0,12,0,0"
                             Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>

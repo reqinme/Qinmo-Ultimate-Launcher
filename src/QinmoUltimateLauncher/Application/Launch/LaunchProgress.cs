@@ -23,12 +23,20 @@ public enum LaunchStage
 
 public sealed class LaunchProgress
 {
-    public LaunchProgress(LaunchStage stage, string message, int completed = 0, int total = 0)
+    public LaunchProgress(
+        LaunchStage stage,
+        string message,
+        int completed = 0,
+        int total = 0,
+        long bytesCompleted = 0,
+        long bytesTotal = 0)
     {
         Stage = stage;
         Message = message;
         Completed = completed;
         Total = total;
+        BytesCompleted = bytesCompleted;
+        BytesTotal = bytesTotal;
     }
 
     public LaunchStage Stage { get; }
@@ -38,6 +46,16 @@ public sealed class LaunchProgress
     public int Completed { get; }
 
     public int Total { get; }
+
+    /// <summary>
+    /// 已传字节。**在此之前它只以文本形式出现在 <see cref="Message"/> 里**，
+    /// 界面拿不到可计算的数值，也就没法算吞吐与剩余时间——
+    /// 冷装十几分钟时用户只能看到一行"开始获取所需文件…"。
+    /// </summary>
+    public long BytesCompleted { get; }
+
+    /// <summary>已知总字节。0 表示未知（例如元数据里没给体积）。</summary>
+    public long BytesTotal { get; }
 
     /// <summary>有总量时才是确定进度；否则界面应当显示不确定态。</summary>
     public bool IsDeterminate => Total > 0;
