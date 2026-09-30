@@ -86,7 +86,18 @@ public sealed class HttpTransport : IHttpTransport
             throw new LauncherException(ErrorCode.NetUnreachable, "request url is empty");
         }
 
-        HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(request.Url);
+        // **只能处理 http/https。**
+        // 先前直接 (HttpWebRequest)WebRequest.Create(url)：`file://` 会返回
+        // FileWebRequest 并抛 InvalidCastException——那既不是 LauncherException，
+        // 也违反"传输层失败一律抛 LauncherException"的端口契约。
+        if (!Uri.TryCreate(request.Url, UriKind.Absolute, out Uri? target)
+            || (target.Scheme != Uri.UriSchemeHttp && target.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new LauncherException(
+                ErrorCode.NetUnreachable, "only http/https urls are supported: " + request.Url);
+        }
+
+        HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(target);
         webRequest.Method = string.IsNullOrEmpty(request.Method) ? "GET" : request.Method.ToUpperInvariant();
         webRequest.AllowAutoRedirect = true;
         webRequest.Timeout = (int)Math.Min(int.MaxValue, request.Timeout.TotalMilliseconds);

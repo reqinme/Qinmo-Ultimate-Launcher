@@ -136,28 +136,6 @@ public sealed class UpdateTests
     // ================= 回退判定 =================
 
     [TestMethod]
-    public void ShouldRollback_IsTrueOnlyWhileTheMarkerSaysSwapping()
-    {
-        UpdateStore store = NewStore();
-
-        Assert.IsFalse(store.ShouldRollback(out PendingUpdate? none), "没有标记就没什么可回退的");
-        Assert.IsNull(none);
-
-        store.SavePending(new PendingUpdate
-        {
-            TargetVersion = "1.1.0",
-            PendingFileName = "pending.exe",
-            BackupFileName = "QinmoUltimateLauncher.exe.old",
-            Stage = PendingUpdate.StageSwapping,
-            StartedAt = DateTimeOffset.UtcNow,
-        });
-
-        // 核心语义：标记还在 + 阶段仍是 swapping ⇒ 上次替换后从未成功启动过
-        Assert.IsTrue(store.ShouldRollback(out PendingUpdate? pending));
-        Assert.AreEqual("1.1.0", pending!.TargetVersion);
-    }
-
-    [TestMethod]
     public void Marker_SurvivesARoundTripThroughDisk()
     {
         UpdateStore store = NewStore();
@@ -197,33 +175,7 @@ public sealed class UpdateTests
         store.ClearPending();
 
         Assert.IsNull(store.LoadPending());
-        Assert.IsFalse(store.ShouldRollback(out PendingUpdate? _));
-    }
-
-    [TestMethod]
-    public void ShouldRollback_IgnoresAMarkerWithoutABackupName()
-    {
-        // 没有备份名就没法回退，标记本身是坏的：清掉它，别让程序卡在"要不要回退"上。
-        UpdateStore store = NewStore();
-        store.SavePending(new PendingUpdate
-        {
-            TargetVersion = "1.1.0",
-            BackupFileName = string.Empty,
-            Stage = PendingUpdate.StageSwapping,
-        });
-
-        Assert.IsFalse(store.ShouldRollback(out PendingUpdate? _));
-        Assert.IsNull(store.LoadPending(), "坏标记应当被清掉");
-    }
-
-    [TestMethod]
-    public void ShouldRollback_IgnoresUnreadableMarker()
-    {
-        UpdateStore store = NewStore();
-        Directory.CreateDirectory(store.Directory);
-        File.WriteAllText(store.PendingFilePath, "{ this is not json");
-
-        Assert.IsFalse(store.ShouldRollback(out PendingUpdate? _));
+        Assert.AreEqual(UpdateBootDecision.None, store.DecideOnBoot("1.1.0", out PendingUpdate? _));
     }
 
     // ================= 路径白名单 =================

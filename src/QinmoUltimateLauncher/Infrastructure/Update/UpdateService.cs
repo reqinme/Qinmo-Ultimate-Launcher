@@ -199,11 +199,6 @@ public sealed class UpdateService
     }
 
     /// <summary>应用成功、且应用真正起来之后调用。删掉标记才算这次更新活下来了。</summary>
-    public void ConfirmHealthy()
-    {
-        _store.ClearPending();
-    }
-
     private static string ComputeSha256(string path)
     {
         using (SHA256 sha = SHA256.Create())

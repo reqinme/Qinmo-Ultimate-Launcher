@@ -276,7 +276,10 @@ public sealed class DownloadEngine
         // 而且哈希来自同一份元数据，校验拦不住。
         // 项目里解压那条路早有同款防护（ArchiveEntryPolicy 的 zip-slip 判定），下载这边此前没有。
         string destination = SafeDestination(cacheRoot, item.RelativePath);
-        string partial = destination + ".part";
+        // 后缀刻意不是 ".part"：元数据里若有条目相对路径正好以 .part 结尾，
+        // 它的**正式文件**就会与另一条目的**临时文件**同名，两个 worker 互相覆盖。
+        // 官方元数据目前没有这种路径，属纵深防御。
+        string partial = destination + ".qulpart";
 
         if (!Sha1Hex.TryParse(item.Sha1, out Sha1Hex expected))
         {

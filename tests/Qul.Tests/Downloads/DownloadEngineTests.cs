@@ -177,7 +177,9 @@ public sealed class DownloadEngineTests
     {
         string sandbox = NewSandbox();
         byte[] body = Bytes("hello world");
-        string partial = Path.Combine(sandbox, @"libraries\p.jar.part");
+        // 后缀要跟引擎的临时文件约定一致（`.qulpart`，刻意不用 `.part`——
+        // 否则元数据里以 .part 结尾的条目会与另一条目的临时文件撞名）。
+        string partial = Path.Combine(sandbox, @"libraries\p.jar.qulpart");
         Directory.CreateDirectory(Path.GetDirectoryName(partial)!);
         File.WriteAllBytes(partial, new byte[body.Length + 10]); // 本地残留比远端还长
 

@@ -1,7 +1,6 @@
 using System;
 using System.Globalization;
 using System.IO;
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Qul.Application.Update;
@@ -46,30 +45,6 @@ public sealed class UpdateStore
     /// 判断是否应当回退。
     /// 条件：存在标记，且阶段仍是 swapping——说明替换动作发起过，但之后从未成功启动。
     /// </summary>
-    public bool ShouldRollback(out PendingUpdate? pending)
-    {
-        pending = LoadPending();
-
-        if (pending == null)
-        {
-            return false;
-        }
-
-        if (!pending.IsSwapping)
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(pending.BackupFileName))
-        {
-            _log.Warn("update", "pending marker has no backup name; discarding", ErrorCode.UpdFailed);
-            ClearPending();
-            return false;
-        }
-
-        return true;
-    }
-
     /// <summary>
     /// 启动时决定怎么处理待应用更新标记。
     ///
@@ -113,7 +88,20 @@ public sealed class UpdateStore
         if (decision == UpdateBootDecision.Adopt)
         {
             pending.Stage = PendingUpdate.StageApplied;
-            SavePending(pending);
+
+            // **写标记失败不能拖垮启动。**
+            // 这里是启动路径：一个健康的新版本不该因为"标记写不出来"而完全起不来。
+            // 写不成的后果只是"这次没记下已认领"，下次启动会再判一次——
+            // 而判定结果是 Adopt，应用照常运行。
+            try
+            {
+                SavePending(pending);
+            }
+            catch (Exception ex) when (
+                ex is IOException || ex is UnauthorizedAccessException || ex is NotSupportedException)
+            {
+                _log.Warn("update", "could not persist the adopted marker; continuing anyway", ErrorCode.UpdFailed);
+            }
         }
 
         // **Discard 只做判定，清理由调用方执行**——既有用例明确锁住了这条契约。
