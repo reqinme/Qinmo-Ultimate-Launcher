@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.IO;
+using Qul.Infrastructure.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Qul.Domain.Diagnostics;
 using Qul.Infrastructure.Diagnostics;
@@ -124,5 +126,61 @@ public sealed class DiagnosticsTests
         Assert.AreEqual(LogLevel.Warn, warn);
 
         Assert.IsFalse(LogLevels.TryParse("verbose", out _), "未知级别必须被拒绝，而不是静默接受");
+    }
+    [TestMethod]
+    public void Redactor_MasksTheThirtyTwoHexAccountIdThisProjectActuallyUses()
+    {
+        // **这条用例守的是一个"以为保护了、其实没有"的缺陷。**
+        //
+        // 原先的 Redactor_MasksUuidAndIp 用的是**带连字符**的 36 位形式，
+        // 而本项目实际使用与落盘的是**无连字符**的 32 位形式
+        // （AuthSession.Uuid / MicrosoftAuthProvider）。
+        // 于是掩码规则从来没有生效过——用例却一直是绿的，
+        // 因为它断言的是一个产品从不产生的形式。
+        const string AccountId = "069a79f444e94726a5befca90e38aaf5";
+
+        string scrubbed = Redactor.Scrub("account " + AccountId + " ready");
+
+        StringAssert.DoesNotMatch(scrubbed, new Regex(AccountId));
+        StringAssert.Contains(scrubbed, Redactor.UuidMask);
+    }
+
+    [TestMethod]
+    public void SessionLog_ScrubsTheMessageNotJustTheDetail()
+    {
+        // **msg 与 detail 一样必须脱敏。**
+        //
+        // 先前只有 detail 走 Redactor，msg 直接落盘。
+        // 而 App 在启动失败与未处理异常两条路径上，把异常 message 与**完整堆栈**
+        // 经 msg 写盘——堆栈里必然含 `C:\Users\<用户名>\...`，
+        // 而 BootContext 明明登记了 %USERPROFILE% 期望掩掉它。
+        string root = Path.Combine(Path.GetTempPath(), "qul-log-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            DataLayout layout = DataLayout.Resolve(root, Path.Combine(root, "profile"));
+            layout.EnsureCreated();
+
+            string file;
+
+            using (SessionLog log = SessionLog.Open(layout, LogLevel.Info))
+            {
+                file = log.FilePath;
+                log.Warn("boot", "msg 里出现了 069a79f444e94726a5befca90e38aaf5 这样的账号标识");
+            }
+
+            string content = File.ReadAllText(file);
+
+            StringAssert.DoesNotMatch(
+                content,
+                new Regex("069a79f444e94726a5befca90e38aaf5"),
+                "经 msg 写入的内容同样必须被脱敏");
+            StringAssert.Contains(content, Redactor.UuidMask);
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch (IOException) { }
+        }
     }
 }

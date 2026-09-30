@@ -27,8 +27,16 @@ public static class Redactor
 
     private static readonly string?[] PathPrefixes = new string?[2];
 
+    /// <summary>
+    /// 账号标识。**两种形式都要认。**
+    ///
+    /// 先前只认带连字符的 36 位形式，而本项目实际用的是
+    /// **32 位无连字符**十六进制（见 AuthSession.Uuid 与 MicrosoftAuthProvider），
+    /// 于是这条掩码规则从来没生效过——掩码形同虚设比没有掩码更糟，
+    /// 因为它让人以为已经保护了。
+    /// </summary>
     private static readonly Regex UuidPattern = new Regex(
-        @"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b",
+        @"\b(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{32})\b",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly Regex Ipv4Pattern = new Regex(
@@ -247,7 +255,12 @@ public sealed class SessionLog : IDisposable
             sb.Append(" code=").Append(ErrorCodes.Id(code.Value));
         }
 
-        sb.Append(" msg=").Append(Escape(message));
+        // **msg 与 detail 一样必须脱敏。**
+        // 先前只有 detail 走了 Redactor，而 msg 直接落盘——
+        // 于是 App.xaml.cs 里把异常 message 与**完整堆栈**经 msg 写盘时，
+        // 堆栈里的 `C:\Users\<用户名>\...` 就明文进了日志，
+        // 而 BootContext 明明登记了 %USERPROFILE% 期望把它掩掉。
+        sb.Append(" msg=").Append(Escape(Redactor.Scrub(message)));
 
         if (!string.IsNullOrEmpty(detail))
         {

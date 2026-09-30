@@ -81,6 +81,7 @@ public sealed class AccountManager
             return outcome;
         }
 
+        RegisterSecrets(outcome.Session);
         Save(outcome.Session);
         return outcome;
     }
@@ -124,7 +125,8 @@ public sealed class AccountManager
 
         if (!stored.IsExpired)
         {
-            _log.Info("auth", "restored a valid session for " + stored.Describe());
+            RegisterSecrets(stored);
+            _log.Info("auth", "restored a valid session");
             return stored;
         }
 
@@ -144,8 +146,27 @@ public sealed class AccountManager
             return null;
         }
 
+        RegisterSecrets(refreshed.Session);
         Save(refreshed.Session);
         return refreshed.Session;
+    }
+
+    /// <summary>
+    /// 把会话里的令牌登记进脱敏器，**让它们万一出现在日志里也会被掩掉**。
+    ///
+    /// 这个机制原先全工程**零调用**——一个宣称提供保护、实际从不生效的东西
+    /// 比没有更糟，因为它让人以为已经保护了。
+    ///
+    /// 两处都要登记：登录时（Save 之前）与**恢复时**。
+    /// 只登记登录的话，下次启动从磁盘恢复出来的令牌就不受保护了。
+    ///
+    /// 顺带把 <c>Describe()</c> 从日志里去掉：它含用户名与裸 uuid，
+    /// 而这两样正是脱敏规则要掩的东西。
+    /// </summary>
+    private static void RegisterSecrets(AuthSession session)
+    {
+        Redactor.RegisterSecret(session.AccessToken);
+        Redactor.RegisterSecret(session.RefreshToken);
     }
 
     private void Save(AuthSession session)
@@ -153,7 +174,7 @@ public sealed class AccountManager
         try
         {
             _tokens.Save(_accountKey, session);
-            _log.Info("auth", "saved the session for " + session.Describe());
+            _log.Info("auth", "saved the session");
         }
         catch (LauncherException ex)
         {
