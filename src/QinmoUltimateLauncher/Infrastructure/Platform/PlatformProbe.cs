@@ -69,4 +69,25 @@ public static class PlatformProbe
         Version version = Environment.OSVersion.Version;
         return version.Major + "." + version.Minor + "." + version.Build;
     }
+
+    /// <summary>
+    /// 按**选定的 Java 运行时**构造环境画像。
+    ///
+    /// natives 与 os.arch 规则要匹配的是 JVM 的架构，不是机器的架构：
+    /// 32 位 JVM 跑在 64 位 Windows 上时需要的是 natives-windows-32。
+    /// JVM 自己报告的 os.arch 就是它自己的架构，所以这里以它为准；
+    /// 只有拿不到时才回落到机器架构。
+    /// </summary>
+    public static EnvironmentProfile ForJavaRuntime(
+        Qul.Domain.Runtime.JavaRuntimeCandidate? runtime,
+        IReadOnlyDictionary<string, bool>? features = null)
+    {
+        string? arch = runtime?.OsArch;
+        if (string.IsNullOrEmpty(arch))
+        {
+            arch = DetectArchitecture();
+        }
+
+        return new EnvironmentProfile(DetectOsName(), arch!, DetectOsVersion(), features);
+    }
 }
