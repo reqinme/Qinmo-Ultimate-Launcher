@@ -293,7 +293,14 @@ public static class CliRunner
             return ExitOk;
         }
 
-        process.WaitForExit(TimeSpan.FromSeconds(20));
+        // 绝不能用无超时的 WaitForExit：游戏还活着的话这里会永远卡住。
+        // 26.3 那次就是这样——命令行一直挂到被外部强杀。
+        if (!process.WaitForExit(TimeSpan.FromSeconds(20)))
+        {
+            Report(boot, "游戏进程仍在运行，但未检测到窗口；不再等待。");
+            return ExitFailed;
+        }
+
         GameProcessResult result = process.WaitForExit();
 
         Report(boot, "✘ 未见游戏窗口；进程已退出，退出码 " + result.ExitCode

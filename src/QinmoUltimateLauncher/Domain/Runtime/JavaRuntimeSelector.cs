@@ -128,6 +128,19 @@ public static class JavaRuntimeSelector
         int required,
         JavaSelectionRequest request)
     {
+        // 转发器（Oracle 的 javapath 之类）不是真正的 JDK：
+        // 它把真正的 JVM 作为**子进程**拉起，于是"我们启动的那个进程"永远没有窗口——
+        // 窗口属于孙进程。窗口检测、退出码、进程树全都跟着出问题。
+        // 26.3 的首次真实启动就栽在这里：游戏跑到了标题界面，
+        // 命令行却一直等不到窗口，最后被外部强杀。
+        // 因此只要还有别的选择，就不用转发器。
+        bool leftIsShim = IsForwarderShim(left);
+        bool rightIsShim = IsForwarderShim(right);
+
+        if (leftIsShim != rightIsShim)
+        {
+            return leftIsShim ? 1 : -1;
+        }
         if (request.Policy == JavaSelectionPolicy.Latest)
         {
             int byVersionDesc = right.Version.CompareTo(left.Version);
@@ -169,6 +182,20 @@ public static class JavaRuntimeSelector
 
         // 全序收尾：路径序。没有它，并列候选的选出结果会随输入顺序漂移。
         return string.CompareOrdinal(left.ExecutablePath, right.ExecutablePath);
+    }
+
+    /// <summary>
+    /// 判断一个 java.exe 是不是转发器。
+    ///
+    /// 转发器自己不跑 JVM，只是把命令转给真正的 java.exe。
+    /// 路径特征是 Oracle 的 javapath 或 Common Files\Oracle\Java。
+    /// </summary>
+    private static bool IsForwarderShim(JavaRuntimeCandidate candidate)
+    {
+        string path = candidate.ExecutablePath ?? string.Empty;
+
+        return path.IndexOf(@"\javapath\", StringComparison.OrdinalIgnoreCase) >= 0
+               || path.IndexOf(@"Common Files\Oracle\Java", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static string DescribeMissing(JavaSelectionRequest request)
