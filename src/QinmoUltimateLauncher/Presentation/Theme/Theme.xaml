@@ -1,0 +1,25 @@
+<!--
+    Qul 主题汇总入口。
+
+    合并顺序有讲究：
+      1. Tokens    —— 尺寸 / 圆角 / 时长，其他字典靠 StaticResource 取用，必须最先
+      2. Palette   —— **全局唯一实例**。主题切换就是替换这一个字典，
+                      所以任何控件字典都不许自己合并调色板
+      3. Icons     —— 纯几何，无依赖
+      4. Controls* —— 各自合并 Tokens 取尺寸，画刷一律 DynamicResource 指向调色板
+
+    全部以 Page 编译进程序集（BAML），不落松散文件，与单文件方案天然一致。
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Tokens.xaml" />
+        <ResourceDictionary Source="Palette.Dark.xaml" />
+        <ResourceDictionary Source="Icons.xaml" />
+        <ResourceDictionary Source="Controls.Buttons.xaml" />
+        <ResourceDictionary Source="Controls.Inputs.xaml" />
+        <ResourceDictionary Source="Controls.Surfaces.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+</ResourceDictionary>

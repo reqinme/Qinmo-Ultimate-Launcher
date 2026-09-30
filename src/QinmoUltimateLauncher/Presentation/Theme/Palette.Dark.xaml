@@ -1,0 +1,79 @@
+<!--
+    Qul 深色调色板（默认）。
+    界面只引用 Qul.Brush.* 语义键，永远不直接写十六进制 —— 这是主题能换的前提。
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ===== 表面 ===== -->
+    <Color x:Key="Qul.Color.Surface.Base">#FF14161A</Color>
+    <Color x:Key="Qul.Color.Surface.Raised">#FF1C1F26</Color>
+    <Color x:Key="Qul.Color.Surface.RaisedHover">#FF23272F</Color>
+    <Color x:Key="Qul.Color.Surface.Inset">#FF0F1115</Color>
+    <Color x:Key="Qul.Color.Surface.Overlay">#FF22262E</Color>
+
+    <!-- ===== 描边 ===== -->
+    <Color x:Key="Qul.Color.Stroke.Subtle">#FF272C35</Color>
+    <Color x:Key="Qul.Color.Stroke.Strong">#FF39404C</Color>
+    <Color x:Key="Qul.Color.Stroke.Focus">#FF6EA8FE</Color>
+
+    <!-- ===== 文字 ===== -->
+    <Color x:Key="Qul.Color.Text.Primary">#FFE9EBEF</Color>
+    <Color x:Key="Qul.Color.Text.Secondary">#FFA6ADBA</Color>
+    <Color x:Key="Qul.Color.Text.Tertiary">#FF737B88</Color>
+    <Color x:Key="Qul.Color.Text.Disabled">#FF4E5560</Color>
+    <Color x:Key="Qul.Color.Text.OnAccent">#FFFFFFFF</Color>
+
+    <!-- ===== 强调 ===== -->
+    <Color x:Key="Qul.Color.Accent">#FF4C8DF6</Color>
+    <Color x:Key="Qul.Color.Accent.Hover">#FF6099F8</Color>
+    <Color x:Key="Qul.Color.Accent.Pressed">#FF3B7AE0</Color>
+    <Color x:Key="Qul.Color.Accent.Subtle">#FF1B2534</Color>
+
+    <!-- ===== 语义 ===== -->
+    <Color x:Key="Qul.Color.Success">#FF3FB950</Color>
+    <Color x:Key="Qul.Color.Warning">#FFD9A441</Color>
+    <Color x:Key="Qul.Color.Danger">#FFF0616D</Color>
+    <Color x:Key="Qul.Color.Danger.Hover">#FFE14A57</Color>
+    <Color x:Key="Qul.Color.Danger.Pressed">#FFC93B48</Color>
+    <Color x:Key="Qul.Color.Surface.Success">#FF16241A</Color>
+    <Color x:Key="Qul.Color.Surface.Warning">#FF2A2113</Color>
+    <Color x:Key="Qul.Color.Surface.Danger">#FF2C181B</Color>
+    <Color x:Key="Qul.Color.Surface.Info">#FF16202E</Color>
+
+    <!-- ===== 画刷（界面实际引用的就是这些）===== -->
+    <SolidColorBrush x:Key="Qul.Brush.Surface.Base" Color="{StaticResource Qul.Color.Surface.Base}" />
+    <SolidColorBrush x:Key="Qul.Brush.Surface.Raised" Color="{StaticResource Qul.Color.Surface.Raised}" />
+    <SolidColorBrush x:Key="Qul.Brush.Surface.RaisedHover" Color="{StaticResource Qul.Color.Surface.RaisedHover}" />
+    <SolidColorBrush x:Key="Qul.Brush.Surface.Inset" Color="{StaticResource Qul.Color.Surface.Inset}" />
+    <SolidColorBrush x:Key="Qul.Brush.Surface.Overlay" Color="{StaticResource Qul.Color.Surface.Overlay}" />
+
+    <SolidColorBrush x:Key="Qul.Brush.Stroke.Subtle" Color="{StaticResource Qul.Color.Stroke.Subtle}" />
+    <SolidColorBrush x:Key="Qul.Brush.Stroke.Strong" Color="{StaticResource Qul.Color.Stroke.Strong}" />
+    <SolidColorBrush x:Key="Qul.Brush.Stroke.Focus" Color="{StaticResource Qul.Color.Stroke.Focus}" />
+
+    <SolidColorBrush x:Key="Qul.Brush.Text.Primary" Color="{StaticResource Qul.Color.Text.Primary}" />
+    <SolidColorBrush x:Key="Qul.Brush.Text.Secondary" Color="{StaticResource Qul.Color.Text.Secondary}" />
+    <SolidColorBrush x:Key="Qul.Brush.Text.Tertiary" Color="{StaticResource Qul.Color.Text.Tertiary}" />
+    <SolidColorBrush x:Key="Qul.Brush.Text.Disabled" Color="{StaticResource Qul.Color.Text.Disabled}" />
+    <SolidColorBrush x:Key="Qul.Brush.Text.OnAccent" Color="{StaticResource Qul.Color.Text.OnAccent}" />
+
+    <SolidColorBrush x:Key="Qul.Brush.Accent" Color="{StaticResource Qul.Color.Accent}" />
+    <SolidColorBrush x:Key="Qul.Brush.Accent.Hover" Color="{StaticResource Qul.Color.Accent.Hover}" />
+    <SolidColorBrush x:Key="Qul.Brush.Accent.Pressed" Color="{StaticResource Qul.Color.Accent.Pressed}" />
+    <SolidColorBrush x:Key="Qul.Brush.Accent.Subtle" Color="{StaticResource Qul.Color.Accent.Subtle}" />
+
+    <SolidColorBrush x:Key="Qul.Brush.Success" Color="{StaticResource Qul.Color.Success}" />
+    <SolidColorBrush x:Key="Qul.Brush.Warning" Color="{StaticResource Qul.Color.Warning}" />
+    <SolidColorBrush x:Key="Qul.Brush.Danger" Color="{StaticResource Qul.Color.Danger}" />
+    <SolidColorBrush x:Key="Qul.Brush.Danger.Hover" Color="{StaticResource Qul.Color.Danger.Hover}" />
+    <SolidColorBrush x:Key="Qul.Brush.Danger.Pressed" Color="{StaticResource Qul.Color.Danger.Pressed}" />
+    <SolidColorBrush x:Key="Qul.Brush.Surface.Success" Color="{StaticResource Qul.Color.Surface.Success}" />
+    <SolidColorBrush x:Key="Qul.Brush.Surface.Warning" Color="{StaticResource Qul.Color.Surface.Warning}" />
+    <SolidColorBrush x:Key="Qul.Brush.Surface.Danger" Color="{StaticResource Qul.Color.Surface.Danger}" />
+    <SolidColorBrush x:Key="Qul.Brush.Surface.Info" Color="{StaticResource Qul.Color.Surface.Info}" />
+
+    <!-- 透明度为 0 的画刷，用于动画起点 -->
+    <SolidColorBrush x:Key="Qul.Brush.Transparent" Color="Transparent" />
+
+</ResourceDictionary>

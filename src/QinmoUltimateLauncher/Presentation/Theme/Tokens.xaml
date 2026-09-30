@@ -1,0 +1,64 @@
+<!--
+    Qul 主题令牌：与主题无关的部分。
+    间距 / 圆角 / 字号 / 动效时长 / 描边粗细都在这里。
+
+    规矩：界面代码只引用这里的键，不写裸数值。
+    随手写 Margin="7" 是界面显得业余的主要原因。
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- ===== 字体族：只用系统字体，不打包任何字体文件 ===== -->
+    <FontFamily x:Key="Qul.Font.Family">Microsoft YaHei UI, Segoe UI, Arial</FontFamily>
+    <FontFamily x:Key="Qul.Font.Mono">Consolas, Courier New, monospace</FontFamily>
+
+    <!-- ===== 字号 ===== -->
+    <sys:Double x:Key="Qul.Size.Font.Display">26</sys:Double>
+    <sys:Double x:Key="Qul.Size.Font.Title">19</sys:Double>
+    <sys:Double x:Key="Qul.Size.Font.Subtitle">15</sys:Double>
+    <sys:Double x:Key="Qul.Size.Font.Body">13</sys:Double>
+    <sys:Double x:Key="Qul.Size.Font.Caption">11</sys:Double>
+    <sys:Double x:Key="Qul.Size.Font.Mono">12</sys:Double>
+
+    <!-- ===== 间距（只用这个尺度，不用尺度外的值）===== -->
+    <Thickness x:Key="Qul.Thickness.Window">24</Thickness>
+    <Thickness x:Key="Qul.Thickness.Card">16</Thickness>
+    <Thickness x:Key="Qul.Thickness.Control">10,6</Thickness>
+    <Thickness x:Key="Qul.Thickness.ControlWide">12,7</Thickness>
+    <Thickness x:Key="Qul.Thickness.Input">9,6</Thickness>
+    <Thickness x:Key="Qul.Thickness.CardGap">0,0,0,12</Thickness>
+    <Thickness x:Key="Qul.Thickness.SectionGap">0,0,0,24</Thickness>
+    <Thickness x:Key="Qul.Thickness.FieldLabel">0,0,0,4</Thickness>
+    <Thickness x:Key="Qul.Thickness.FieldBlock">0,0,0,16</Thickness>
+    <Thickness x:Key="Qul.Thickness.InfoBar">12,9</Thickness>
+
+    <!-- ===== 圆角 ===== -->
+    <CornerRadius x:Key="Qul.Radius.Small">4</CornerRadius>
+    <CornerRadius x:Key="Qul.Radius.Medium">6</CornerRadius>
+    <CornerRadius x:Key="Qul.Radius.Large">8</CornerRadius>
+    <CornerRadius x:Key="Qul.Radius.Pill">999</CornerRadius>
+
+    <!-- ===== 描边粗细 ===== -->
+    <Thickness x:Key="Qul.Stroke.Thin">1</Thickness>
+    <Thickness x:Key="Qul.Stroke.Focus">2</Thickness>
+    <sys:Double x:Key="Qul.Size.Stroke.Thin">1</sys:Double>
+    <sys:Double x:Key="Qul.Size.Stroke.Focus">2</sys:Double>
+
+    <!-- ===== 动效时长 =====
+         只动 Opacity / TranslateTransform / ScaleTransform。
+         绝不动 Width / Height / Margin / Padding / FontSize —— 那些会触发 Layout 重算。
+         减少动态效果时由 DurationProvider 把这些归零。 -->
+    <Duration x:Key="Qul.Duration.Fast">0:0:0.12</Duration>
+    <Duration x:Key="Qul.Duration.Normal">0:0:0.18</Duration>
+    <Duration x:Key="Qul.Duration.Slow">0:0:0.24</Duration>
+
+    <!-- ===== 结构尺寸 ===== -->
+    <sys:Double x:Key="Qul.Size.SidebarWidth">340</sys:Double>
+    <sys:Double x:Key="Qul.Size.Gutter">12</sys:Double>
+    <sys:Double x:Key="Qul.Size.LogDrawerHeight">200</sys:Double>
+    <sys:Double x:Key="Qul.Size.ProgressBarHeight">6</sys:Double>
+    <sys:Double x:Key="Qul.Size.IconSmall">14</sys:Double>
+    <sys:Double x:Key="Qul.Size.IconMedium">16</sys:Double>
+
+</ResourceDictionary>
