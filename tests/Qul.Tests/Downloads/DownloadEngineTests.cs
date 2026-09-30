@@ -861,4 +861,43 @@ public sealed class DownloadEngineTests
             File.ReadAllBytes(Path.Combine(sandbox, @"assets\objects\bb\bbbig.bin")),
             "回退路径同样必须逐字节一致");
     }
+    [TestMethod]
+    public void EnsureAll_ScalesTheSegmentCountWithFileSize()
+    {
+        // 段数按体积算（约每 1 MB 一段，上限 8）。
+        // 不随体积增长的话，1.7.10 的 9.68 MB 音乐文件、26.3 的 41 MB 客户端 jar
+        // 都只能干等少数几条连接——那正是分段要解决的问题本身。
+        const string SmallUrl = "https://libraries.minecraft.net/com/x/small.bin";
+        const string LargeUrl = "https://libraries.minecraft.net/com/x/large.bin";
+
+        string sandbox = NewSandbox();
+        byte[] small = BigBody(3 * 1024 * 1024);
+        byte[] large = BigBody(9 * 1024 * 1024);
+
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(SmallUrl, small);
+        transport.Serve(LargeUrl, large);
+
+        DownloadEngine engine = new DownloadEngine(transport);
+
+        DownloadItem a = Item(SmallUrl, small, @"assets\objects\aa\small.bin");
+        a.Size = small.Length;
+
+        DownloadItem b = Item(LargeUrl, large, @"assets\objects\bb\large.bin");
+        b.Size = large.Length;
+
+        DownloadReport report = engine.EnsureAll(Plan(a, b), sandbox, FastOptions());
+
+        Assert.IsTrue(report.IsComplete);
+
+        int smallSegments = transport.Requests.Count(
+            r => string.Equals(r.Url, SmallUrl, StringComparison.Ordinal) && r.RangeFrom.HasValue);
+
+        int largeSegments = transport.Requests.Count(
+            r => string.Equals(r.Url, LargeUrl, StringComparison.Ordinal) && r.RangeFrom.HasValue);
+
+        Assert.IsTrue(
+            largeSegments > smallSegments,
+            "更大的文件应当分更多段；实际 小=" + smallSegments + " 大=" + largeSegments);
+    }
 }

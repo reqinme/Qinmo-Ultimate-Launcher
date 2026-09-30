@@ -47,8 +47,17 @@ public sealed class DownloadOptions
     /// </summary>
     public long SegmentThresholdBytes { get; set; } = 1024L * 1024;
 
-    /// <summary>单个文件最多分几段。取 4：配合上面的阈值，9.68 MB 的音乐文件约 2.4 MB 一段。</summary>
-    public int MaxSegmentsPerFile { get; set; } = 4;
+    /// <summary>
+    /// 单个文件最多分几段。
+    ///
+    /// 段数按体积算（约每 <see cref="SegmentThresholdBytes"/> 一段），这里是上限。
+    /// 取 8 而不是 4：1.7.10 最大的资源对象是 9.68 MB 的音乐文件，
+    /// 4 段意味着每段 2.4 MB——一段卡住整份就卡住；8 段把它压到 1.2 MB。
+    /// 26.3 的客户端 jar 有 41 MB，差别更大。
+    ///
+    /// 总并发由共享闸门兜住，所以放宽单文件段数不会压垮服务器。
+    /// </summary>
+    public int MaxSegmentsPerFile { get; set; } = 8;
 
     /// <summary>是否启用分段。</summary>
     public bool EnableSegmentedDownload { get; set; } = true;
