@@ -254,6 +254,89 @@ public sealed class UpdateTests
         Assert.ThrowsException<LauncherException>(() => store.ResolveBackupPath(_sandbox!, "   "));
     }
 
+    // ================= 启动决策状态机 =================
+
+    [TestMethod]
+    public void DecideOnBoot_IsQuietWithoutAMarker()
+    {
+        UpdateStore store = NewStore();
+
+        Assert.AreEqual(UpdateBootDecision.None, store.DecideOnBoot("0.1.0", out PendingUpdate? pending));
+        Assert.IsNull(pending);
+    }
+
+    [TestMethod]
+    public void DecideOnBoot_AdoptsWhenWeAreTheVersionThatWasJustSwappedIn()
+    {
+        // 替换刚完成时，新版本的第一次启动**本来就会看到 swapping**。
+        // 把它当成失败去回滚，等于每次更新都自杀一次。
+        UpdateStore store = NewStore();
+        store.SavePending(new PendingUpdate
+        {
+            TargetVersion = "0.2.0",
+            PendingFileName = "pending.exe",
+            BackupFileName = "app.exe.old",
+            Stage = PendingUpdate.StageSwapping,
+            StartedAt = DateTimeOffset.UtcNow,
+        });
+
+        Assert.AreEqual(UpdateBootDecision.Adopt, store.DecideOnBoot("0.2.0", out PendingUpdate? _));
+
+        // 采纳之后阶段必须推进到 applied，否则下次启动又会走一遍 Adopt，永远确认不了健康
+        PendingUpdate? after = store.LoadPending();
+        Assert.IsNotNull(after);
+        Assert.AreEqual(PendingUpdate.StageApplied, after!.Stage);
+    }
+
+    [TestMethod]
+    public void DecideOnBoot_DiscardsWhenTheSwapNeverHappened()
+    {
+        // 运行的还是旧版本 ⇒ 替换没发生过，标记是残留。旧版本完好，清掉即可。
+        UpdateStore store = NewStore();
+        store.SavePending(new PendingUpdate
+        {
+            TargetVersion = "0.2.0",
+            BackupFileName = "app.exe.old",
+            Stage = PendingUpdate.StageSwapping,
+        });
+
+        UpdateBootDecision decision = store.DecideOnBoot("0.1.0", out PendingUpdate? _);
+
+        Assert.AreEqual(UpdateBootDecision.Discard, decision);
+        Assert.IsNotNull(store.LoadPending(), "Discard 只做判定，清理由调用方执行");
+    }
+
+    [TestMethod]
+    public void DecideOnBoot_RollsBackWhenTheLastUpdateNeverConfirmedHealth()
+    {
+        // 核心场景：新版本启动过一次、打过 applied 标记，却从未确认健康 ⇒ 上次启动中途死了。
+        UpdateStore store = NewStore();
+        store.SavePending(new PendingUpdate
+        {
+            TargetVersion = "0.2.0",
+            BackupFileName = "app.exe.old",
+            Stage = PendingUpdate.StageApplied,
+            StartedAt = DateTimeOffset.UtcNow,
+        });
+
+        Assert.AreEqual(UpdateBootDecision.Rollback, store.DecideOnBoot("0.2.0", out PendingUpdate? pending));
+        Assert.AreEqual("0.2.0", pending!.TargetVersion);
+    }
+
+    [TestMethod]
+    public void DecideOnBoot_DiscardsAnUnknownStage()
+    {
+        UpdateStore store = NewStore();
+        store.SavePending(new PendingUpdate
+        {
+            TargetVersion = "0.2.0",
+            BackupFileName = "app.exe.old",
+            Stage = "something-else",
+        });
+
+        Assert.AreEqual(UpdateBootDecision.Discard, store.DecideOnBoot("0.2.0", out PendingUpdate? _));
+    }
+
     // ================= 工具 =================
 
     private UpdateStore NewStore()

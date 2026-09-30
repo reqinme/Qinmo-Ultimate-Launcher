@@ -62,6 +62,9 @@ public sealed class DataLayout
 
     public string NativesDirectory => Path.Combine(CacheDirectory, "natives");
 
+    /// <summary>更新暂存区。**更新只允许写这里与主程序自身，绝不触碰 data/ 与 game/。**</summary>
+    public string UpdatesDirectory => Path.Combine(DataRoot, "updates");
+
     /// <summary>仅存放 DPAPI 密文。明文令牌永不落盘。</summary>
     public string SecretsDirectory => Path.Combine(DataRoot, "secrets");
 

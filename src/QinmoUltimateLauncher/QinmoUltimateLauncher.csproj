@@ -12,6 +12,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- 更新判定拿它跟发布清单比对，必须是个真实版本号 -->
+    <Version>0.1.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <RootNamespace>Qul</RootNamespace>
     <AssemblyName>QinmoUltimateLauncher</AssemblyName>

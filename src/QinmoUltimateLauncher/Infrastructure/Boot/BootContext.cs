@@ -5,6 +5,8 @@ using Qul.Domain.Diagnostics;
 using Qul.Infrastructure.Configuration;
 using Qul.Infrastructure.Diagnostics;
 using Qul.Infrastructure.IO;
+using Qul.Infrastructure.Update;
+using Qul.Application.Update;
 
 namespace Qul.Infrastructure.Boot;
 
@@ -66,6 +68,10 @@ public sealed class BootContext : IDisposable
             log.Failure("boot", layoutError.Code, layoutError);
         }
 
+        // 处理上次更新留下的标记。**必须放在这里**：任何可能失败的初始化之前。
+        // 换上来的坏版本如果连窗口都建不出来，这就是唯一的自救机会。
+        HandlePendingUpdate(layout, log);
+
         ConfigStore store = new ConfigStore(layout);
         ConfigLoadResult result = store.Load();
 
@@ -88,6 +94,79 @@ public sealed class BootContext : IDisposable
         }
 
         return new BootContext(layout, log, result, store, layoutError?.Code);
+    }
+
+    /// <summary>
+    /// 更新标记的状态机。
+    ///
+    /// 三种情况必须分开：我们就是刚上来的新版本（正常，标记为待确认）；
+    /// 上次启动打过待确认标记却没确认健康（回滚）；替换根本没发生（清掉残留标记）。
+    /// </summary>
+    private static void HandlePendingUpdate(DataLayout layout, SessionLog log)
+    {
+        UpdateStore updates = new UpdateStore(layout.UpdatesDirectory, log);
+        string currentVersion = typeof(BootContext).Assembly.GetName().Version?.ToString() ?? "0.0.0";
+
+        UpdateBootDecision decision = updates.DecideOnBoot(currentVersion, out PendingUpdate? pending);
+
+        switch (decision)
+        {
+            case UpdateBootDecision.None:
+                return;
+
+            case UpdateBootDecision.Adopt:
+                log.Info("update", "adopted pending update " + pending!.TargetVersion + "; awaiting health confirmation");
+                return;
+
+            case UpdateBootDecision.Discard:
+                log.Info("update", "pending marker discarded; the swap never happened");
+                updates.ClearPending();
+                return;
+
+            case UpdateBootDecision.Rollback:
+                RollBackToPreviousVersion(layout, log, updates, pending!);
+                return;
+        }
+    }
+
+    private static void RollBackToPreviousVersion(
+        DataLayout layout,
+        SessionLog log,
+        UpdateStore updates,
+        PendingUpdate pending)
+    {
+        string selfPath = CurrentExecutablePath();
+        string programDirectory = Path.GetDirectoryName(selfPath) ?? layout.ExecutableDirectory;
+        string backupPath = updates.ResolveBackupPath(programDirectory, pending.BackupFileName);
+
+        log.Warn("update", "previous update never confirmed health; rolling back to " + pending.TargetVersion, ErrorCode.UpdFailed);
+
+        SelfReplaceOutcome outcome = SelfReplacer.Rollback(selfPath, backupPath, selfPath + ".failed");
+
+        if (outcome.Succeeded)
+        {
+            log.Info("update", "rolled back; the previous version will run on the next start");
+        }
+        else
+        {
+            log.Failure("update", ErrorCode.UpdFailed, new LauncherException(ErrorCode.UpdFailed, outcome.FailureReason ?? "rollback failed"));
+        }
+
+        // 无论成败都清掉标记：留着只会让每次启动都重复同一次失败的尝试。
+        updates.ClearPending();
+    }
+
+    private static string CurrentExecutablePath()
+    {
+        try
+        {
+            return System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
+                   ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "QinmoUltimateLauncher.exe");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException || ex is NotSupportedException)
+        {
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "QinmoUltimateLauncher.exe");
+        }
     }
 
     public void Dispose()

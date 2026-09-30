@@ -54,6 +54,22 @@ public sealed class PendingUpdate
     }
 }
 
+/// <summary>启动时对"待应用更新标记"的处理决定。</summary>
+public enum UpdateBootDecision
+{
+    /// <summary>没有待处理更新。</summary>
+    None = 0,
+
+    /// <summary>我们正是刚替换上来的新版本：标记为"已启动，待确认健康"。</summary>
+    Adopt = 1,
+
+    /// <summary>上次更新启动后从未确认健康：回滚。</summary>
+    Rollback = 2,
+
+    /// <summary>标记是残留（替换根本没发生），清掉即可。</summary>
+    Discard = 3,
+}
+
 public enum UpdateStage
 {
     Idle = 0,

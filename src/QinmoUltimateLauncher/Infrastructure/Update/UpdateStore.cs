@@ -68,6 +68,47 @@ public sealed class UpdateStore
         return true;
     }
 
+    /// <summary>
+    /// 启动时决定怎么处理待应用更新标记。
+    ///
+    /// **不能简单地把"看到 swapping 就回滚"**：替换刚完成时，
+    /// 新版本的第一次启动本来就会看到 swapping —— 那是正常状态，不是失败。
+    /// 靠"运行的版本是不是目标版本"把这两种情况分开，
+    /// 而"健康确认"则交给应用真正起来之后再做。
+    /// </summary>
+    public UpdateBootDecision DecideOnBoot(string currentVersion, out PendingUpdate? pending)
+    {
+        pending = LoadPending();
+
+        if (pending == null)
+        {
+            return UpdateBootDecision.None;
+        }
+
+        if (string.Equals(pending.Stage, PendingUpdate.StageApplied, StringComparison.Ordinal))
+        {
+            // 新版本启动过一次、打过 applied 标记，却从未确认健康 ⇒ 上次启动中途死了。
+            return UpdateBootDecision.Rollback;
+        }
+
+        if (!pending.IsSwapping)
+        {
+            return UpdateBootDecision.Discard;
+        }
+
+        if (string.Equals(currentVersion, pending.TargetVersion, StringComparison.OrdinalIgnoreCase))
+        {
+            // 运行的就是目标版本 ⇒ 我们正是刚被换上来的那一个。
+            pending.Stage = PendingUpdate.StageApplied;
+            SavePending(pending);
+            return UpdateBootDecision.Adopt;
+        }
+
+        // 运行的还是旧版本 ⇒ 替换没发生过（多半是替换前就失败了）。
+        // 旧版本完好，标记是残留，清掉。
+        return UpdateBootDecision.Discard;
+    }
+
     public PendingUpdate? LoadPending()
     {
         try
