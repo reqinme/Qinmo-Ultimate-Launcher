@@ -11,6 +11,7 @@ using System.Windows;
 using System.Windows.Media;
 using Qul.Application.Diagnostics;
 using Qul.Application.Launch;
+using Qul.Application.Update;
 using Qul.Domain.Configuration;
 using Qul.Domain.Diagnostics;
 using Qul.Domain.Identity;
@@ -18,6 +19,8 @@ using Qul.Domain.Metadata;
 using Qul.Infrastructure.Boot;
 using Qul.Infrastructure.Diagnostics;
 using Qul.Infrastructure.Launch;
+using Qul.Infrastructure.Net;
+using Qul.Infrastructure.Update;
 
 namespace Qul.Presentation;
 
@@ -131,6 +134,10 @@ public sealed class MainViewModel : ObservableObject
     private bool _isProgressIndeterminate;
     private string _currentStageText = "待命";
 
+    private UpdateRelease? _pendingRelease;
+    private bool _updateAvailable;
+    private string _updateMessage = string.Empty;
+
     private LaunchPipelineRequest? _lastRequest;
     private LaunchPipelineResult? _lastResult;
 
@@ -159,6 +166,8 @@ public sealed class MainViewModel : ObservableObject
         OpenDataFolderCommand = new RelayCommand(OpenDataFolder);
         RecheckCommand = new RelayCommand(() => _ = RebuildPreflightAsync(), () => !IsBusy);
         ThemeCommand = new RelayCommand(CycleTheme);
+        CheckUpdateCommand = new RelayCommand(() => _ = CheckUpdateAsync(), () => !IsBusy && UpdateEndpoints.IsConfigured);
+        ApplyUpdateCommand = new RelayCommand(() => _ = ApplyUpdateAsync(), () => !IsBusy && _pendingRelease != null);
 
         IdentityOptions = BuildIdentityOptions();
         SelectedIdentity = IdentityOptions[0];
@@ -192,6 +201,10 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand RecheckCommand { get; }
 
     public RelayCommand ThemeCommand { get; }
+
+    public RelayCommand CheckUpdateCommand { get; }
+
+    public RelayCommand ApplyUpdateCommand { get; }
 
     // ---------- 绑定属性 ----------
 
@@ -336,6 +349,29 @@ public sealed class MainViewModel : ObservableObject
     }
 
     public string ThemeLabel => ThemeManager.Describe(ThemeManager.Mode);
+
+    /// <summary>当前构建有没有配置发布源。没配置时「检查更新」是禁用的。</summary>
+    public bool UpdateSourceConfigured => UpdateEndpoints.IsConfigured;
+
+    public string UpdateSourceHint => UpdateEndpoints.NotConfiguredHint;
+
+    public bool UpdateAvailable
+    {
+        get => _updateAvailable;
+        private set
+        {
+            if (Set(ref _updateAvailable, value))
+            {
+                UpdateCommands();
+            }
+        }
+    }
+
+    public string UpdateMessage
+    {
+        get => _updateMessage;
+        private set => Set(ref _updateMessage, value);
+    }
 
     /// <summary>主题按钮的图标。直接从资源取几何，避免把资源键绑进 XAML。</summary>
     public Geometry? ThemeIcon =>
@@ -603,13 +639,169 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    // ---------- 主题 ----------
+
 
     private void CycleTheme()
     {
         ThemeManager.Cycle();
         Raise(nameof(ThemeLabel));
         Raise(nameof(ThemeIcon));
+    }
+
+    // ---------- 更新 ----------
+
+    private static string CurrentVersion()
+    {
+        return Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
+    }
+
+    private UpdateService CreateUpdateService()
+    {
+        return new UpdateService(
+            new HttpTransport(),
+            new UpdateStore(_boot.Layout.UpdatesDirectory, _boot.Log),
+            _boot.Log);
+    }
+
+    private async Task CheckUpdateAsync()
+    {
+        if (!UpdateEndpoints.IsConfigured)
+        {
+            UpdateMessage = UpdateEndpoints.NotConfiguredHint;
+            return;
+        }
+
+        IsBusy = true;
+        UpdateMessage = "正在检查更新…";
+        StatusText = "正在检查更新…";
+        AppendLog(LaunchStage.Idle, "检查更新：" + UpdateEndpoints.ReleaseManifestUrl);
+
+        try
+        {
+            UpdateService service = CreateUpdateService();
+            string current = CurrentVersion();
+
+            UpdateRelease? release = await Task.Run(
+                () => service.Check(UpdateEndpoints.ReleaseManifestUrl, current, CancellationToken.None));
+
+            if (release == null)
+            {
+                _pendingRelease = null;
+                UpdateAvailable = false;
+                UpdateMessage = "已是最新版本（" + current + "）。";
+                StatusText = UpdateMessage;
+                AppendLog(LaunchStage.Idle, "已是最新版本");
+            }
+            else
+            {
+                _pendingRelease = release;
+                UpdateAvailable = true;
+                UpdateMessage = "发现新版本 " + release.Version + "（" + Megabytes(release.SizeBytes) + "）";
+                StatusText = UpdateMessage;
+                AppendLog(LaunchStage.Idle, "发现新版本 " + release.Version);
+            }
+        }
+        catch (LauncherException ex)
+        {
+            UpdateMessage = "检查更新失败：" + ErrorCodes.Hint(ex.Code);
+            StatusText = UpdateMessage;
+            AppendLog(LaunchStage.Failed, "检查更新失败：" + ErrorCodes.Id(ex.Code));
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task ApplyUpdateAsync()
+    {
+        UpdateRelease? release = _pendingRelease;
+        if (release == null || IsBusy)
+        {
+            return;
+        }
+
+        _cancellation = new CancellationTokenSource();
+        IsBusy = true;
+        ErrorBanner = string.Empty;
+        UpdateMessage = "正在下载新版本…";
+        UpdateCommands();
+
+        SelfReplaceOutcome outcome;
+
+        try
+        {
+            UpdateService service = CreateUpdateService();
+            CancellationToken token = _cancellation.Token;
+
+            string pendingPath = await Task.Run(() => service.Download(release, token));
+
+            UpdateMessage = "正在替换…";
+            string selfPath = CurrentExecutablePath();
+
+            // 替换这一步刻意不可取消：标记已经落盘，
+            // 中途放弃只会留下一个需要下次启动去收拾的状态。
+            outcome = service.Apply(selfPath, pendingPath, release, Path.GetFileName(selfPath) + ".old");
+        }
+        catch (LauncherException ex)
+        {
+            UpdateMessage = "更新失败：" + ErrorCodes.Hint(ex.Code);
+            ErrorBanner = ErrorCodes.Id(ex.Code) + " " + ErrorCodes.Hint(ex.Code);
+            outcome = SelfReplaceOutcome.Failed(ex.Message);
+        }
+        finally
+        {
+            IsBusy = false;
+            _cancellation?.Dispose();
+            _cancellation = null;
+            UpdateCommands();
+        }
+
+        if (!outcome.Succeeded)
+        {
+            ErrorBanner = "更新未完成，已恢复原版本：" + (outcome.FailureReason ?? string.Empty);
+            UpdateMessage = string.Empty;
+            return;
+        }
+
+        // 替换成功。此刻磁盘上已经是新版本，但内存里跑的还是旧代码——
+        // 必须重启才算真正更新完成，否则用户会以为更新了、其实没有。
+        UpdateMessage = "更新已就绪，正在重启…";
+        RestartApplication();
+    }
+
+    private static string CurrentExecutablePath()
+    {
+        try
+        {
+            return Process.GetCurrentProcess().MainModule?.FileName
+                   ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "QinmoUltimateLauncher.exe");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException || ex is NotSupportedException)
+        {
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "QinmoUltimateLauncher.exe");
+        }
+    }
+
+    private void RestartApplication()
+    {
+        try
+        {
+            Process.Start(CurrentExecutablePath());
+        }
+        catch (Exception ex) when (ex is IOException || ex is System.ComponentModel.Win32Exception)
+        {
+            // 起不来也不该把用户困住：文件已经换好了，手动再打开一次即可。
+            ErrorBanner = "更新已完成，但自动重启失败，请手动重新打开：" + ex.Message;
+            return;
+        }
+
+        System.Windows.Application.Current?.Shutdown();
+    }
+
+    private static string Megabytes(long bytes)
+    {
+        return (bytes / 1024.0 / 1024.0).ToString("F1", CultureInfo.InvariantCulture) + " MB";
     }
 
     // ---------- 诊断 ----------
@@ -781,6 +973,8 @@ public sealed class MainViewModel : ObservableObject
         CancelCommand.RaiseCanExecuteChanged();
         CopyDiagnosticsCommand.RaiseCanExecuteChanged();
         RecheckCommand.RaiseCanExecuteChanged();
+        CheckUpdateCommand.RaiseCanExecuteChanged();
+        ApplyUpdateCommand.RaiseCanExecuteChanged();
 
         Raise(nameof(CanLaunch));
     }

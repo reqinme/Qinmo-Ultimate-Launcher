@@ -104,6 +104,17 @@
                         <TextBlock Text="数据目录" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
+                <Button Style="{StaticResource Qul.Style.Button.Text}" Margin="4,0,0,0"
+                        Command="{Binding CheckUpdateCommand}"
+                        IsEnabled="{Binding UpdateSourceConfigured}"
+                        ToolTip="{Binding UpdateSourceHint}"
+                        AutomationProperties.Name="检查更新">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Data="{StaticResource Qul.Icon.Refresh}" Style="{StaticResource Qul.Style.Icon.Small}"
+                              Stroke="{DynamicResource Qul.Brush.Text.Secondary}" Margin="0,0,6,0" />
+                        <TextBlock Text="检查更新" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </Grid>
 
@@ -200,6 +211,23 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0">
+                    <!-- 有可用更新时才出现。主操作按钮突出，与「启动」同为 Filled 层级。 -->
+                    <Border Style="{StaticResource Qul.Style.Card.Status.Info}" Margin="0,0,0,12"
+                            Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding UpdateMessage}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Qul.Brush.Text.Primary}"
+                                       TextWrapping="Wrap" AutomationProperties.Name="更新提示" />
+                            <TextBlock Text="更新过程只替换主程序本身，不会触碰你的配置、存档与缓存。"
+                                       Style="{StaticResource Qul.Style.Text.Hint}" />
+                            <Button Margin="0,10,0,0" HorizontalAlignment="Left"
+                                    Style="{StaticResource Qul.Style.Button.Primary}"
+                                    Command="{Binding ApplyUpdateCommand}"
+                                    AutomationProperties.Name="立即更新并重启"
+                                    Content="立即更新并重启" />
+                        </StackPanel>
+                    </Border>
+
                     <Grid Margin="0,0,0,8">
                         <TextBlock Text="启动前预检" Style="{StaticResource Qul.Style.Text.Subtitle}" VerticalAlignment="Center" />
                         <Button HorizontalAlignment="Right" Style="{StaticResource Qul.Style.Button.Text}"
