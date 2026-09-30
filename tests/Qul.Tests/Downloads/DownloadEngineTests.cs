@@ -737,4 +737,55 @@ public sealed class DownloadEngineTests
         Assert.AreEqual(ErrorCode.NetResourceMissing, report.Items[0].Error);
         Assert.AreEqual(2, report.Items[0].Attempts, "两个源各试一次就该收手，不该再多");
     }
+    [TestMethod]
+    public void EnsureAll_StopsPreferringASourceThatKeepsMissingWholeCategories()
+    {
+        // **实测背景**：镜像对资源对象快得多（1441 vs 452 KB/s），探测于是把它排到首位；
+        // 但它缺很多库文件，每个库都要先失败一次再换源——
+        // 整次安装的平均吞吐因此只有同一窗口内能力的六分之一。
+        //
+        // 这个用例钉住的是：**同类条目上反复缺件之后，这个源就不再被优先选用**，
+        // 于是后面的库直接走官方，不再浪费一次注定失败的尝试。
+        string sandbox = NewSandbox();
+        byte[] body = Bytes(new string('s', 300 * 1024));
+
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(Url, body);   // 官方有全部；镜像一律 404
+
+        // 让探测认为镜像更快，从而把它排到首位——这正是实测里发生的事
+        transport.DelayMilliseconds = url => string.Equals(url, Url, StringComparison.Ordinal) ? 150 : 0;
+
+        DownloadEngine engine = new DownloadEngine(transport);
+
+        List<DownloadItem> items = new List<DownloadItem>();
+
+        for (int i = 0; i < 5; i++)
+        {
+            DownloadItem library = Item(Url, body, @"libraries\a\a\1.0\a-1.0-" + i + ".jar");
+            library.Kind = DownloadItemKind.Library;
+            library.FallbackUrls = new[] { MirrorUrl };
+            items.Add(library);
+        }
+
+        DownloadOptions options = new DownloadOptions
+        {
+            MaxConcurrency = 1,
+            MaxAttempts = 3,
+            BaseRetryDelay = TimeSpan.Zero,
+            MinimumFreeBytes = 0,
+            ProbeSourceSpeed = true,
+        };
+
+        DownloadReport report = engine.EnsureAll(Plan(items.ToArray()), sandbox, options);
+
+        Assert.IsTrue(report.IsComplete, "换源之后每个条目都应当成功");
+
+        int mirrorAttempts = transport.Requests.Count(
+            r => string.Equals(r.Url, MirrorUrl, StringComparison.Ordinal));
+
+        // 探测会取一次样本；之后最多再白试几次——到达阈值后就不再碰它。
+        Assert.IsTrue(
+            mirrorAttempts <= 5,
+            "缺件达到阈值后不该再优先用这个源；实际请求了 " + mirrorAttempts + " 次");
+    }
 }

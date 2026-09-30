@@ -51,6 +51,15 @@ public sealed class DownloadEngine
 {
     private const int CopyBufferSize = 81920;
 
+    /// <summary>
+    /// 某个源在**同一类条目**上缺件多少次之后，本轮就不再优先用它。
+    ///
+    /// 取 3：一次缺件可能只是那个文件确实不在，三次说明这个源在这类条目上不全。
+    /// 实测背景：镜像对资源对象快得多，却缺很多库文件；
+    /// 不记这件事的话，每个库都要先失败一次再换源。
+    /// </summary>
+    private const int SourceFailureThreshold = 3;
+
     private readonly IHttpTransport _transport;
     private readonly SessionLog _log;
 
@@ -87,6 +96,9 @@ public sealed class DownloadEngine
         }
 
         bool preferFallbackFirst = ProbeSourceOrder(plan, effective, cancellationToken);
+
+        // 本次运行的来源健康度：某个源在某一类条目上反复缺件，就跳过它。
+        SourceHealth health = new SourceHealth(SourceFailureThreshold);
 
         ErrorCode? spaceProblem = CheckFreeSpace(cacheRoot, plan.KnownTotalBytes, effective.MinimumFreeBytes);
         if (spaceProblem.HasValue)
@@ -142,7 +154,7 @@ public sealed class DownloadEngine
                     try
                     {
                         report = ProcessItem(
-                            plan.Items[index], cacheRoot, effective, preferFallbackFirst, cancellationToken);
+                            plan.Items[index], cacheRoot, effective, preferFallbackFirst, health, cancellationToken);
                     }
                     catch (OperationCanceledException)
                     {
@@ -206,6 +218,7 @@ public sealed class DownloadEngine
         string cacheRoot,
         DownloadOptions options,
         bool preferFallbackFirst,
+        SourceHealth health,
         CancellationToken cancellationToken)
     {
         string destination = Path.Combine(cacheRoot, item.RelativePath);
@@ -236,9 +249,12 @@ public sealed class DownloadEngine
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            // 声明在 try 之外：catch 里要按"这次用的是哪个源"记健康度。
+            string sourceUrl = UrlForAttempt(item, attempt, preferFallbackFirst, health);
+
             try
             {
-                transferred += FetchOnce(item, UrlForAttempt(item, attempt, preferFallbackFirst), destination, partial, options, cancellationToken);
+                transferred += FetchOnce(item, sourceUrl, destination, partial, options, cancellationToken);
 
                 if (Matches(partial, expected))
                 {
@@ -255,6 +271,13 @@ public sealed class DownloadEngine
             catch (LauncherException ex)
             {
                 lastError = ex.Code;
+
+                // 只把"这个源没有这个文件"算在来源头上；
+                // 超时与连接中断属于传输故障，记上去会误伤好源。
+                if (ex.Code == ErrorCode.NetResourceMissing || ex.Code == ErrorCode.NetHttpStatus)
+                {
+                    health.RecordFailure(sourceUrl, item.Kind);
+                }
 
                 if (!IsRetryable(ex.Code))
                 {
@@ -322,20 +345,40 @@ public sealed class DownloadEngine
     /// 这是从 PCL2 学来的一招——官方被限速或镜像抽风时，
     /// 死磕同一个源只会把重试次数浪费在同一个故障上。
     /// </summary>
-    private static string UrlForAttempt(DownloadItem item, int attempt, bool preferFallbackFirst)
+    private static string UrlForAttempt(
+        DownloadItem item, int attempt, bool preferFallbackFirst, SourceHealth health)
     {
-        int sources = 1 + item.FallbackUrls.Count;
+        List<string> all = new List<string>(1 + item.FallbackUrls.Count) { item.Url };
+        all.AddRange(item.FallbackUrls);
 
-        if (sources == 1)
+        if (all.Count == 1)
         {
-            return item.Url;
+            return all[0];
         }
 
         // 探测说备用源更快，就从备用源开始；否则从配置的首选开始。
         int start = preferFallbackFirst ? 1 : 0;
-        int index = (start + attempt - 1) % sources;
 
-        return index == 0 ? item.Url : item.FallbackUrls[index - 1];
+        // 先按 start 旋转出一个顺序，剔掉本轮已被判定不可用的源。
+        List<string> healthy = new List<string>(all.Count);
+
+        for (int i = 0; i < all.Count; i++)
+        {
+            string candidate = all[(start + i) % all.Count];
+
+            if (!health.IsUnhealthy(candidate, item.Kind))
+            {
+                healthy.Add(candidate);
+            }
+        }
+
+        if (healthy.Count == 0)
+        {
+            // 全都被判过：宁可再试一次坏源，也不要无源可试。
+            return all[(start + attempt - 1) % all.Count];
+        }
+
+        return healthy[(attempt - 1) % healthy.Count];
     }
 
     /// <summary>
