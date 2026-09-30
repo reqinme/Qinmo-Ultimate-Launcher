@@ -168,14 +168,26 @@ public sealed class BootContext : IDisposable
         if (outcome.Succeeded)
         {
             log.Info("update", "rolled back; the previous version will run on the next start");
-        }
-        else
-        {
-            log.Failure("update", ErrorCode.UpdFailed, new LauncherException(ErrorCode.UpdFailed, outcome.FailureReason ?? "rollback failed"));
+
+            // **只有真的回退成功才清标记。**
+            updates.ClearPending();
+            return;
         }
 
-        // 无论成败都清掉标记：留着只会让每次启动都重复同一次失败的尝试。
-        updates.ClearPending();
+        // **回退失败时绝不能清标记。**
+        //
+        // 这里原本写的是"无论成败都清掉，留着只会让每次启动都重复同一次失败的尝试"——
+        // 那个理由是想当然的：回退失败通常是因为备份被杀软或只读目录挡住，
+        // 清掉标记等于**把可恢复变成不可恢复**：用户拿到一个打不开的启动器，
+        // 而自愈再也不会发生。重试一次文件移动的代价远小于永久损坏。
+        //
+        // 下次启动会再试一次；真的试不动时，用户至少还有 backup 文件可手动换回。
+        log.Failure(
+            "update",
+            ErrorCode.UpdFailed,
+            new LauncherException(ErrorCode.UpdFailed, outcome.FailureReason ?? "rollback failed"));
+
+        log.Warn("update", "rollback failed; the marker is kept so the next start retries", ErrorCode.UpdFailed);
     }
 
     private static string CurrentExecutablePath()

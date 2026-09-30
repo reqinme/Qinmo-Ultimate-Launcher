@@ -1,6 +1,8 @@
 using System;
 using System.Globalization;
 using System.IO;
+using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using Qul.Application.Update;
 using Qul.Domain.Diagnostics;
@@ -100,17 +102,92 @@ public sealed class UpdateStore
         // 程序集版本是四段（0.2.0.0），发布清单里通常写三段（0.2.0），
         // 字符串比较会把它们判成不同，于是新版本启动时走 Discard ——
         // 标记被清掉，真正坏掉的更新再也不会被回滚。
-        if (LauncherVersion.Compare(currentVersion, pending.TargetVersion) == 0)
+        // **以 sha256 为准，版本号只当快路径。**
+        //
+        // 只看版本号是脆的：发布清单可能写 `0.2.0-rc1` 而程序集是 `0.2.0.0`，
+        // 比较不相等于是走 Discard —— 标记被清掉，**真正坏掉的更新再也不会被回滚**，
+        // 整套两阶段标记对这种版本形同虚设。
+        // 标记里记着新版本的 sha256，用它判断既精确又与版本号的写法无关。
+        UpdateBootDecision decision = Decide(currentVersion, pending, TryHashRunningExecutable());
+
+        if (decision == UpdateBootDecision.Adopt)
         {
-            // 运行的就是目标版本 ⇒ 我们正是刚被换上来的那一个。
             pending.Stage = PendingUpdate.StageApplied;
             SavePending(pending);
+        }
+
+        // **Discard 只做判定，清理由调用方执行**——既有用例明确锁住了这条契约。
+        // 我一开始顺手在这里清了标记，被 DecideOnBoot_DiscardsWhenTheSwapNeverHappened 抓住。
+        return decision;
+    }
+
+    /// <summary>
+    /// 决策的纯逻辑部分：把"该不该认领"从"怎么算出运行中的哈希"里分出来。
+    ///
+    /// 分开是为了能直接测——否则这段逻辑只能靠真机做一次换版才能验证，
+    /// 而它恰恰是"坏了就再也起不来"的那一段。
+    /// </summary>
+    public static UpdateBootDecision Decide(string currentVersion, PendingUpdate pending, string? runningExecutableHash)
+    {
+        if (pending == null)
+        {
+            return UpdateBootDecision.None;
+        }
+
+        if (string.Equals(pending.Stage, PendingUpdate.StageApplied, StringComparison.Ordinal))
+        {
+            return UpdateBootDecision.Rollback;
+        }
+
+        if (LauncherVersion.Compare(currentVersion, pending.TargetVersion) == 0)
+        {
             return UpdateBootDecision.Adopt;
         }
 
-        // 运行的还是旧版本 ⇒ 替换没发生过（多半是替换前就失败了）。
-        // 旧版本完好，标记是残留，清掉。
+        // 版本号对不上时，用标记里记的 sha256 再判一次。
+        if (!string.IsNullOrWhiteSpace(pending.Sha256)
+            && !string.IsNullOrWhiteSpace(runningExecutableHash)
+            && string.Equals(pending.Sha256.Trim(), runningExecutableHash!.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return UpdateBootDecision.Adopt;
+        }
+
         return UpdateBootDecision.Discard;
+    }
+
+    /// <summary>算出运行中那个 exe 的 sha256；算不出来就返回 null（调用方会退回只比版本号）。</summary>
+    private static string? TryHashRunningExecutable()
+    {
+        try
+        {
+            string self = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+
+            if (self.Length == 0 || !File.Exists(self))
+            {
+                return null;
+            }
+
+            // FileShare.ReadWrite：我们读的是正在运行的自己。
+            using (FileStream stream = new FileStream(self, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (SHA256 sha = SHA256.Create())
+            {
+                byte[] hash = sha.ComputeHash(stream);
+                StringBuilder text = new StringBuilder(hash.Length * 2);
+
+                for (int i = 0; i < hash.Length; i++)
+                {
+                    text.Append(hash[i].ToString("x2", CultureInfo.InvariantCulture));
+                }
+
+                return text.ToString();
+            }
+        }
+        catch (Exception ex) when (
+            ex is IOException || ex is UnauthorizedAccessException || ex is InvalidOperationException
+            || ex is NotSupportedException)
+        {
+            return null;
+        }
     }
 
     public PendingUpdate? LoadPending()

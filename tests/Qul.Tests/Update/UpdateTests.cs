@@ -446,4 +446,75 @@ public sealed class UpdateTests
             Directory.CreateDirectory(_sandbox);
         }
     }
+    [TestMethod]
+    public void Decide_FallsBackToTheRecordedHashWhenTheVersionStringDoesNotCompareEqual()
+    {
+        // **这条用例守的是"自更新安全网被静默关闭"。**
+        //
+        // 发布清单可能写 `0.2.0-rc1`，而程序集版本是 `0.2.0.0`，
+        // 版本比较不相等。只看版本号的话就会走 Discard —— 标记被清掉，
+        // **真正坏掉的更新再也不会被回滚**，整套两阶段标记对这类版本形同虚设。
+        //
+        // 标记里记着新版本的 sha256，用它判断既精确又与版本号的写法无关。
+        const string NewHash = "8f0112b87ec30c3a895feba48a309d45aec38432bce21d6633cab83b1c039003";
+
+        PendingUpdate pending = new PendingUpdate
+        {
+            TargetVersion = "0.2.0-rc1",
+            PendingFileName = "pending.exe",
+            BackupFileName = "app.exe.old",
+            Sha256 = NewHash,
+            Stage = PendingUpdate.StageSwapping,
+        };
+
+        // 版本号对不上，但运行中的文件就是标记里记的那个 ⇒ 必须认领，不能丢标记
+        Assert.AreEqual(
+            UpdateBootDecision.Adopt,
+            UpdateStore.Decide("0.2.0.0", pending, NewHash));
+
+        // 大小写不同也要认（sha256 的十六进制大小写不敏感）
+        Assert.AreEqual(
+            UpdateBootDecision.Adopt,
+            UpdateStore.Decide("0.2.0.0", pending, NewHash.ToUpperInvariant()));
+
+        // 运行中的文件不是标记里那个 ⇒ 替换确实没发生过，才是 Discard
+        Assert.AreEqual(
+            UpdateBootDecision.Discard,
+            UpdateStore.Decide("0.1.0.0", pending, "0000000000000000000000000000000000000000000000000000000000000000"));
+    }
+
+    [TestMethod]
+    public void Decide_KeepsTheVersionFastPathAndTheAppliedRollbackRule()
+    {
+        PendingUpdate pending = new PendingUpdate
+        {
+            TargetVersion = "0.2.0",
+            PendingFileName = "pending.exe",
+            BackupFileName = "app.exe.old",
+            Sha256 = "aaaa",
+            Stage = PendingUpdate.StageSwapping,
+        };
+
+        // 版本号直接相等：不必去算哈希
+        Assert.AreEqual(UpdateBootDecision.Adopt, UpdateStore.Decide("0.2.0", pending, null));
+
+        // 分段数不同（0.2.0 vs 0.2.0.0）也要认——先前为这个单独修过一次
+        Assert.AreEqual(UpdateBootDecision.Adopt, UpdateStore.Decide("0.2.0.0", pending, null));
+
+        // stage=applied 且从未确认健康 ⇒ 上次启动中途死了，必须回退
+        pending.Stage = PendingUpdate.StageApplied;
+        Assert.AreEqual(UpdateBootDecision.Rollback, UpdateStore.Decide("0.2.0", pending, "aaaa"));
+
+        // 没有标记就是没事
+        Assert.AreEqual(UpdateBootDecision.None, UpdateStore.Decide("0.2.0", null!, null));
+
+        // 哈希算不出来（例如受限环境）时不能因此认领，也不能崩
+        PendingUpdate other = new PendingUpdate
+        {
+            TargetVersion = "9.9.9",
+            Sha256 = "bbbb",
+            Stage = PendingUpdate.StageSwapping,
+        };
+        Assert.AreEqual(UpdateBootDecision.Discard, UpdateStore.Decide("0.2.0", other, null));
+    }
 }
