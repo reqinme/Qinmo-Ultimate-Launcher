@@ -199,7 +199,7 @@ public sealed class DownloadEngine
 
             try
             {
-                transferred += FetchOnce(item, destination, partial, options, cancellationToken);
+                transferred += FetchOnce(item, UrlForAttempt(item, attempt), destination, partial, options, cancellationToken);
 
                 if (Matches(partial, expected))
                 {
@@ -255,11 +255,26 @@ public sealed class DownloadEngine
     }
 
     /// <summary>
+    /// 第 N 次尝试该用哪个源。
+    ///
+    /// **一轮换一个源**：首选失败就换备用，备用也失败再回到首选。
+    /// 这是从 PCL2 学来的一招——官方被限速或镜像抽风时，
+    /// 死磕同一个源只会把重试次数浪费在同一个故障上。
+    /// </summary>
+    private static string UrlForAttempt(DownloadItem item, int attempt)
+    {
+        int sources = 1 + item.FallbackUrls.Count;
+        int index = (attempt - 1) % sources;
+
+        return index == 0 ? item.Url : item.FallbackUrls[index - 1];
+    }
+
+    /// <summary>
     /// 单次取回。返回本次写入的字节数。
     /// 断点续传的关键：本地 .part 的长度就是 Range 起点；服务端若忽略 Range（回 200），必须从头写而不是追加。
     /// </summary>
     private long FetchOnce(
-        DownloadItem item,
+        DownloadItem item, string url,
         string destination,
         string partial,
         DownloadOptions options,
@@ -275,7 +290,7 @@ public sealed class DownloadEngine
 
         HttpFetchRequest request = new HttpFetchRequest
         {
-            Url = item.Url,
+            Url = url,
             RangeFrom = existing > 0 ? existing : (long?)null,
             ProxyAddress = ResolveProxy(options),
             Timeout = options.RequestTimeout,

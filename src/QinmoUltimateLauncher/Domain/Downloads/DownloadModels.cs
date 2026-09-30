@@ -28,6 +28,13 @@ public sealed class DownloadItem
 
     public string Url { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 备用下载源，按优先级排列。
+    /// 一个源连续失败时换下一个——镜像抽风或官方被限速都不至于卡死整个安装。
+    /// **摘要不随源改变**：它永远来自官方元数据，所以换源不降低完整性保证。
+    /// </summary>
+    public IReadOnlyList<string> FallbackUrls { get; set; } = Array.Empty<string>();
+
     /// <summary>十六进制 SHA-1。缺失该值时必须拒绝下载，而不是"先下下来再说"。</summary>
     public string? Sha1 { get; set; }
 

@@ -25,3 +25,6 @@ scaffold.log
 .tmp/
 
 publish-*/
+
+# 本机参考用的第三方源码，不入库
+repos/
