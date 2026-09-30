@@ -12,6 +12,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <RootNamespace>Qul</RootNamespace>
     <AssemblyName>QinmoUltimateLauncher</AssemblyName>
     <Version>0.1.0</Version>

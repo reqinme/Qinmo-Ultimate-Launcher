@@ -4,6 +4,24 @@
              xmlns:local="clr-namespace:Qul"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
-         
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!--
+                    合并顺序在这里，而且是**扁平的**，这是必须的：
+                    控件模板里的 {StaticResource ...} 是延迟解析的 —— 在 ApplyTemplate（布局时）
+                    才按元素树向上查找，中途嵌在别的字典里是找不到的。
+                    Tokens 与 Icons 因此必须直接位于应用资源里。
+
+                    Palette 是**全局唯一**的那一份：主题切换就是替换这一个字典，
+                    所以任何控件字典都不许自己合并调色板（否则"一半变了、一半没变"）。
+                -->
+                <ResourceDictionary Source="/QinmoUltimateLauncher;component/Presentation/Theme/Tokens.xaml" />
+                <ResourceDictionary Source="/QinmoUltimateLauncher;component/Presentation/Theme/Palette.Dark.xaml" />
+                <ResourceDictionary Source="/QinmoUltimateLauncher;component/Presentation/Theme/Icons.xaml" />
+                <ResourceDictionary Source="/QinmoUltimateLauncher;component/Presentation/Theme/Controls.Buttons.xaml" />
+                <ResourceDictionary Source="/QinmoUltimateLauncher;component/Presentation/Theme/Controls.Inputs.xaml" />
+                <ResourceDictionary Source="/QinmoUltimateLauncher;component/Presentation/Theme/Controls.Surfaces.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

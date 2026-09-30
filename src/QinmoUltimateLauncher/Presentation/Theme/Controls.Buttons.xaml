@@ -17,7 +17,12 @@
     纯图标按钮必须在使用点补 AutomationProperties.Name，否则读屏读到的是空。
 -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:qul="clr-namespace:Qul.Presentation">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/QinmoUltimateLauncher;component/Presentation/Theme/Tokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
 
     <!-- ================= 模板（必须在引用它们的样式之前） ================= -->
 
@@ -63,7 +68,7 @@
                     <BeginStoryboard>
                         <Storyboard>
                             <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity"
-                                             To="1" Duration="{StaticResource Qul.Duration.Fast}" />
+                                             To="1" Duration="{qul:Motion Fast}" />
                         </Storyboard>
                     </BeginStoryboard>
                 </Trigger.EnterActions>
@@ -71,7 +76,7 @@
                     <BeginStoryboard>
                         <Storyboard>
                             <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity"
-                                             To="0" Duration="{StaticResource Qul.Duration.Fast}" />
+                                             To="0" Duration="{qul:Motion Fast}" />
                         </Storyboard>
                     </BeginStoryboard>
                 </Trigger.ExitActions>
@@ -132,7 +137,7 @@
                     <BeginStoryboard>
                         <Storyboard>
                             <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity"
-                                             To="1" Duration="{StaticResource Qul.Duration.Fast}" />
+                                             To="1" Duration="{qul:Motion Fast}" />
                         </Storyboard>
                     </BeginStoryboard>
                 </Trigger.EnterActions>
@@ -140,7 +145,7 @@
                     <BeginStoryboard>
                         <Storyboard>
                             <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity"
-                                             To="0" Duration="{StaticResource Qul.Duration.Fast}" />
+                                             To="0" Duration="{qul:Motion Fast}" />
                         </Storyboard>
                     </BeginStoryboard>
                 </Trigger.ExitActions>

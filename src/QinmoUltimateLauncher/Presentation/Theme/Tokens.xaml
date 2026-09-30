@@ -46,12 +46,11 @@
     <sys:Double x:Key="Qul.Size.Stroke.Focus">2</sys:Double>
 
     <!-- ===== 动效时长 =====
-         只动 Opacity / TranslateTransform / ScaleTransform。
-         绝不动 Width / Height / Margin / Padding / FontSize —— 那些会触发 Layout 重算。
-         减少动态效果时由 DurationProvider 把这些归零。 -->
-    <Duration x:Key="Qul.Duration.Fast">0:0:0.12</Duration>
-    <Duration x:Key="Qul.Duration.Normal">0:0:0.18</Duration>
-    <Duration x:Key="Qul.Duration.Slow">0:0:0.24</Duration>
+         时长**不在这里**。Storyboard 的 Duration 在解析时就被烘焙进模板，
+         运行期改资源字典对它没有任何影响——所以"换令牌关动画"这条路走不通。
+         时长由标记扩展提供：Duration="{qul:Motion Fast|Normal|Slow}"
+         它在解析期决定取值，并尊重系统的"减少动态效果"设置。
+         尺度：Fast 120ms / Normal 180ms / Slow 240ms。 -->
 
     <!-- ===== 结构尺寸 ===== -->
     <sys:Double x:Key="Qul.Size.SidebarWidth">340</sys:Double>

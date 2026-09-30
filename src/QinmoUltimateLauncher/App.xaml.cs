@@ -51,6 +51,9 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        // 深色优先：默认就是深色，用户可切浅色或跟随系统。
+        ThemeManager.Initialize(ThemeMode.Dark);
+
         ShellWindow window = new ShellWindow
         {
             DataContext = new MainViewModel(_boot),
@@ -96,6 +99,20 @@ public partial class App : System.Windows.Application
         ErrorCode code = exception is LauncherException known ? known.Code : ErrorCode.None;
 
         _log.Failure(phase, code, exception);
+
+        // 异常的 message 往往就是唯一能定位问题的线索——
+        // 例如 XamlParseException 会直接指出缺哪个资源、在哪一行。
+        // 只记 hresult 等于把最有用的信息丢掉。
+        for (Exception? current = exception; current != null; current = current.InnerException)
+        {
+            string message = (current.Message ?? string.Empty).Replace("\r", " ").Replace("\n", " ");
+            _log.Info(phase, "exception detail: " + current.GetType().Name + ": " + message);
+        }
+
+        // 完整堆栈：XamlParseException 的堆栈里带着出问题的 XAML 元素与行号。
+        _log.Info(phase, "exception stack: " + (exception?.ToString() ?? "(none)")
+            .Replace("\r", " ").Replace("\n", " | ").Replace("\"", "'"));
+
         _log.Dispose();
 
         MessageBox.Show(
