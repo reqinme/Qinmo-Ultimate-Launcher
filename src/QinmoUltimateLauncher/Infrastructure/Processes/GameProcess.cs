@@ -104,6 +104,42 @@ public sealed class GameProcess : IDisposable
             }
         }
     }
+    /// <summary>
+    /// 游戏是否已经建出主窗口。这是"真的起来了"最直接的证据——
+    /// 进程还活着只说明 JVM 没退，有窗口才说明游戏跑到了界面。
+    /// </summary>
+    public bool HasMainWindow
+    {
+        get
+        {
+            try
+            {
+                _process.Refresh();
+                return _process.MainWindowHandle != IntPtr.Zero;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+        }
+    }
+
+    public string? MainWindowTitle
+    {
+        get
+        {
+            try
+            {
+                _process.Refresh();
+                string title = _process.MainWindowTitle;
+                return string.IsNullOrEmpty(title) ? null : title;
+            }
+            catch (InvalidOperationException)
+            {
+                return null;
+            }
+        }
+    }
 
     public static bool TryStart(
         GameProcessOptions options,

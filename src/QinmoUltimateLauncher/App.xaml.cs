@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Threading;
 using Qul.Domain.Diagnostics;
 using Qul.Infrastructure.Boot;
+using Qul.Infrastructure.Cli;
 using Qul.Infrastructure.Diagnostics;
 
 namespace Qul;
@@ -38,7 +39,26 @@ public partial class App : System.Windows.Application
         {
             // 引导失败也要给出错误码，绝不向用户弹裸堆栈。
             ReportAndShutdown("boot", ex);
+            return;
         }
+
+        // 带参数即进入命令行模式：不显示窗口，跑完直接带退出码结束。
+        // 这既是架构要求（UI 挂了不影响命令行启动），也是真实验收的驱动方式。
+        if (e.Args != null && e.Args.Length > 0)
+        {
+            Shutdown(CliRunner.Run(_boot, e.Args));
+            return;
+        }
+
+        MainWindow window = new MainWindow();
+        window.Closed += OnMainWindowClosed;
+        window.Show();
+    }
+
+    private void OnMainWindowClosed(object? sender, EventArgs e)
+    {
+        // 显式关闭模式：主窗口关掉就退出，不留一个没有界面的进程在后台。
+        Shutdown();
     }
 
     protected override void OnExit(ExitEventArgs e)
