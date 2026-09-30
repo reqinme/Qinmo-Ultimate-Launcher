@@ -5,6 +5,9 @@
     约定：
       · 标注【描边】的按描边渲染（StrokeThickness 1.6，圆头圆角），默认前景色即线条色。
       · 标注【填充】的按填充渲染，用于强调形状（如播放三角）。
+      · **本集合刻意保持最小：只保留界面真正在用的几何体。**
+        未使用的资源与「有人想用却忘了」在文件里无法区分，所以不留备用——
+        需要时按同样的格式补几行即可。
 
     用法：
       <Path Data="{StaticResource Qul.Icon.Refresh}" Stroke="{DynamicResource Qul.Brush.Text.Secondary}"
@@ -20,8 +23,6 @@
     <!-- ===== 操作 ===== -->
     <!-- 启动【填充】 -->
     <PathGeometry x:Key="Qul.Icon.Play" Figures="M9,5.5 L19,12 L9,18.5 Z" />
-    <!-- 取消【描边】 -->
-    <PathGeometry x:Key="Qul.Icon.Cancel" Figures="M7.5,7.5 L16.5,16.5 M16.5,7.5 L7.5,16.5" />
     <!-- 复制【描边】 -->
     <PathGeometry x:Key="Qul.Icon.Copy" Figures="M9,9 H19 V19 H9 Z M15,9 V5 H5 V15 H9" />
     <!-- 文件夹【描边】 -->
@@ -31,14 +32,7 @@
 
     <!-- ===== 指示 ===== -->
     <PathGeometry x:Key="Qul.Icon.ChevronDown" Figures="M6.5,9.5 L12,15 L17.5,9.5" />
-    <PathGeometry x:Key="Qul.Icon.ChevronRight" Figures="M9.5,6.5 L15,12 L9.5,17.5" />
     <PathGeometry x:Key="Qul.Icon.Check" Figures="M5,12.5 L10,17.5 L19,7" />
-
-    <!-- ===== 语义提示【描边】 ===== -->
-    <PathGeometry x:Key="Qul.Icon.Info" Figures="M12,3.5 A8.5,8.5 0 1 0 12,20.5 A8.5,8.5 0 1 0 12,3.5 Z M12,7.6 V7.7 M11.2,11 H12 V16.4 H12.9" />
-    <PathGeometry x:Key="Qul.Icon.Warning" Figures="M12,4 L21,19.5 H3 Z M12,9.2 V14.2 M12,16.6 V16.7" />
-    <PathGeometry x:Key="Qul.Icon.Error" Figures="M12,3.5 A8.5,8.5 0 1 0 12,20.5 A8.5,8.5 0 1 0 12,3.5 Z M9.2,9.2 L14.8,14.8 M14.8,9.2 L9.2,14.8" />
-    <PathGeometry x:Key="Qul.Icon.Success" Figures="M12,3.5 A8.5,8.5 0 1 0 12,20.5 A8.5,8.5 0 1 0 12,3.5 Z M8.2,12.2 L11,15 L16,9.5" />
 
     <!-- ===== 主题三态【描边】 ===== -->
     <PathGeometry x:Key="Qul.Icon.ThemeLight" Figures="M12,7.5 A4.5,4.5 0 1 0 12,16.5 A4.5,4.5 0 1 0 12,7.5 Z M12,2.5 V4.5 M12,19.5 V21.5 M2.5,12 H4.5 M19.5,12 H21.5 M5.3,5.3 L6.7,6.7 M17.3,17.3 L18.7,18.7 M18.7,5.3 L17.3,6.7 M6.7,17.3 L5.3,18.7" />
