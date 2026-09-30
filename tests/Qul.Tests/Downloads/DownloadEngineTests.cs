@@ -900,4 +900,63 @@ public sealed class DownloadEngineTests
             largeSegments > smallSegments,
             "更大的文件应当分更多段；实际 小=" + smallSegments + " 大=" + largeSegments);
     }
+    [TestMethod]
+    public void EnsureAll_RefusesAPathThatEscapesTheCacheRoot()
+    {
+        // **安全用例。**
+        //
+        // 进入 item.RelativePath 的是**元数据里的字符串**（artifact.path、资源索引 id、
+        // logging 文件名……），而元数据并非全部来自官方：本地 cache/meta/version-*.json
+        // 优先于网络，接入镜像后主机也会被改写。
+        //
+        // 不校验的话，`..\..\..\Users\Public\evil.dll` 就是一次**任意位置写入**——
+        // 而且哈希来自同一份元数据，校验**拦不住**。
+        string sandbox = NewSandbox();
+        byte[] body = Bytes("payload");
+
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(Url, body);
+
+        DownloadEngine engine = new DownloadEngine(transport);
+
+        DownloadItem item = Item(Url, body, @"..\..\..\escaped.dll");
+
+        DownloadOptions options = FastOptions();
+        options.ProbeSourceSpeed = false;
+
+        DownloadReport report = engine.EnsureAll(Plan(item), sandbox, options);
+
+        Assert.IsFalse(report.IsComplete);
+        Assert.AreEqual(ErrorCode.IoPathEscapesRoot, report.Items[0].Error, "越界路径必须被明确拒绝，而不是混进笼统的下载失败");
+
+        string escaped = Path.GetFullPath(Path.Combine(sandbox, @"..\..\..\escaped.dll"));
+        Assert.IsFalse(File.Exists(escaped), "缓存根之外绝不能被写入任何文件");
+        Assert.AreEqual(0, transport.Requests.Count, "越界路径应当在发任何请求之前就被拒绝");
+    }
+
+    [TestMethod]
+    public void EnsureAll_RefusesAnAbsolutePayloadPath()
+    {
+        // 另一半：绝对路径会让 Path.Combine **直接丢掉缓存根**，
+        // 所以只挡 `..` 是不够的。
+        string sandbox = NewSandbox();
+        byte[] body = Bytes("payload");
+
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(Url, body);
+
+        DownloadEngine engine = new DownloadEngine(transport);
+
+        string absolute = Path.Combine(Path.GetTempPath(), "qul-absolute-probe.dll");
+        DownloadItem item = Item(Url, body, absolute);
+
+        DownloadOptions options = FastOptions();
+        options.ProbeSourceSpeed = false;
+
+        DownloadReport report = engine.EnsureAll(Plan(item), sandbox, options);
+
+        Assert.IsFalse(report.IsComplete);
+        Assert.AreEqual(ErrorCode.IoPathEscapesRoot, report.Items[0].Error);
+        Assert.IsFalse(File.Exists(absolute), "绝对路径同样绝不能被写入");
+    }
 }

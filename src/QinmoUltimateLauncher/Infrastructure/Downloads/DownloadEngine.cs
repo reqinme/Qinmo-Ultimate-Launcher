@@ -193,9 +193,21 @@ public sealed class DownloadEngine
                             plan.Items[index], DownloadItemState.Failed, ErrorCode.DlFailed, 0, 0);
                         return;
                     }
+                    catch (LauncherException ex)
+                    {
+                        // **保留具体的错误码。**
+                        // 兜底成 DlFailed 会把"路径越界""磁盘不可写"这类**可操作**的结论
+                        // 抹平成笼统的"下载失败"——这个项目已经踩过好几次
+                        // "错误码把人引向错误方向"的坑。
+                        _log.Failure("download", ex.Code, ex, plan.Items[index].RelativePath);
+                        reports[index] = new DownloadItemReport(
+                            plan.Items[index], DownloadItemState.Failed, ex.Code, 0, 0);
+                        continue;
+                    }
                     catch (Exception ex)
                     {
                         // 编排层永不因单个条目抛出：一个坏文件不该让整次安装失败。
+                        // 走到这里的都是没被分类的异常，才允许兜底成 DlFailed。
                         _log.Failure("download", ErrorCode.DlFailed, ex);
                         reports[index] = new DownloadItemReport(
                             plan.Items[index], DownloadItemState.Failed, ErrorCode.DlFailed, 0, 0);
@@ -255,7 +267,15 @@ public sealed class DownloadEngine
         SemaphoreSlim segmentGate,
         CancellationToken cancellationToken)
     {
-        string destination = Path.Combine(cacheRoot, item.RelativePath);
+        // **落盘路径必须校验在缓存根之下。**
+        //
+        // 进入 item.RelativePath 的是**元数据里的字符串**（artifact.path、资源索引 id、
+        // logging 文件名……），而元数据并非全部来自官方：本地 cache/meta/version-*.json
+        // 优先于网络，接入镜像后主机也会被改写。
+        // 任一处给出 ..\..\..\Users\Public\evil.dll，不校验就等于**任意位置写入**——
+        // 而且哈希来自同一份元数据，校验拦不住。
+        // 项目里解压那条路早有同款防护（ArchiveEntryPolicy 的 zip-slip 判定），下载这边此前没有。
+        string destination = SafeDestination(cacheRoot, item.RelativePath);
         string partial = destination + ".part";
 
         if (!Sha1Hex.TryParse(item.Sha1, out Sha1Hex expected))
@@ -725,6 +745,39 @@ public sealed class DownloadEngine
     }
 
     /// <summary>null = 跟随系统代理；空串 = 直连；其他 = 显式代理地址。</summary>
+    /// <summary>
+    /// 把条目的相对路径解析到缓存根之下，并确认它**确实**在根之下。
+    ///
+    /// 只用 <c>Path.Combine</c> 是不够的：<c>..</c> 段会被解析到根之外，
+    /// 而绝对路径还会让 Combine 直接丢掉根。两条都要挡。
+    /// </summary>
+    private static string SafeDestination(string cacheRoot, string relativePath)
+    {
+        string root = Path.GetFullPath(cacheRoot);
+
+        string full;
+        try
+        {
+            full = Path.GetFullPath(Path.Combine(root, relativePath));
+        }
+        catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException || ex is PathTooLongException)
+        {
+            throw new LauncherException(ErrorCode.IoPathEscapesRoot, "条目路径无法解析：" + relativePath);
+        }
+
+        string prefix = root.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
+            ? root
+            : root + Path.DirectorySeparatorChar;
+
+        if (!full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new LauncherException(
+                ErrorCode.IoPathEscapesRoot, "条目路径越出了缓存根：" + relativePath);
+        }
+
+        return full;
+    }
+
     private static string? ResolveProxy(DownloadOptions options)
     {
         if (options.UseSystemProxy)

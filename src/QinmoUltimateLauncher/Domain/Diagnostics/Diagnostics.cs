@@ -70,6 +70,13 @@ public enum ErrorCode
     IoDiskFull,
     IoPathTooLong,
 
+    /// <summary>
+    /// 条目路径解析后落在缓存根之外（含 <c>..</c> 段或绝对路径）。
+    /// **这几乎总是意味着元数据不可信**，所以它值得有自己的错误码，
+    /// 而不是混进笼统的"下载失败"里。
+    /// </summary>
+    IoPathEscapesRoot,
+
     NetUnreachable,
     NetProxyInvalid,
     NetCertificateInvalid,
@@ -124,6 +131,7 @@ public static class ErrorCodes
         { ErrorCode.IoDataRootNotWritable, "QUL-IO-0001" },
         { ErrorCode.IoDiskFull, "QUL-IO-0002" },
         { ErrorCode.IoPathTooLong, "QUL-IO-0003" },
+        { ErrorCode.IoPathEscapesRoot, "QUL-IO-0004" },
         { ErrorCode.NetUnreachable, "QUL-NET-0001" },
         { ErrorCode.NetProxyInvalid, "QUL-NET-0002" },
         { ErrorCode.NetCertificateInvalid, "QUL-NET-0003" },
@@ -165,6 +173,7 @@ public static class ErrorCodes
         { ErrorCode.IoDataRootNotWritable, "程序目录不可写，数据已改用用户目录存放。" },
         { ErrorCode.IoDiskFull, "磁盘空间不足，请释放空间后重试。" },
         { ErrorCode.IoPathTooLong, "路径过长，请把游戏目录改到更短的位置。" },
+        { ErrorCode.IoPathEscapesRoot, "元数据给出的条目路径指到了缓存目录之外，已拒绝写入。这通常意味着这份元数据不可信。" },
         { ErrorCode.NetUnreachable, "网络不可达，请检查网络连接。" },
         { ErrorCode.NetProxyInvalid, "代理配置不可用，请检查代理设置或改为直连。" },
         { ErrorCode.NetCertificateInvalid, "服务器证书校验未通过，连接已中止。" },
