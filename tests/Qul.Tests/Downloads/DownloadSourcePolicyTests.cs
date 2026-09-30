@@ -121,4 +121,27 @@ public sealed class DownloadSourcePolicyTests
     {
         Assert.AreEqual(0, DownloadSourcePolicy.Order(string.Empty, DownloadItemKind.Library, DownloadSourcePreference.MirrorFirst).Count);
     }
+    [TestMethod]
+    public void LauncherMojang_ProducesNoMirrorCandidateBecauseBmclapiHasNoSuchPath()
+    {
+        // **实测出来的事实，不是推测。**
+        //   https://launcher.mojang.com/v1/objects/50c9…/client-1.7.xml          -> 200
+        //   https://bmclapi2.bangbang93.com/v1/objects/50c9…/client-1.7.xml      -> 404
+        //
+        // bmclapi 没有 /v1/objects/ 这个路径。映射表里留着这个主机，
+        // 只会造出一个**必然失败**的"备用源"：白占一次重试，
+        // 还让日志里的"换源"看起来发生过——那是假的。
+        const string Url =
+            "https://launcher.mojang.com/v1/objects/50c9cc4af6d853d9fc137c84bcd153e2bd3a9a82/client-1.7.xml";
+
+        List<string> mirror = DownloadSourcePolicy.MirrorVariants(Url, DownloadItemKind.LoggingConfig);
+
+        Assert.AreEqual(0, mirror.Count, "bmclapi 没有对应路径，就不该造备用源");
+
+        IReadOnlyList<string> ordered = DownloadSourcePolicy.Order(
+            Url, DownloadItemKind.LoggingConfig, DownloadSourcePreference.MirrorFirst);
+
+        Assert.AreEqual(1, ordered.Count);
+        Assert.AreEqual(Url, ordered[0], "唯一候选必须还是官方地址");
+    }
 }

@@ -41,7 +41,13 @@ public static class DownloadSourcePolicy
         "https://maven.minecraftforge.net",
         "https://piston-data.mojang.com",
         "https://piston-meta.mojang.com",
-        "https://launcher.mojang.com",
+        // **刻意不含 https://launcher.mojang.com。**
+        // 它的路径形态是 /v1/objects/<hash>/<name>，而 bmclapi 没有对应的路径：
+        // 实测 https://launcher.mojang.com/v1/objects/50c9…/client-1.7.xml 返回 200，
+        // 而替换出来的 https://bmclapi2.bangbang93.com/v1/objects/50c9…/client-1.7.xml 返回 404。
+        // 留着它只会造出一个**必然失败**的"备用源"：白占一次重试，
+        // 还会让日志里的"换源"看起来发生过——那是假的。
+        // AddIfMapped 能挡住"没匹配到主机时原样返回"，但挡不住映射表里的路径本身不存在。
         "https://launchermeta.mojang.com",
         "https://libraries.minecraft.net",
         "https://resources.download.minecraft.net",
