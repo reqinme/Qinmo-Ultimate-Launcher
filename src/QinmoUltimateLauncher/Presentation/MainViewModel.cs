@@ -22,6 +22,7 @@ using Qul.Infrastructure.Diagnostics;
 using Qul.Infrastructure.Launch;
 using Qul.Infrastructure.Auth;
 using Qul.Infrastructure.Net;
+using Qul.Infrastructure.Platform;
 using Qul.Infrastructure.Security;
 using Qul.Infrastructure.Update;
 
@@ -457,6 +458,13 @@ public sealed class MainViewModel : ObservableObject
         }
 
         await RebuildPreflightAsync();
+
+        // 启动期的临时对象（版本清单与资源索引的 DOM）到这里已经没用了，
+        // 而 .NET 不会主动把内存还给系统——实测 227 MB 的工作集里
+        // 只有约 24 MB 是之后还会被触碰的页。
+        //
+        // **只在启动完成后做这一次**，不放在热路径上，也不在游戏运行期间反复做。
+        await Task.Run(() => WorkingSetTrimmer.Trim());
     }
 
     private async Task RebuildPreflightAsync()
