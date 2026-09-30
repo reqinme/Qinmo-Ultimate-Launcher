@@ -104,84 +104,98 @@ public sealed class DownloadEngine
         long bytesTransferred = 0;
         object progressGate = new object();
 
-        using (SemaphoreSlim semaphore = new SemaphoreSlim(Math.Max(1, effective.MaxConcurrency)))
+        // **固定数量的 worker，而不是每个条目一个任务。**
+        //
+        // 先前是 `Task.Run` × 条目数，每个任务在里面**阻塞地**等信号量。
+        // 1.7.10 有一千多个条目，于是上千个工作项去抢线程池的线程、并阻塞在信号量上；
+        // 线程池补线程约每秒一个，有效并发只能从 8 慢慢往上爬。
+        //
+        // 实测症状：前 12 秒下了 26 MB（接近网络真实能力），之后 84 秒只下了 9 MB；
+        // 而且线程数会一路涨向上千。**慢的不是网络，是调度方式。**
+        //
+        // 改成 MaxConcurrency 个 worker 从共享游标取活：线程数恒定，
+        // 并发从第一秒起就是满的。
+        int workerCount = Math.Min(
+            Math.Max(1, effective.MaxConcurrency),
+            Math.Max(1, plan.Items.Count));
+
+        int cursor = -1;
+        Task[] workers = new Task[workerCount];
+
+        for (int w = 0; w < workerCount; w++)
         {
-            Task[] workers = new Task[plan.Items.Count];
-
-            for (int i = 0; i < plan.Items.Count; i++)
+            // 刻意不把取消令牌交给 Task.Run：取消由循环条件与 ProcessItem 处理，
+            // 否则被取消的任务会让 Task.WaitAll 抛聚合异常，而逐条结论已经记在 reports 里了。
+            workers[w] = Task.Run(() =>
             {
-                int index = i;
-                workers[i] = Task.Run(
-                    () =>
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    int index = Interlocked.Increment(ref cursor);
+
+                    if (index >= plan.Items.Count)
                     {
+                        return;
+                    }
+
+                    DownloadItemReport report;
+
+                    try
+                    {
+                        report = ProcessItem(
+                            plan.Items[index], cacheRoot, effective, preferFallbackFirst, cancellationToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        reports[index] = new DownloadItemReport(
+                            plan.Items[index], DownloadItemState.Failed, ErrorCode.DlFailed, 0, 0);
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        // 编排层永不因单个条目抛出：一个坏文件不该让整次安装失败。
+                        _log.Failure("download", ErrorCode.DlFailed, ex);
+                        reports[index] = new DownloadItemReport(
+                            plan.Items[index], DownloadItemState.Failed, ErrorCode.DlFailed, 0, 0);
+                        continue;
+                    }
+
+                    reports[index] = report;
+
+                    lock (progressGate)
+                    {
+                        completed++;
+                        bytesTransferred += report.BytesTransferred;
+
+                        // **进度上报失败绝不能拖垮一个已经下好的文件。**
+                        // 界面被关掉、输出流被释放、日志在轮转——这些都不该让下载失败。
+                        // 先前这里没有任何保护，一个 ObjectDisposedException 就是这么
+                        // 逃到编排层的，而那里没有重试，条目一次都没试就被记成失败。
                         try
                         {
-                            semaphore.Wait(cancellationToken);
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            return;
-                        }
-
-                        try
-                        {
-                            DownloadItemReport report = ProcessItem(
-                                plan.Items[index], cacheRoot, effective, preferFallbackFirst, cancellationToken);
-                            reports[index] = report;
-
-                            lock (progressGate)
+                            progress?.Report(new DownloadProgress
                             {
-                                completed++;
-                                bytesTransferred += report.BytesTransferred;
+                                FilesCompleted = completed,
+                                FilesTotal = plan.Items.Count,
+                                BytesTransferred = bytesTransferred,
+                                KnownTotalBytes = plan.KnownTotalBytes,
+                                CurrentPath = report.Item.RelativePath,
+                            });
+                        }
+                        catch (Exception ex) when (ex is ObjectDisposedException || ex is InvalidOperationException || ex is IOException)
+                        {
+                        }
+                    }
+                }
+            });
+        }
 
-                                // **进度上报失败绝不能拖垮一个已经下好的文件。**
-                                // 界面被关掉、输出流被释放、日志在轮转——这些都不该让下载失败。
-                                // 先前这里没有任何保护，一个 ObjectDisposedException 就是这么
-                                // 逃到编排层的，而那里没有重试，条目一次都没试就被记成失败。
-                                try
-                                {
-                                    progress?.Report(new DownloadProgress
-                                    {
-                                        FilesCompleted = completed,
-                                        FilesTotal = plan.Items.Count,
-                                        BytesTransferred = bytesTransferred,
-                                        KnownTotalBytes = plan.KnownTotalBytes,
-                                        CurrentPath = report.Item.RelativePath,
-                                    });
-                                }
-                                catch (Exception ex) when (ex is ObjectDisposedException || ex is InvalidOperationException || ex is IOException)
-                                {
-                                }
-                            }
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            reports[index] = new DownloadItemReport(
-                                plan.Items[index], DownloadItemState.Failed, ErrorCode.DlFailed, 0, 0);
-                        }
-                        catch (Exception ex)
-                        {
-                            // 编排层永不因单个条目抛出：一个坏文件不该让整次安装失败。
-                            _log.Failure("download", ErrorCode.DlFailed, ex);
-                            reports[index] = new DownloadItemReport(
-                                plan.Items[index], DownloadItemState.Failed, ErrorCode.DlFailed, 0, 0);
-                        }
-                        finally
-                        {
-                            semaphore.Release();
-                        }
-                    },
-                    cancellationToken);
-            }
-
-            try
-            {
-                Task.WaitAll(workers);
-            }
-            catch (AggregateException)
-            {
-                // 逐条结论已经记录在 reports 里，聚合异常不再额外上抛。
-            }
+        try
+        {
+            Task.WaitAll(workers);
+        }
+        catch (AggregateException)
+        {
+            // 逐条结论已经记录在 reports 里，聚合异常不再额外上抛。
         }
 
         return new DownloadReport(reports);
