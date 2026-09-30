@@ -470,4 +470,57 @@ public static class VersionMetadataParser
 
         return entries;
     }
+
+    /// <summary>
+    /// 解析资源索引。
+    /// 索引文件只有 objects 一个键——实测 1.7.10 与 1.16.5 的索引都不含 virtual / map_to_resources，
+    /// 因此这里不建立任何虚拟目录映射，只保留"逻辑名 → 哈希 + 体积"。
+    /// 缺哈希的对象会被单独跳过（没有哈希就无法校验也无法定位），而不是让整份索引失败。
+    /// </summary>
+    public static Qul.Domain.Assets.AssetIndex ParseAssetIndex(string json, string assetIndexId)
+    {
+        JsonObject root = ParseRoot(json, ErrorCode.MetaVersionInvalid);
+
+        JsonObject? objects = root.GetObject("objects");
+        if (objects == null)
+        {
+            throw new LauncherException(ErrorCode.MetaVersionInvalid, "asset index has no objects map");
+        }
+
+        Dictionary<string, Qul.Domain.Assets.AssetObject> map =
+            new Dictionary<string, Qul.Domain.Assets.AssetObject>(objects.Count, StringComparer.Ordinal);
+
+        foreach (string name in objects.Keys)
+        {
+            JsonObject? node = objects.GetObject(name);
+            if (node == null)
+            {
+                continue;
+            }
+
+            string? hash = node.GetString("hash");
+            if (string.IsNullOrEmpty(hash))
+            {
+                continue;
+            }
+
+            map[name] = new Qul.Domain.Assets.AssetObject
+            {
+                Name = name,
+                Hash = hash!,
+                Size = node.GetLong("size") ?? 0,
+            };
+        }
+
+        if (map.Count == 0)
+        {
+            throw new LauncherException(ErrorCode.MetaVersionInvalid, "asset index yielded no usable objects");
+        }
+
+        return new Qul.Domain.Assets.AssetIndex
+        {
+            Id = assetIndexId ?? string.Empty,
+            Objects = map,
+        };
+    }
 }

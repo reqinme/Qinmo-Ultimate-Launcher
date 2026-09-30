@@ -69,6 +69,21 @@ public sealed class DownloadPlan
             return total;
         }
     }
+
+    /// <summary>
+    /// 构建期发现的重复相对路径。
+    /// 重复本身是**合法且常见**的：资源对象是内容寻址的（不同逻辑名可能同哈希），
+    /// 官方元数据里也存在指向同一 artifact 的重复库条目。
+    /// 构建器按"首次出现优先"折叠它们，并在此如实记录——折叠是为了不重复下载，记录是为了不把事实藏起来。
+    /// </summary>
+    public IReadOnlyList<string> DuplicatePaths { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// **内容不一致**的重复路径：同一条相对路径却对应不同的 URL 或不同的 SHA-1。
+    /// 这才是真正的危险——并发下载会互相覆盖，最终文件是哪一个完全看运气。
+    /// 真实元数据上必须恒为空，由测试守住。
+    /// </summary>
+    public IReadOnlyList<string> ConflictingPaths { get; set; } = Array.Empty<string>();
 }
 
 public enum DownloadItemState
