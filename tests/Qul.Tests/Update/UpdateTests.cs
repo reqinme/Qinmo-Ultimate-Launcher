@@ -337,6 +337,90 @@ public sealed class UpdateTests
         Assert.AreEqual(UpdateBootDecision.Discard, store.DecideOnBoot("0.2.0", out PendingUpdate? _));
     }
 
+    // ================= 发布清单 =================
+
+    private const string ManifestJson = @"{
+      ""formatVersion"": 1,
+      ""releases"": [
+        { ""version"": ""0.2.0"", ""downloadUrl"": ""https://example.invalid/a.exe"", ""sha256"": ""aa"", ""sizeBytes"": 100 },
+        { ""version"": ""0.3.0"", ""downloadUrl"": ""https://example.invalid/b.exe"", ""sha256"": ""bb"", ""minimumVersion"": ""0.2.0"" },
+        { ""version"": ""0.4.0"", ""downloadUrl"": ""https://example.invalid/c.exe"" },
+        { ""version"": ""0.1.0"", ""downloadUrl"": ""https://example.invalid/d.exe"", ""sha256"": ""dd"" }
+      ]
+    }";
+
+    [TestMethod]
+    public void Manifest_ParsesEveryField()
+    {
+        ReleaseManifest manifest = UpdateService.ParseManifest(ManifestJson);
+
+        Assert.AreEqual(1, manifest.FormatVersion);
+        Assert.AreEqual(4, manifest.Releases.Count);
+        Assert.AreEqual("0.2.0", manifest.Releases[0].Version);
+        Assert.AreEqual("https://example.invalid/a.exe", manifest.Releases[0].DownloadUrl);
+        Assert.AreEqual("aa", manifest.Releases[0].Sha256);
+        Assert.AreEqual(100, manifest.Releases[0].SizeBytes);
+        Assert.AreEqual("0.2.0", manifest.Releases[1].MinimumVersion);
+    }
+
+    [TestMethod]
+    public void Manifest_RefusesAnUnknownFormat()
+    {
+        Assert.ThrowsException<LauncherException>(() =>
+            UpdateService.ParseManifest("{\"formatVersion\":99,\"releases\":[]}"));
+    }
+
+    [TestMethod]
+    public void Pick_SkipsReleasesWithoutADigest()
+    {
+        // 没有摘要就不允许更新：宁可让用户手动换文件，
+        // 也不能把来源不明的可执行文件放到用户机器上执行。
+        ReleaseManifest manifest = UpdateService.ParseManifest(ManifestJson);
+
+        UpdateRelease? picked = manifest.Pick("0.1.0");
+
+        Assert.IsNotNull(picked);
+        Assert.AreNotEqual("0.4.0", picked!.Version, "0.4.0 没有 sha256，必须被跳过");
+    }
+
+    [TestMethod]
+    public void Pick_RespectsMinimumVersion()
+    {
+        // 从 0.1.0 出发时，0.3.0 要求至少 0.2.0 —— 够不着，只能升到 0.2.0。
+        ReleaseManifest manifest = UpdateService.ParseManifest(ManifestJson);
+
+        Assert.AreEqual("0.2.0", manifest.Pick("0.1.0")!.Version);
+        Assert.AreEqual("0.3.0", manifest.Pick("0.2.0")!.Version);
+    }
+
+    [TestMethod]
+    public void Pick_ReturnsNothingWhenAlreadyCurrent()
+    {
+        ReleaseManifest manifest = UpdateService.ParseManifest(ManifestJson);
+
+        Assert.IsNull(manifest.Pick("0.3.0"), "没有比 0.3.0 更新且可用的版本");
+        Assert.IsNull(manifest.Pick("9.9.9"));
+    }
+
+    [TestMethod]
+    public void DecideOnBoot_MatchesVersionsAcrossDifferentSegmentCounts()
+    {
+        // 程序集版本是四段（0.2.0.0），发布清单里通常写三段（0.2.0）。
+        // 用字符串相等判断会把它们判成不同，于是新版本启动时走 Discard：
+        // 标记被清掉，**真正坏掉的更新再也不会被回滚**。这比不更新危险得多。
+        UpdateStore store = NewStore();
+        store.SavePending(new PendingUpdate
+        {
+            TargetVersion = "0.2.0",
+            PendingFileName = "pending.exe",
+            BackupFileName = "app.exe.old",
+            Stage = PendingUpdate.StageSwapping,
+            StartedAt = DateTimeOffset.UtcNow,
+        });
+
+        Assert.AreEqual(UpdateBootDecision.Adopt, store.DecideOnBoot("0.2.0.0", out PendingUpdate? _));
+    }
+
     // ================= 工具 =================
 
     private UpdateStore NewStore()

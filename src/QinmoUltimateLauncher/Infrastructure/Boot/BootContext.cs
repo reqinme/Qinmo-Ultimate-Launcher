@@ -21,14 +21,21 @@ public sealed class BootContext : IDisposable
         SessionLog log,
         ConfigLoadResult configResult,
         ConfigStore configStore,
-        ErrorCode? dataRootWarning)
+        ErrorCode? dataRootWarning,
+        UpdateStore updates,
+        bool adoptedPendingUpdate)
     {
+        _adoptedPendingUpdate = adoptedPendingUpdate;
         Layout = layout;
         Log = log;
         ConfigResult = configResult;
         ConfigStore = configStore;
         DataRootWarning = dataRootWarning;
+        _updates = updates;
     }
+
+    private readonly UpdateStore _updates;
+    private readonly bool _adoptedPendingUpdate;
 
     public DataLayout Layout { get; }
 
@@ -70,7 +77,8 @@ public sealed class BootContext : IDisposable
 
         // 处理上次更新留下的标记。**必须放在这里**：任何可能失败的初始化之前。
         // 换上来的坏版本如果连窗口都建不出来，这就是唯一的自救机会。
-        HandlePendingUpdate(layout, log);
+        UpdateStore updates = new UpdateStore(layout.UpdatesDirectory, log);
+        bool adopted = HandlePendingUpdate(layout, log, updates);
 
         ConfigStore store = new ConfigStore(layout);
         ConfigLoadResult result = store.Load();
@@ -93,7 +101,7 @@ public sealed class BootContext : IDisposable
             }
         }
 
-        return new BootContext(layout, log, result, store, layoutError?.Code);
+        return new BootContext(layout, log, result, store, layoutError?.Code, updates, adopted);
     }
 
     /// <summary>
@@ -102,9 +110,8 @@ public sealed class BootContext : IDisposable
     /// 三种情况必须分开：我们就是刚上来的新版本（正常，标记为待确认）；
     /// 上次启动打过待确认标记却没确认健康（回滚）；替换根本没发生（清掉残留标记）。
     /// </summary>
-    private static void HandlePendingUpdate(DataLayout layout, SessionLog log)
+    private static bool HandlePendingUpdate(DataLayout layout, SessionLog log, UpdateStore updates)
     {
-        UpdateStore updates = new UpdateStore(layout.UpdatesDirectory, log);
         string currentVersion = typeof(BootContext).Assembly.GetName().Version?.ToString() ?? "0.0.0";
 
         UpdateBootDecision decision = updates.DecideOnBoot(currentVersion, out PendingUpdate? pending);
@@ -112,20 +119,20 @@ public sealed class BootContext : IDisposable
         switch (decision)
         {
             case UpdateBootDecision.None:
-                return;
+                return false;
 
             case UpdateBootDecision.Adopt:
                 log.Info("update", "adopted pending update " + pending!.TargetVersion + "; awaiting health confirmation");
-                return;
+                return true;
 
             case UpdateBootDecision.Discard:
                 log.Info("update", "pending marker discarded; the swap never happened");
                 updates.ClearPending();
-                return;
+                return false;
 
-            case UpdateBootDecision.Rollback:
+            default:
                 RollBackToPreviousVersion(layout, log, updates, pending!);
-                return;
+                return false;
         }
     }
 
@@ -166,6 +173,22 @@ public sealed class BootContext : IDisposable
         catch (Exception ex) when (ex is InvalidOperationException || ex is NotSupportedException)
         {
             return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "QinmoUltimateLauncher.exe");
+        }
+    }
+
+    /// <summary>
+    /// 应用真正起来之后调用。**删掉标记才算这次更新活下来了。**
+    /// 不调用的话，下次启动会把"已启动但未确认"当成失败并回滚——
+    /// 那等于每次更新都会在第二次启动时自己撤销。
+    /// </summary>
+    public void ConfirmUpdateHealthy()
+    {
+        // **只有"我们就是被换上来的那个版本"时，确认才有意义。**
+        // 执行替换的那个旧进程不能替新版本确认健康——它马上就退出了，
+        // 新版本一次都还没跑过。放开这个口子，等于每次更新都跳过试运行。
+        if (_adoptedPendingUpdate)
+        {
+            _updates.ClearPending();
         }
     }
 

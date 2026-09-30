@@ -96,7 +96,11 @@ public sealed class UpdateStore
             return UpdateBootDecision.Discard;
         }
 
-        if (string.Equals(currentVersion, pending.TargetVersion, StringComparison.OrdinalIgnoreCase))
+        // 必须按版本语义比较，不能用字符串相等：
+        // 程序集版本是四段（0.2.0.0），发布清单里通常写三段（0.2.0），
+        // 字符串比较会把它们判成不同，于是新版本启动时走 Discard ——
+        // 标记被清掉，真正坏掉的更新再也不会被回滚。
+        if (LauncherVersion.Compare(currentVersion, pending.TargetVersion) == 0)
         {
             // 运行的就是目标版本 ⇒ 我们正是刚被换上来的那一个。
             pending.Stage = PendingUpdate.StageApplied;

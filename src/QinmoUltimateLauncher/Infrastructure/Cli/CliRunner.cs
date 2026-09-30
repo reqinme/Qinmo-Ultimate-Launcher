@@ -6,12 +6,15 @@ using System.IO;
 using System.Threading;
 using Qul.Application.Diagnostics;
 using Qul.Application.Launch;
+using Qul.Application.Update;
 using Qul.Domain.Configuration;
 using Qul.Domain.Diagnostics;
 using Qul.Domain.Downloads;
 using Qul.Infrastructure.Boot;
 using Qul.Infrastructure.Launch;
+using Qul.Infrastructure.Net;
 using Qul.Infrastructure.Processes;
+using Qul.Infrastructure.Update;
 
 namespace Qul.Infrastructure.Cli;
 
@@ -49,6 +52,8 @@ public static class CliRunner
                 return Execute(boot, args, LaunchPipelineMode.Launch);
             case "preflight":
                 return Preflight(boot, args);
+            case "update":
+                return Update(boot, args);
             default:
                 return Usage(boot);
         }
@@ -108,6 +113,94 @@ public static class CliRunner
         }
 
         return AwaitWindow(boot, process, ParseInt(OptionValue(args, "--hold", "5"), 5), HasFlag(args, "--keep"));
+    }
+
+    /// <summary>
+    /// 检查 / 下载 / 应用更新。无界面路径，便于自动化验证整条链路。
+    /// 不加 --apply 时只下载校验，**绝不碰主程序**。
+    /// </summary>
+    private static int Update(BootContext boot, IReadOnlyList<string> args)
+    {
+        string manifestUrl = OptionValue(args, "--manifest", null) ?? string.Empty;
+
+        if (manifestUrl.Length == 0)
+        {
+            Report(boot, "用法：update --manifest <发布清单地址> [--apply]");
+            return ExitUsage;
+        }
+
+        bool apply = HasFlag(args, "--apply");
+        string currentVersion = typeof(CliRunner).Assembly.GetName().Version?.ToString() ?? "0.0.0";
+        Report(boot, "当前版本 " + currentVersion);
+
+        UpdateStore store = new UpdateStore(boot.Layout.UpdatesDirectory, boot.Log);
+        UpdateService service = new UpdateService(new HttpTransport(), store, boot.Log);
+
+        UpdateRelease? release;
+        try
+        {
+            release = service.Check(manifestUrl, currentVersion, CancellationToken.None);
+        }
+        catch (LauncherException ex)
+        {
+            return Fail(boot, ex.Code, ex.Message);
+        }
+
+        if (release == null)
+        {
+            Report(boot, "已是最新版本。");
+            return ExitOk;
+        }
+
+        Report(boot, "发现新版本 " + release.Version + "（" + Megabytes(release.SizeBytes) + "）");
+
+        if (!string.IsNullOrWhiteSpace(release.Notes))
+        {
+            Report(boot, "  说明：" + release.Notes);
+        }
+
+        string pendingPath;
+        try
+        {
+            pendingPath = service.Download(release, CancellationToken.None);
+        }
+        catch (LauncherException ex)
+        {
+            return Fail(boot, ex.Code, ex.Message);
+        }
+
+        Report(boot, "已下载并校验通过：" + pendingPath);
+
+        if (!apply)
+        {
+            Report(boot, "（未加 --apply，不执行替换）");
+            return ExitOk;
+        }
+
+        string selfPath = CurrentExecutablePath();
+        SelfReplaceOutcome outcome = service.Apply(
+            selfPath, pendingPath, release, Path.GetFileName(selfPath) + ".old");
+
+        if (!outcome.Succeeded)
+        {
+            return Fail(boot, ErrorCode.UpdFailed, outcome.FailureReason);
+        }
+
+        Report(boot, "替换完成，重启后生效。");
+        return ExitOk;
+    }
+
+    private static string CurrentExecutablePath()
+    {
+        try
+        {
+            return System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
+                   ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "QinmoUltimateLauncher.exe");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException || ex is NotSupportedException)
+        {
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "QinmoUltimateLauncher.exe");
+        }
     }
 
     private static int Preflight(BootContext boot, IReadOnlyList<string> args)
@@ -278,6 +371,7 @@ public static class CliRunner
         Report(boot, "  plan      <版本 id> [--server 地址]      只算下载计划，不下载");
         Report(boot, "  preflight <版本 id> [--server 地址]      只跑启动前预检，不联网");
         Report(boot, "  install   <版本 id>                      下载该版本所需全部文件");
+        Report(boot, "  update    --manifest <地址> [--apply]     检查/下载更新（--apply 才替换主程序）");
         Report(boot, "  launch    <版本 id> [--dry-run]          下载并启动（--dry-run 只准备不启动）");
         Report(boot, "            [--offline-name 名字] [--memory MB]");
         Report(boot, "            [--hold 秒] [--keep] [--server 地址]");

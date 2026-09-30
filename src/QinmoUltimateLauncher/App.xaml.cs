@@ -52,7 +52,15 @@ public partial class App : System.Windows.Application
         {
             if (IsCliVerb(e.Args[0]))
             {
-                Shutdown(CliRunner.Run(_boot, e.Args));
+                int exitCode = CliRunner.Run(_boot, e.Args);
+
+                // 命令行跑完且没有失败，同样算这次更新活下来了。
+                if (exitCode == 0)
+                {
+                    _boot.ConfirmUpdateHealthy();
+                }
+
+                Shutdown(exitCode);
                 return;
             }
 
@@ -78,6 +86,10 @@ public partial class App : System.Windows.Application
         };
 
         window.Closed += OnMainWindowClosed;
+
+        // 窗口真正显示出来，才算这次更新活下来了。
+        window.Loaded += (_, __) => _boot?.ConfirmUpdateHealthy();
+
         window.Show();
     }
 
@@ -89,6 +101,7 @@ public partial class App : System.Windows.Application
             case "install":
             case "launch":
             case "preflight":
+            case "update":
                 return true;
             default:
                 return false;
