@@ -98,7 +98,7 @@ public sealed class MicrosoftAuthProvider : IAuthProvider
         }
         catch (LauncherException ex)
         {
-            return AuthOutcome.Failure(ex.Code, ErrorCodes.Hint(ex.Code));
+            return AuthOutcome.Failure(ex.Code, ErrorCodes.Hint(ex.Code) + " " + ex.Message);
         }
 
         request?.Prompt?.ShowDeviceCode(ticket.VerificationUri, ticket.UserCode, ticket.ExpiresAt);
@@ -205,12 +205,49 @@ public sealed class MicrosoftAuthProvider : IAuthProvider
         }
     }
 
+    /// <summary>
+    /// 把 OAuth 错误响应整理成一句能直接照着排查的话。
+    ///
+    /// OAuth 把最有用的信息放在 400 的响应体里（<c>error</c> 与 <c>error_description</c>），
+    /// 只报状态码等于把答案丢掉。Azure 的 <c>error_description</c> 里通常直接写着
+    /// <c>AADSTS</c> 编号与原因，照着它就能定位。
+    /// </summary>
+    private static string DescribeOAuthError(JsonObject json, int status)
+    {
+        string error = json.GetString("error") ?? string.Empty;
+        string description = json.GetString("error_description") ?? string.Empty;
+
+        if (error.Length == 0 && description.Length == 0)
+        {
+            return "HTTP " + status.ToString(CultureInfo.InvariantCulture) + "（响应体里没有错误说明）";
+        }
+
+        if (description.Length == 0)
+        {
+            return "HTTP " + status.ToString(CultureInfo.InvariantCulture) + " " + error;
+        }
+
+        // error_description 里常有换行，压成一行便于阅读
+        return "HTTP " + status.ToString(CultureInfo.InvariantCulture) + " " + error + "：" +
+               description.Replace("\r", " ").Replace("\n", " ").Trim();
+    }
+
     private DeviceCodeTicket RequestDeviceCode(string clientId, CancellationToken cancellationToken)
     {
         string body = "client_id=" + Uri.EscapeDataString(clientId)
                       + "&scope=" + Uri.EscapeDataString(MicrosoftAuthEndpoints.DefaultScopes);
 
-        JsonObject json = PostForm(MicrosoftAuthEndpoints.DeviceCode, body, cancellationToken, ErrorCode.AuthPrerequisiteMissing);
+        JsonObject json = PostForm(MicrosoftAuthEndpoints.DeviceCode, body, cancellationToken, ErrorCode.AuthPrerequisiteMissing, out int deviceCodeStatus);
+
+        if (deviceCodeStatus != 200)
+        {
+            // **把 Azure 的原话带上。** 设备码被拒的原因通常很具体
+            // （公共客户端流没允许、client_id 不对、租户类型不匹配），
+            // 只回一句"前置条件未满足"会让人去错的地方找问题。
+            throw new LauncherException(
+                ErrorCode.AuthPrerequisiteMissing,
+                "设备码申请被拒绝：" + DescribeOAuthError(json, deviceCodeStatus));
+        }
 
         string deviceCode = json.GetString("device_code") ?? string.Empty;
         string userCode = json.GetString("user_code") ?? string.Empty;
@@ -226,8 +263,7 @@ public sealed class MicrosoftAuthProvider : IAuthProvider
         return new DeviceCodeTicket(deviceCode, userCode, verificationUri, interval, _clock().AddSeconds(expiresIn));
     }
 
-    private MsaTokens PollForTokens(string clientId, DeviceCodeTicket ticket, CancellationToken cancellationToken)
-    {
+    private MsaTokens PollForTokens(string clientId, DeviceCodeTicket ticket, CancellationToken cancellationToken)    {
         int interval = Math.Max(1, ticket.IntervalSeconds);
 
         while (_clock() < ticket.ExpiresAt)
@@ -508,7 +544,11 @@ public sealed class MicrosoftAuthProvider : IAuthProvider
         catch (LauncherException ex)
         {
             statusCode = 0;
-            throw new LauncherException(transportError ?? ex.Code, ErrorCodes.Hint(ex.Code));
+
+            // **保留原始说明。** 只回一句 ErrorCodes.Hint 会把真实原因藏起来——
+            // 设备码请求失败时也会走到这里，而那句提示听起来像"前置条件没满足"，
+            // 把排查引向完全错误的方向。
+            throw new LauncherException(transportError ?? ex.Code, ErrorCodes.Hint(ex.Code) + " " + ex.Message);
         }
 
         statusCode = status;

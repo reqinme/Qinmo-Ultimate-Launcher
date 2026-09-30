@@ -339,4 +339,25 @@ public sealed class MicrosoftAuthProviderTests
             };
         }
     }
+    [TestMethod]
+    public void Authenticate_SurfacesTheProviderErrorWhenTheDeviceCodeIsRejected()
+    {
+        // **这条用例守的是一个真实踩过的坑。**
+        // 设备码被 Azure 拒绝时，先前只回一句"微软正版登录当前不可用"——
+        // 那听起来像前置条件没满足，会把排查引向完全错误的方向。
+        // 真实原因（AADSTS70002：应用必须标记为 mobile）就写在 401 的响应体里。
+        ScriptedTransport transport = new ScriptedTransport();
+        transport.Enqueue(
+            MicrosoftAuthEndpoints.DeviceCode,
+            401,
+            "{\"error\":\"invalid_client\",\"error_description\":\"AADSTS70002: The client application must be marked as 'mobile'.\"}");
+
+        MicrosoftAuthProvider provider = CreateProvider(transport, Ready());
+
+        AuthOutcome outcome = provider.Authenticate(new AuthRequest(), CancellationToken.None);
+
+        Assert.IsFalse(outcome.Succeeded);
+        StringAssert.Contains(outcome.Explanation, "invalid_client", "必须带上 OAuth 的 error");
+        StringAssert.Contains(outcome.Explanation, "AADSTS70002", "必须带上 Azure 的原因，否则排查会走错方向");
+    }
 }

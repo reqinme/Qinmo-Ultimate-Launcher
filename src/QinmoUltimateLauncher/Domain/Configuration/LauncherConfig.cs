@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using Qul.Domain.Diagnostics;
 
+using Qul.Domain.Identity;
+
 namespace Qul.Domain.Configuration;
 
 public enum IdentitySource
@@ -45,6 +47,53 @@ public sealed class IdentitySettings
 
     /// <summary>上次使用账户的非秘密标识键。不是令牌，也不是 UUID。</summary>
     public string? LastAccountKey { get; set; }
+
+    public MicrosoftAuthSettings Microsoft { get; set; } = new MicrosoftAuthSettings();
+}
+
+/// <summary>
+/// 微软正版登录的前置条件（决策 11 的 C1–C4）。
+///
+/// 前三项有**客观依据**：应用已在微软平台注册、client_id 与权限范围已定、流程选了设备码。
+/// 这些在应用注册完成时即可置真。
+///
+/// **C4（第三方启动器相关条款核对）不是代码能推断的事实**，只能由产品负责人核对后确认，
+/// 所以它默认 false —— 门禁会如实显示"C4 尚未核对"，而不是替用户签字。
+/// </summary>
+public sealed class MicrosoftAuthSettings
+{
+    /// <summary>C1：已在微软平台完成应用注册。</summary>
+    public bool ApplicationRegistered { get; set; } = true;
+
+    /// <summary>
+    /// C2：client_id。
+    ///
+    /// **它不是秘密，也不该被当成秘密。** 桌面应用无法保守机密（客户端凭据才是秘密，
+    /// 而公共客户端根本不该有凭据），所以它随程序分发。
+    /// 默认值是本项目的正式应用注册：Qinmo_Ultimate_Launcher，受支持的帐户类型为"所有 Microsoft 帐户用户"。
+    /// </summary>
+    public string? ClientId { get; set; } = "2a06b5bc-7b61-4a36-9edf-52fb89525943";
+
+    /// <summary>C2：所需权限范围已确认（<c>XboxLive.signin offline_access</c>，均为首方范围，无需在门户另配权限）。</summary>
+    public bool ScopesConfirmed { get; set; } = true;
+
+    /// <summary>C3：流程已定——设备码流程，因此**不需要**重定向 URI。</summary>
+    public bool FlowDecided { get; set; } = true;
+
+    /// <summary>C4：第三方启动器相关条款已核对。**默认 false，需产品负责人显式置真。**</summary>
+    public bool ThirdPartyTermsChecked { get; set; }
+
+    public MicrosoftAuthPrerequisites ToPrerequisites()
+    {
+        return new MicrosoftAuthPrerequisites
+        {
+            ApplicationRegistered = ApplicationRegistered,
+            ClientId = ClientId,
+            ScopesConfirmed = ScopesConfirmed,
+            FlowDecided = FlowDecided,
+            ThirdPartyTermsChecked = ThirdPartyTermsChecked,
+        };
+    }
 }
 
 public sealed class JavaSettings

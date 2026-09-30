@@ -46,7 +46,13 @@ internal static class ConfigMapper
         root.Set("identity", new JsonObject()
             .Set("source", IdentitySourceText(config.Identity.Source))
             .Set("offlineUserName", config.Identity.OfflineUserName)
-            .Set("lastAccountKey", config.Identity.LastAccountKey));
+            .Set("lastAccountKey", config.Identity.LastAccountKey)
+            .Set("microsoft", new JsonObject()
+                .Set("applicationRegistered", config.Identity.Microsoft.ApplicationRegistered)
+                .Set("clientId", config.Identity.Microsoft.ClientId)
+                .Set("scopesConfirmed", config.Identity.Microsoft.ScopesConfirmed)
+                .Set("flowDecided", config.Identity.Microsoft.FlowDecided)
+                .Set("thirdPartyTermsChecked", config.Identity.Microsoft.ThirdPartyTermsChecked)));
 
         root.Set("java", new JsonObject()
             .Set("mode", config.Java.Mode == JavaSelectionMode.Manual ? "manual" : "auto")
@@ -107,6 +113,19 @@ internal static class ConfigMapper
             config.Identity.Source = ParseIdentitySource(identity.GetString("source"));
             config.Identity.OfflineUserName = identity.GetString("offlineUserName");
             config.Identity.LastAccountKey = identity.GetString("lastAccountKey");
+
+            JsonObject? microsoft = identity.GetObject("microsoft");
+            if (microsoft != null)
+            {
+                // 缺失的键一律保持配置类里的默认值：旧配置文件升级上来时
+                // C1–C3 为真（有客观依据）、C4 仍为假（只能由人确认）。
+                MicrosoftAuthSettings auth = config.Identity.Microsoft;
+                auth.ApplicationRegistered = microsoft.GetBoolean("applicationRegistered", auth.ApplicationRegistered);
+                auth.ClientId = microsoft.GetString("clientId", auth.ClientId);
+                auth.ScopesConfirmed = microsoft.GetBoolean("scopesConfirmed", auth.ScopesConfirmed);
+                auth.FlowDecided = microsoft.GetBoolean("flowDecided", auth.FlowDecided);
+                auth.ThirdPartyTermsChecked = microsoft.GetBoolean("thirdPartyTermsChecked", auth.ThirdPartyTermsChecked);
+            }
         }
 
         JsonObject? java = root.GetObject("java");

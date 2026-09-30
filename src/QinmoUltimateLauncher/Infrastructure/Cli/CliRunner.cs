@@ -380,7 +380,7 @@ public static partial class CliRunner
         Report(boot, "  plan      <版本 id> [--server 地址]      只算下载计划，不下载");
         Report(boot, "  preflight <版本 id> [--server 地址]      只跑启动前预检，不联网");
         Report(boot, "  install   <版本 id>                      下载该版本所需全部文件");
-        Report(boot, "  account   [status|signout]                查看已保存账户 / 登出");
+        Report(boot, "  account   [status|signout|login]          查看账户 / 登出 / 微软正版登录");
         Report(boot, "  update    --manifest <地址> [--apply]     检查/下载更新（--apply 才替换主程序）");
         Report(boot, "  launch    <版本 id> [--dry-run]          下载并启动（--dry-run 只准备不启动）");
         Report(boot, "            [--offline-name 名字] [--memory MB]");

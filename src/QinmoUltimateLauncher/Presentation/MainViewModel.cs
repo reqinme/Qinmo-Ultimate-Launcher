@@ -979,7 +979,7 @@ public sealed class MainViewModel : ObservableObject
     {
         // C1–C4 未满足时，微软登录必须显示为"可见但不可用"并说明缺什么，
         // 而不是让用户点进去撞一个笼统的失败。
-        MicrosoftAuthPrerequisites prerequisites = new MicrosoftAuthPrerequisites();
+        MicrosoftAuthPrerequisites prerequisites = _boot.Config.Identity.Microsoft.ToPrerequisites();
 
         string microsoftTitle = "微软正版账户";
         string microsoftDetail;
@@ -1034,7 +1034,7 @@ public sealed class MainViewModel : ObservableObject
             IReadOnlyList<string> keys = store.ListAccounts();
             string key = keys.Count > 0 ? keys[0] : "unbound";
 
-            MicrosoftAuthPrerequisites prerequisites = new MicrosoftAuthPrerequisites();
+            MicrosoftAuthPrerequisites prerequisites = boot.Config.Identity.Microsoft.ToPrerequisites();
 
             return new AccountManager(
                 new MicrosoftAuthProvider(new HttpTransport(), prerequisites, boot.Log),
