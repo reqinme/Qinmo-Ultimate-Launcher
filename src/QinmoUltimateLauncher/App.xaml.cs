@@ -51,6 +51,16 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        // 渲染层级决定了界面是否走硬件加速。Tier 0 = 软件渲染，
+        // 内存与流畅度都会明显变差——用户报"界面卡"时这是第一个要看的值。
+        _log.Info("ui", string.Format(
+            System.Globalization.CultureInfo.InvariantCulture,
+            "render tier={0} animations={1} dpi={2}x{3}",
+            System.Windows.Media.RenderCapability.Tier >> 16,
+            System.Windows.SystemParameters.ClientAreaAnimation,
+            System.Windows.SystemParameters.PrimaryScreenWidth,
+            System.Windows.SystemParameters.PrimaryScreenHeight));
+
         // 深色优先：默认就是深色，用户可切浅色或跟随系统。
         ThemeManager.Initialize(ThemeMode.Dark);
 
