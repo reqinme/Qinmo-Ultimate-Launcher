@@ -36,7 +36,7 @@ public sealed class DownloadSourceProbe
     ///
     /// 实测后果：镜像被错误地排到首位，而镜像对库文件返回 403，
     /// 一次安装里 19 个条目因此失败（其中包含 lwjgl 这类必需库）。
-    /// 顺带一提：PCL2 的源码里**根本没有下载测速选源**，源顺序由设置与
+    /// 顺带一提：其他主流启动器**没有下载测速选源**这一步，源顺序由设置与
     /// "拉官方 version_manifest 是否够快"决定——这一层我原先做得比它激进，而且在害事。
     /// </summary>
     private const long MinimumSampleBytes = 256L * 1024;

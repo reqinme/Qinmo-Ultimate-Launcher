@@ -16,7 +16,7 @@ namespace Qul.Infrastructure.Downloads;
 /// 键里带条目类型是刻意的：同一台镜像对资源对象齐全、对库却常缺，
 /// 只按主机计数会把它的资源提速一起误伤掉。
 ///
-/// PCL2 是同一个思路（按来源记录失败、超阈值禁用，见 `ModNet.vb:1084`）。
+/// 这种做法在多个启动器里都能见到（按来源记录失败、超阈值禁用）；**本项目按自己的实测阈值实现，不含任何外部代码**。
 /// </summary>
 internal sealed class SourceHealth
 {

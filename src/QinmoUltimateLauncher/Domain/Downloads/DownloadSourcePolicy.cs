@@ -23,7 +23,7 @@ public enum DownloadSourcePreference
 /// 一个恶意镜像无法伪造出内容与官方 SHA-1 相符的文件，
 /// 所以引入镜像不降低完整性保证——校验不过就丢弃，换下一个源重试。
 ///
-/// 映射规则参考 PCL2（`Modules/Minecraft/ModDownload.vb` 的 `DlSource` 区）。
+/// **主机表由本机逐个探测确定，不是抄来的**：对每个官方主机实测镜像是否有对应路径，没有的（如 `launcher.mojang.com` 的 `/v1/objects/` 形态）一律不含——留着只会造出一个**必然失败**的备用源。设计层面（"官方优先、镜像兜底、摘要只认官方"）与 PCL2 等启动器的通行做法一致，**但不含其任何代码**。
 /// </summary>
 public static class DownloadSourcePolicy
 {

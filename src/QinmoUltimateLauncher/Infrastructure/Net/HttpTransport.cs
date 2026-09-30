@@ -57,7 +57,7 @@ public sealed class HttpTransport : IHttpTransport
         // 只做"补上"，不做任何降低校验强度的动作。
         ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
 
-        // **以下三项照搬 PCL2 的全局网络配置（Plain Craft Launcher 2, Application.xaml.vb:100-104）。**
+        // **以下三项是 net48 下的常见网络调优，取值由我们在本机实测确定。**
         // 它们都不是"优化"，而是把 .NET Framework 的保守默认值调到与现代下载器相当。
 
         // 1) 每主机连接上限。**net48 的默认值是 2**（已在本机实测确认），
