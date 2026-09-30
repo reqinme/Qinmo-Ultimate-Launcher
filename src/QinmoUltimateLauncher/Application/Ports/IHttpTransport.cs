@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 
@@ -26,6 +27,20 @@ public enum HttpFetchStatus
 public sealed class HttpFetchRequest
 {
     public string Url { get; set; } = string.Empty;
+
+    /// <summary>HTTP 方法。认证流程需要 POST。</summary>
+    public string Method { get; set; } = "GET";
+
+    /// <summary>请求体。为 null 表示无包体。</summary>
+    public string? Body { get; set; }
+
+    public string? ContentType { get; set; }
+
+    public string? Accept { get; set; }
+
+    /// <summary>自定义请求头，例如 Authorization 与 x-xbl-contract-version。</summary>
+    public IReadOnlyDictionary<string, string> Headers { get; set; } =
+        new Dictionary<string, string>(0, StringComparer.Ordinal);
 
     /// <summary>续传起点。null 表示从头取。</summary>
     public long? RangeFrom { get; set; }

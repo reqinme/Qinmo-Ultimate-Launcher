@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Text;
 using System.Threading;
 using Qul.Application.Ports;
 using Qul.Domain.Diagnostics;
@@ -38,7 +40,7 @@ public sealed class HttpTransport : IHttpTransport
         }
 
         HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(request.Url);
-        webRequest.Method = "GET";
+        webRequest.Method = string.IsNullOrEmpty(request.Method) ? "GET" : request.Method.ToUpperInvariant();
         webRequest.AllowAutoRedirect = true;
         webRequest.Timeout = (int)Math.Min(int.MaxValue, request.Timeout.TotalMilliseconds);
         webRequest.ReadWriteTimeout = (int)Math.Min(int.MaxValue, request.Timeout.TotalMilliseconds);
@@ -47,9 +49,47 @@ public sealed class HttpTransport : IHttpTransport
 
         ApplyProxy(webRequest, request.ProxyAddress);
 
+        if (!string.IsNullOrEmpty(request.Accept))
+        {
+            webRequest.Accept = request.Accept;
+        }
+
+        foreach (KeyValuePair<string, string> header in request.Headers)
+        {
+            // 少数头（Host / Content-Type 等）不能走 Headers 集合，交给各自的属性。
+            if (string.Equals(header.Key, "Content-Type", StringComparison.OrdinalIgnoreCase))
+            {
+                webRequest.ContentType = header.Value;
+                continue;
+            }
+
+            webRequest.Headers[header.Key] = header.Value;
+        }
+
         if (request.RangeFrom.HasValue && request.RangeFrom.Value > 0)
         {
             webRequest.AddRange(request.RangeFrom.Value);
+        }
+
+        if (!string.IsNullOrEmpty(request.Body))
+        {
+            byte[] payload = Encoding.UTF8.GetBytes(request.Body!);
+            webRequest.ContentType = request.ContentType ?? webRequest.ContentType ?? "application/json";
+            webRequest.ContentLength = payload.Length;
+
+            using (Stream body = webRequest.GetRequestStream())
+            {
+                body.Write(payload, 0, payload.Length);
+            }
+        }
+        else if (!string.Equals(webRequest.Method, "GET", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!string.IsNullOrEmpty(request.ContentType))
+            {
+                webRequest.ContentType = request.ContentType;
+            }
+
+            webRequest.ContentLength = 0;
         }
 
         cancellationToken.ThrowIfCancellationRequested();
