@@ -316,7 +316,7 @@ public sealed class LaunchPipeline
             layout.CacheDirectory,
             new DownloadOptions
             {
-                MaxConcurrency = 8,
+                MaxConcurrency = 32,
                 MaxAttempts = 3,
                 MinimumFreeBytes = 128L * 1024 * 1024,
                 BaseRetryDelay = TimeSpan.FromMilliseconds(400),
@@ -368,7 +368,7 @@ public sealed class LaunchPipeline
             layout.CacheDirectory,
             new DownloadOptions
             {
-                MaxConcurrency = 8,
+                MaxConcurrency = 32,
                 MaxAttempts = 3,
                 MinimumFreeBytes = 128L * 1024 * 1024,
                 BaseRetryDelay = TimeSpan.FromMilliseconds(400),

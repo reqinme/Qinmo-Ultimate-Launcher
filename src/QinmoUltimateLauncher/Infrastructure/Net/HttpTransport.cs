@@ -25,6 +25,22 @@ public sealed class HttpTransport : IHttpTransport
         // net48 在部分机器上默认不启用 TLS 1.2；显式补齐，避免整片 HTTPS 站点连不上。
         // 只做"补上"，不做任何降低校验强度的动作。
         ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+
+        // **以下三项照搬 PCL2 的全局网络配置（Plain Craft Launcher 2, Application.xaml.vb:100-104）。**
+        // 它们都不是"优化"，而是把 .NET Framework 的保守默认值调到与现代下载器相当。
+
+        // 1) 每主机连接上限。**net48 的默认值是 2**（已在本机实测确认），
+        //    意味着无论我们把并发开到多少，同一个主机上真正并行的连接最多只有 2 条。
+        //    实测同一批真实资源对象：未设此项 232 KB/s，设为 10000 后 662–815 KB/s。
+        ServicePointManager.DefaultConnectionLimit = 10000;
+
+        // 2) 关掉 Expect: 100-continue。省掉每个请求一个往返；
+        //    服务端几乎总会回 100，这个协商对小文件下载是纯开销。
+        ServicePointManager.Expect100Continue = false;
+
+        // 3) 关掉 Nagle 算法。下载是"发完请求就一直收"，不需要攒小包，
+        //    开着它反而会给响应到达引入延迟。
+        ServicePointManager.UseNagleAlgorithm = false;
     }
 
     public HttpFetchResponse Fetch(HttpFetchRequest request, CancellationToken cancellationToken)
