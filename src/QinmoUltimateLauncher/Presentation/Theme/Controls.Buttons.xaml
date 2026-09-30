@@ -1,7 +1,12 @@
 <!--
     Qul 按钮模板：四个层级。
       隐式 Button 样式  = 次按钮（Subtle）—— 未指定样式时就是它，避免出现系统默认外观
-      Qul.Style.Button.Primary  主操作，全场只有一个
+      Qul.Style.Button.Primary  主操作。**通常全场只有一个**；
+                                唯一的例外是"有可用更新"时——更新卡片里的
+                                「立即更新并重启」也用 Primary，与「启动游戏」同为填充层级。
+                                为什么允许：那一瞬间确实有**两个都值得突出的动作**，
+                                而它们分处两块区域、文案各自明确；把更新降级成隐式样式，
+                                反而会让"有更新可用"这件事看起来不重要。
       Qul.Style.Button.Danger   危险操作
       Qul.Style.Button.Text     文本操作
       Qul.Style.Button.Icon     纯图标，正方形
