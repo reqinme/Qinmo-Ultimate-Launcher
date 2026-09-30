@@ -170,7 +170,7 @@ public static class ErrorCodes
         { ErrorCode.NetCertificateInvalid, "服务器证书校验未通过，连接已中止。" },
         { ErrorCode.NetTimeout, "请求超时，重试后仍未成功。" },
         { ErrorCode.NetHttpStatus, "服务器返回了失败状态。" },
-        { ErrorCode.NetResourceMissing, "该资源在官方源上不存在或已被移除。" },
+        { ErrorCode.NetResourceMissing, "下载源上没有这个文件（404）。若已启用镜像，可能是镜像缺件；可换回官方源重试。" },
         { ErrorCode.MetaIndexFailed, "无法获取版本列表，请稍后重试。" },
         { ErrorCode.MetaVersionInvalid, "该版本的元数据异常，已拒绝使用。" },
         { ErrorCode.MetaInheritBroken, "该版本的继承关系异常。" },

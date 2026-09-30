@@ -28,6 +28,19 @@ public sealed class DownloadSourceProbe
     /// <summary>样本上限。超过这个大小就不值得为了排序去多下一遍。</summary>
     private const long MaxSampleBytes = 2L * 1024 * 1024;
 
+    /// <summary>
+    /// 样本下限。**低于这个体积量到的是延迟，不是吞吐。**
+    ///
+    /// 先前挑的是"体积最小的那个"，于是 3 KB 的文件 0.1 秒返回被记成 "30 KB/s"、
+    /// 0.3 秒被记成 "10 KB/s"——这些数字与吞吐无关，却被拿去决定后面几千个文件走哪个源。
+    ///
+    /// 实测后果：镜像被错误地排到首位，而镜像对库文件返回 403，
+    /// 一次安装里 19 个条目因此失败（其中包含 lwjgl 这类必需库）。
+    /// 顺带一提：PCL2 的源码里**根本没有下载测速选源**，源顺序由设置与
+    /// "拉官方 version_manifest 是否够快"决定——这一层我原先做得比它激进，而且在害事。
+    /// </summary>
+    private const long MinimumSampleBytes = 256L * 1024;
+
     private readonly IHttpTransport _transport;
     private readonly SessionLog _log;
 
@@ -38,8 +51,10 @@ public sealed class DownloadSourceProbe
     }
 
     /// <summary>
-    /// 从计划里挑一个合适的探测样本：候选源最多、体积最小的那个。
-    /// 没有合适样本时返回 null（调用方保持原顺序）。
+    /// 从计划里挑一个合适的探测样本：候选源最多、体积最小**但仍够大**的那个。
+    ///
+    /// 没有合适样本时返回 null，调用方保持原顺序——
+    /// **宁可不排序，也不要基于噪声排序。**
     /// </summary>
     public static DownloadItem? PickSample(DownloadPlan plan)
     {
@@ -57,6 +72,12 @@ public sealed class DownloadSourceProbe
             }
 
             if (item.Size.HasValue && item.Size.Value > MaxSampleBytes)
+            {
+                continue;
+            }
+
+            // 体积未知或太小的一律不做样本：小文件量到的是延迟，不是吞吐。
+            if (!item.Size.HasValue || item.Size.Value < MinimumSampleBytes)
             {
                 continue;
             }

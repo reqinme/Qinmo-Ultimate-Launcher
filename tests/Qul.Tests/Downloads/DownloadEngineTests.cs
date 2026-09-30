@@ -46,7 +46,7 @@ public sealed class DownloadEngineTests
     public void EnsureAll_DownloadsMissingFile_ThenSkipsItOnSecondRun()
     {
         string sandbox = NewSandbox();
-        byte[] body = Bytes("library-content");
+        byte[] body = Bytes(new string('l', 300 * 1024));
         FakeTransport transport = new FakeTransport();
         transport.Serve(Url, body);
 
@@ -480,7 +480,7 @@ public sealed class DownloadEngineTests
         // 进度上报失败绝不能拖垮一个已经下好的文件。
         // 先前这里没有任何保护，一个 ObjectDisposedException 就是这么逃到编排层的。
         string sandbox = NewSandbox();
-        byte[] body = Bytes("library-content");
+        byte[] body = Bytes(new string('l', 300 * 1024));
         FakeTransport transport = new FakeTransport();
         transport.Serve(Url, body);
 
@@ -501,7 +501,7 @@ public sealed class DownloadEngineTests
         // 底层连接被提前释放属于可重试的传输故障。
         // 它必须留在重试循环里——逃到编排层就没有重试，条目会以"尝试 0 次"永久失败。
         string sandbox = NewSandbox();
-        byte[] body = Bytes("library-content");
+        byte[] body = Bytes(new string('l', 300 * 1024));
         FakeTransport transport = new FakeTransport();
         transport.Serve(Url, body);
 
@@ -531,7 +531,7 @@ public sealed class DownloadEngineTests
     public void EnsureAll_ReportsRealAttemptCountWhenEveryAttemptIsReleasedEarly()
     {
         string sandbox = NewSandbox();
-        byte[] body = Bytes("library-content");
+        byte[] body = Bytes(new string('l', 300 * 1024));
         FakeTransport transport = new FakeTransport();
         transport.Serve(Url, body);
         transport.Interceptor = (request, call) => throw new ObjectDisposedException("connection");
@@ -560,10 +560,23 @@ public sealed class DownloadEngineTests
 
         Assert.IsNull(DownloadSourceProbe.PickSample(single), "只有一个源就没有可探测的东西");
 
-        DownloadItem multi = Item(Url, body, @"libraries\a\a\1.0\a-1.0.jar");
-        multi.FallbackUrls = new[] { MirrorUrl };
+        // **太小的一律不做样本。** 几 KB 的文件量到的是延迟不是吞吐：
+        // 3 KB 文件 0.1 秒返回会被记成 "30 KB/s"，拿去排序就会把镜像错误地排到首位。
+        // 实测后果是一次安装里 19 个条目因镜像 403 而失败（含 lwjgl）。
+        DownloadItem tinyMulti = Item(Url, body, @"libraries\a\a\1.0\a-1.0.jar");
+        tinyMulti.FallbackUrls = new[] { MirrorUrl };
 
-        Assert.IsNotNull(DownloadSourceProbe.PickSample(Plan(multi)));
+        Assert.IsNull(
+            DownloadSourceProbe.PickSample(Plan(tinyMulti)),
+            "体积太小的条目不能当测速样本——量到的是延迟，不是吞吐");
+
+        byte[] large = Bytes(new string('b', 300 * 1024));
+        DownloadItem largeMulti = Item(Url, large, @"libraries\a\a\1.0\a-1.0.jar");
+        largeMulti.FallbackUrls = new[] { MirrorUrl };
+
+        Assert.IsNotNull(
+            DownloadSourceProbe.PickSample(Plan(largeMulti)),
+            "够大的多源条目应当能被选作样本");
     }
 
     [TestMethod]
@@ -573,7 +586,7 @@ public sealed class DownloadEngineTests
         // 只按失败换源的实现永远不会切换，几千个文件就那么磨完；
         // 而"官方慢"恰恰是引入镜像的初衷。
         string sandbox = NewSandbox();
-        byte[] body = Bytes("library-content");
+        byte[] body = Bytes(new string('l', 300 * 1024));
 
         FakeTransport transport = new FakeTransport();
         transport.Serve(Url, body);
@@ -600,7 +613,7 @@ public sealed class DownloadEngineTests
     public void EnsureAll_KeepsTheConfiguredOrderWhenProbingIsOff()
     {
         string sandbox = NewSandbox();
-        byte[] body = Bytes("library-content");
+        byte[] body = Bytes(new string('l', 300 * 1024));
 
         FakeTransport transport = new FakeTransport();
         transport.Serve(Url, body);
@@ -635,14 +648,14 @@ public sealed class DownloadEngineTests
         transport.Serve(Url, good);
         transport.Serve(MirrorUrl, tampered);
 
-        // 让镜像显得更快，探测就会把它排到首位——于是第一次尝试必然落在坏源上
-        transport.DelayMilliseconds = url => string.Equals(url, Url, StringComparison.Ordinal) ? 150 : 0;
-
         DownloadEngine engine = new DownloadEngine(transport);
 
-        // 期望的摘要来自官方内容
-        DownloadItem item = Item(Url, good, @"libraries\a\a\1.0\a-1.0.jar");
-        item.FallbackUrls = new[] { MirrorUrl };
+        // 期望的摘要来自官方内容。
+        // **让坏源当首选、好源当备用**：这样第一次尝试必然落在坏源上，
+        // 不依赖探测排序——要测的是"坏源的字节会不会被丢弃并换源"这个性质本身，
+        // 而不是"探测会不会碰巧把坏源排前面"。
+        DownloadItem item = Item(MirrorUrl, good, @"libraries\a\a\1.0\a-1.0.jar");
+        item.FallbackUrls = new[] { Url };
 
         DownloadOptions options = new DownloadOptions
         {
@@ -650,7 +663,7 @@ public sealed class DownloadEngineTests
             MaxAttempts = 3,
             BaseRetryDelay = TimeSpan.Zero,
             MinimumFreeBytes = 0,
-            ProbeSourceSpeed = true,
+            ProbeSourceSpeed = false,
         };
 
         DownloadReport report = engine.EnsureAll(Plan(item), sandbox, options);
@@ -661,8 +674,12 @@ public sealed class DownloadEngineTests
         CollectionAssert.AreEqual(good, File.ReadAllBytes(destination), "落盘内容必须是官方内容，绝不是镜像给的坏字节");
 
         Assert.IsTrue(
-            transport.Requests.Count(r => string.Equals(r.Url, MirrorUrl, StringComparison.Ordinal)) >= 2,
-            "镜像应当被真正尝试过（探测一次 + 下载一次），否则这个用例什么都没证明");
+            transport.Requests.Count(r => string.Equals(r.Url, MirrorUrl, StringComparison.Ordinal)) >= 1,
+            "坏源必须被真正尝试过，否则这个用例什么都没证明");
+
+        Assert.IsTrue(
+            transport.Requests.Count(r => string.Equals(r.Url, Url, StringComparison.Ordinal)) >= 1,
+            "坏源被丢弃后必须换到好源");
 
         // 两次：第一次落在坏源上（摘要不符被丢弃），第二次换到官方源成功。
         // 这里刻意写死数字——它同时钉住"确实试过坏源"和"确实换源成功了"。
