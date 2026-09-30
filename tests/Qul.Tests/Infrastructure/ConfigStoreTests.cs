@@ -243,11 +243,10 @@ public sealed class ConfigStoreTests
     [TestMethod]
     public void Default_KeepsTheMeasuredDownloadConcurrency()
     {
-        // 32 是量出来的，不是拍的：
-        //   并发 8  → 307 KB/s
-        //   并发 32 → 884 KB/s   （2.88 倍）
-        //   并发 64 → 1016 KB/s  （只比 32 高 15%）
+        // 64 是量出来的，不是拍的。
+        // 26.3（5224 项 / 586 MB）三明治式对照：32 得 1667、1760 KB/s，
+        // 64 夹在中间得 2215 KB/s。
         // 谁要改这个默认值，请先重跑一次那个 A/B。
-        Assert.AreEqual(32, new LauncherConfig().Network.MaxConcurrency);
+        Assert.AreEqual(64, new LauncherConfig().Network.MaxConcurrency);
     }
 }

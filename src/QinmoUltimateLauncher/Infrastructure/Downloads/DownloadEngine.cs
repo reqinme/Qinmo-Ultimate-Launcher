@@ -139,9 +139,12 @@ public sealed class DownloadEngine
         long bytesTransferred = 0;
         object progressGate = new object();
 
-        // 分段请求共享一道闸门：worker 与分段加起来的总并发有上限，
-        // 不会出现"32 个 worker 各自再开 4 段"这种把服务器压垮的情形。
-        using (SemaphoreSlim segmentGate = new SemaphoreSlim(Math.Max(1, effective.MaxConcurrency)))
+        // 分段请求共享一道闸门。取 32 而不是跟并发数同值：
+        // 单文件最多 8 段，但**只有大文件才分段**——26.3 的 5224 项里只有 87 项 ≥1MB，
+        // 所以闸门几乎不会成为瓶颈；而它把最坏情况下的总连接数摁在 96 以内
+        // （64 个 worker + 32 个分段），不至于出现"每个 worker 再各开 8 段"。
+        using (SemaphoreSlim segmentGate = new SemaphoreSlim(
+            Math.Min(32, Math.Max(1, effective.MaxConcurrency))))
         {
 
         // **固定数量的 worker，而不是每个条目一个任务。**
