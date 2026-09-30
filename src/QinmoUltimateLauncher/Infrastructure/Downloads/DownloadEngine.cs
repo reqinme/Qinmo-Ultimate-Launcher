@@ -38,6 +38,20 @@ public sealed class DownloadOptions
     /// 几千个文件就那么磨完。探测用计划里最小的一个条目，代价可忽略。
     /// </summary>
     public bool ProbeSourceSpeed { get; set; } = true;
+
+    /// <summary>
+    /// 多大的文件才值得分段。**照 PCL2 取 1 MB**（`ModNet.vb:674-678`）。
+    ///
+    /// 低于它分段只是徒增请求开销；而实测里 1.7.10 的资源对象
+    /// **39 个大文件就占了 89% 的字节**，尾巴全耗在它们身上。
+    /// </summary>
+    public long SegmentThresholdBytes { get; set; } = 1024L * 1024;
+
+    /// <summary>单个文件最多分几段。取 4：配合上面的阈值，9.68 MB 的音乐文件约 2.4 MB 一段。</summary>
+    public int MaxSegmentsPerFile { get; set; } = 4;
+
+    /// <summary>是否启用分段。</summary>
+    public bool EnableSegmentedDownload { get; set; } = true;
 }
 
 /// <summary>
@@ -116,6 +130,11 @@ public sealed class DownloadEngine
         long bytesTransferred = 0;
         object progressGate = new object();
 
+        // 分段请求共享一道闸门：worker 与分段加起来的总并发有上限，
+        // 不会出现"32 个 worker 各自再开 4 段"这种把服务器压垮的情形。
+        using (SemaphoreSlim segmentGate = new SemaphoreSlim(Math.Max(1, effective.MaxConcurrency)))
+        {
+
         // **固定数量的 worker，而不是每个条目一个任务。**
         //
         // 先前是 `Task.Run` × 条目数，每个任务在里面**阻塞地**等信号量。
@@ -154,7 +173,7 @@ public sealed class DownloadEngine
                     try
                     {
                         report = ProcessItem(
-                            plan.Items[index], cacheRoot, effective, preferFallbackFirst, health, cancellationToken);
+                            plan.Items[index], cacheRoot, effective, preferFallbackFirst, health, segmentGate, cancellationToken);
                     }
                     catch (OperationCanceledException)
                     {
@@ -210,6 +229,8 @@ public sealed class DownloadEngine
             // 逐条结论已经记录在 reports 里，聚合异常不再额外上抛。
         }
 
+        }
+
         return new DownloadReport(reports);
     }
 
@@ -219,6 +240,7 @@ public sealed class DownloadEngine
         DownloadOptions options,
         bool preferFallbackFirst,
         SourceHealth health,
+        SemaphoreSlim segmentGate,
         CancellationToken cancellationToken)
     {
         string destination = Path.Combine(cacheRoot, item.RelativePath);
@@ -241,6 +263,12 @@ public sealed class DownloadEngine
         long transferred = 0;
         int attempt = 0;
 
+        // 分段只对"够大且知道确切体积"的条目启用。
+        // 体积未知就不分段——没有总量就无法划分区间。
+        bool segmentOnFirstAttempt = options.EnableSegmentedDownload
+                                     && item.Size.HasValue
+                                     && item.Size.Value >= options.SegmentThresholdBytes;
+
         // 源的数量决定"至少要试几次"：一个源说没有，不代表另一个源也没有。
         int sourceCount = 1 + item.FallbackUrls.Count;
         int maxAttempts = Math.Max(Math.Max(1, options.MaxAttempts), sourceCount);
@@ -254,7 +282,16 @@ public sealed class DownloadEngine
 
             try
             {
-                transferred += FetchOnce(item, sourceUrl, destination, partial, options, cancellationToken);
+                // 只有第一次尝试走分段：分段失败通常意味着这个源不支持 Range，
+                // 重试就该退回单连接，而不是再撞一次。
+                if (segmentOnFirstAttempt && attempt == 1)
+                {
+                    transferred += FetchSegmented(item, sourceUrl, partial, options, segmentGate, cancellationToken);
+                }
+                else
+                {
+                    transferred += FetchOnce(item, sourceUrl, destination, partial, options, cancellationToken);
+                }
 
                 if (Matches(partial, expected))
                 {
@@ -483,6 +520,195 @@ public sealed class DownloadEngine
             }
 
             return written;
+        }
+    }
+
+    /// <summary>
+    /// 大文件的**多连接分段下载**（照 PCL2 的做法：≥1 MB 才分段，见 ModNet.vb:674-678）。
+    ///
+    /// 为什么需要它：全程分阶段采样显示，1.7.10 的资源对象里
+    /// **39 个 ≥256 KB 的大文件占了 89% 的字节**，而它们各自只在一条连接上下载。
+    /// 前 100 秒能跑 830 KB/s，之后大文件越来越少、干活连接数塌到个位数，
+    /// 尾巴掉到 22 KB/s——**不是网络慢，是并发度没了。**
+    ///
+    /// 与既有不变量的关系：分段只负责把字节完整写进 <c>.part</c>，
+    /// 之后仍走原来的 SHA-1 校验 + 原子发布，**完整性保证没有打折**。
+    /// 分段失败时删掉整个 <c>.part</c> 并回退单连接重试。
+    /// </summary>
+    private long FetchSegmented(
+        DownloadItem item,
+        string url,
+        string partial,
+        DownloadOptions options,
+        SemaphoreSlim gate,
+        CancellationToken cancellationToken)
+    {
+        long total = item.Size!.Value;
+        long threshold = Math.Max(1, options.SegmentThresholdBytes);
+
+        int count = (int)Math.Min(
+            Math.Max(1, options.MaxSegmentsPerFile),
+            Math.Max(1, (total + threshold - 1) / threshold));
+
+        EnsureParentDirectory(partial);
+
+        // 预分配整个文件：各段往自己的区间写，互不重叠。
+        using (FileStream allocate = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None, 1))
+        {
+            allocate.SetLength(total);
+        }
+
+        long per = (total + count - 1) / count;
+        long[] written = new long[count];
+        LauncherException? failure = null;
+        object failureGate = new object();
+
+        Task[] workers = new Task[count];
+
+        for (int i = 0; i < count; i++)
+        {
+            int index = i;
+
+            workers[index] = Task.Run(
+                () =>
+                {
+                    long start = index * per;
+                    long end = Math.Min(total - 1, start + per - 1);
+
+                    if (start > end)
+                    {
+                        return;
+                    }
+
+                    gate.Wait(cancellationToken);
+
+                    try
+                    {
+                        written[index] = FetchRange(url, partial, start, end, options, cancellationToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (LauncherException ex)
+                    {
+                        lock (failureGate)
+                        {
+                            if (failure == null)
+                            {
+                                failure = ex;
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        gate.Release();
+                    }
+                });
+        }
+
+        try
+        {
+            Task.WaitAll(workers);
+        }
+        catch (AggregateException)
+        {
+        }
+
+        if (failure != null)
+        {
+            // 分段拼不成一个完整文件，整份残留都不可信。
+            SafeDelete(partial);
+            throw failure;
+        }
+
+        long sum = 0;
+        for (int i = 0; i < count; i++)
+        {
+            sum += written[i];
+        }
+
+        if (sum != total)
+        {
+            SafeDelete(partial);
+            throw new LauncherException(
+                ErrorCode.DlFailed,
+                "segmented download wrote " + sum + " of " + total + " bytes");
+        }
+
+        return sum;
+    }
+
+    /// <summary>取一个字节区间并写进 <c>.part</c> 的对应偏移。写出的字节数会被核对。</summary>
+    private long FetchRange(
+        string url,
+        string partial,
+        long start,
+        long end,
+        DownloadOptions options,
+        CancellationToken cancellationToken)
+    {
+        HttpFetchRequest request = new HttpFetchRequest
+        {
+            Url = url,
+            RangeFrom = start,
+            RangeTo = end,
+            ProxyAddress = ResolveProxy(options),
+            Timeout = options.RequestTimeout,
+        };
+
+        using (HttpFetchResponse response = _transport.Fetch(request, cancellationToken))
+        {
+            if (response.Status == HttpFetchStatus.NotFound)
+            {
+                throw new LauncherException(ErrorCode.NetResourceMissing, "resource not found");
+            }
+
+            if (response.Status == HttpFetchStatus.ServerError)
+            {
+                throw new LauncherException(ErrorCode.NetHttpStatus, "server error " + response.StatusCode);
+            }
+
+            bool ranged = response.Status == HttpFetchStatus.PartialContent;
+
+            // **服务端忽略 Range 时会回 200 并从 0 开始发。**
+            // 首段还能用（截到本段长度即可）；非首段就完全对不上——
+            // 必须判定为"不支持分段"，让调用方回退单连接。
+            if (!ranged && start > 0)
+            {
+                throw new LauncherException(ErrorCode.DlFailed, "server ignored the range request");
+            }
+
+            if (!ranged && response.Status != HttpFetchStatus.Success)
+            {
+                throw new LauncherException(ErrorCode.NetHttpStatus, "unexpected status " + response.StatusCode);
+            }
+
+            long want = end - start + 1;
+
+            using (FileStream stream = new FileStream(
+                partial, FileMode.Open, FileAccess.Write, FileShare.Write, CopyBufferSize))
+            {
+                stream.Seek(start, SeekOrigin.Begin);
+
+                byte[] buffer = new byte[CopyBufferSize];
+                long written = 0;
+                int read;
+
+                while (written < want && (read = response.Content.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    // **绝不越过本段边界写入**：服务端忽略 Range 时会给整个文件，
+                    // 多写的部分会覆盖邻段已经下好的数据。
+                    int take = (int)Math.Min(read, want - written);
+                    stream.Write(buffer, 0, take);
+                    written += take;
+                }
+
+                stream.Flush();
+                return written;
+            }
         }
     }
 

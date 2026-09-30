@@ -788,4 +788,77 @@ public sealed class DownloadEngineTests
             mirrorAttempts <= 5,
             "缺件达到阈值后不该再优先用这个源；实际请求了 " + mirrorAttempts + " 次");
     }
+    // ---------- 大文件分段下载 ----------
+
+    private static byte[] BigBody(int size)
+    {
+        byte[] body = new byte[size];
+
+        for (int i = 0; i < size; i++)
+        {
+            body[i] = (byte)(i % 251);
+        }
+
+        return body;
+    }
+
+    [TestMethod]
+    public void EnsureAll_SplitsALargeFileIntoRangesAndReassemblesItExactly()
+    {
+        // **实测背景**：1.7.10 的资源对象里，39 个 ≥256 KB 的大文件占了 89% 的字节，
+        // 而它们各自只在一条连接上下载。全程采样显示那段尾巴掉到 22 KB/s——
+        // 前 100 秒有 830 KB/s，之后干活连接数塌到个位数。
+        //
+        // 分段之后仍然必须**逐字节一致**：分段只负责把字节写进 .part，
+        // 后面的 SHA-1 校验与原子发布原样不动。
+        string sandbox = NewSandbox();
+        byte[] body = BigBody(3 * 1024 * 1024);
+
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(Url, body);
+
+        DownloadEngine engine = new DownloadEngine(transport);
+
+        DownloadItem item = Item(Url, body, @"assets\objects\aa\aabig.bin");
+        item.Size = body.Length;
+
+        DownloadReport report = engine.EnsureAll(Plan(item), sandbox, FastOptions());
+
+        Assert.IsTrue(report.IsComplete);
+        CollectionAssert.AreEqual(
+            body,
+            File.ReadAllBytes(Path.Combine(sandbox, @"assets\objects\aa\aabig.bin")),
+            "分段拼接后必须逐字节一致");
+
+        int ranged = transport.Requests.Count(r => r.RangeFrom.HasValue || r.RangeTo.HasValue);
+
+        Assert.IsTrue(ranged >= 2, "大文件应当被拆成多个带 Range 的请求；实际 " + ranged + " 个");
+    }
+
+    [TestMethod]
+    public void EnsureAll_FallsBackToASingleConnectionWhenTheServerIgnoresRange()
+    {
+        // 服务端忽略 Range 时会回 200 并从 0 开始发。
+        // 非首段的数据就对不上了——必须识别出来、丢掉残留、回退单连接，
+        // 而不是把错位的数据拼进文件里。**拼错了就是静默损坏。**
+        string sandbox = NewSandbox();
+        byte[] body = BigBody(2 * 1024 * 1024);
+
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(Url, body);
+        transport.IgnoreRangeRequests = true;
+
+        DownloadEngine engine = new DownloadEngine(transport);
+
+        DownloadItem item = Item(Url, body, @"assets\objects\bb\bbbig.bin");
+        item.Size = body.Length;
+
+        DownloadReport report = engine.EnsureAll(Plan(item), sandbox, FastOptions());
+
+        Assert.IsTrue(report.IsComplete, "回退单连接之后必须成功");
+        CollectionAssert.AreEqual(
+            body,
+            File.ReadAllBytes(Path.Combine(sandbox, @"assets\objects\bb\bbbig.bin")),
+            "回退路径同样必须逐字节一致");
+    }
 }

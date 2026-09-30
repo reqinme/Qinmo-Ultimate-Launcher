@@ -82,9 +82,21 @@ public sealed class HttpTransport : IHttpTransport
             webRequest.Headers[header.Key] = header.Value;
         }
 
-        if (request.RangeFrom.HasValue && request.RangeFrom.Value > 0)
+        // RangeFrom 为 0 时，只有在同时给了终点的情况下才发 Range——
+        // 否则会退回"从头取整个文件"，那正是既有续传路径要的行为。
+        if (request.RangeFrom.HasValue
+            && (request.RangeFrom.Value > 0 || request.RangeTo.HasValue))
         {
-            webRequest.AddRange(request.RangeFrom.Value);
+            long rangeFrom = request.RangeFrom.Value;
+
+            if (request.RangeTo.HasValue && request.RangeTo.Value >= rangeFrom)
+            {
+                webRequest.AddRange(rangeFrom, request.RangeTo.Value);
+            }
+            else
+            {
+                webRequest.AddRange(rangeFrom);
+            }
         }
 
         if (!string.IsNullOrEmpty(request.Body))

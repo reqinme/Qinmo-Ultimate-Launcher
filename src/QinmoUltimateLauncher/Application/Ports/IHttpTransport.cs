@@ -46,6 +46,14 @@ public sealed class HttpFetchRequest
     public long? RangeFrom { get; set; }
 
     /// <summary>
+    /// Range 终点（含）。null 表示一直到文件末尾。
+    ///
+    /// **分段下载必须给出终点。** 只给起点的话每一段都会一直下到文件末尾，
+    /// 于是 N 段就变成 N 倍的流量——比不分段还糟。
+    /// </summary>
+    public long? RangeTo { get; set; }
+
+    /// <summary>
     /// null = 跟随系统代理；空串 = 直连；其他 = 显式代理地址。
     /// 三者必须有区别，否则"关闭代理"这个用户意图无法表达。
     /// </summary>

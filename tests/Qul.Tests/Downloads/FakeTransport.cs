@@ -29,6 +29,12 @@ internal sealed class FakeTransport : IHttpTransport
     /// </summary>
     public Func<string, int>? DelayMilliseconds { get; set; }
 
+    /// <summary>
+    /// 设为 true 时忽略 Range，一律回 200 + 整个文件——
+    /// 用来验证分段下载能识别"服务端不支持 Range"并回退单连接。
+    /// </summary>
+    public bool IgnoreRangeRequests { get; set; }
+
     public void Serve(string url, byte[] content)
     {
         _content[url] = content;
@@ -60,24 +66,44 @@ internal sealed class FakeTransport : IHttpTransport
         }
 
         long from = request.RangeFrom ?? 0;
+        bool wantsRange = request.RangeFrom.HasValue || request.RangeTo.HasValue;
+
+        if (IgnoreRangeRequests && wantsRange)
+        {
+            // 200 + 整个文件：Range 被无视了。
+            return new HttpFetchResponse
+            {
+                Status = HttpFetchStatus.Success,
+                StatusCode = 200,
+                ContentLength = body.Length,
+                TotalLength = body.Length,
+                Content = new MemoryStream(body),
+            };
+        }
 
         if (from > body.Length)
         {
             return new HttpFetchResponse { Status = HttpFetchStatus.RangeNotSatisfiable, StatusCode = 416, Content = Stream.Null };
         }
 
-        if (from > 0)
+        long to = request.RangeTo.HasValue
+            ? Math.Min(request.RangeTo.Value, body.Length - 1)
+            : body.Length - 1;
+
+        if (wantsRange && to >= from)
         {
-            byte[] tail = new byte[body.Length - from];
-            Array.Copy(body, from, tail, 0, tail.Length);
+            int length = (int)(to - from + 1);
+            byte[] slice = new byte[length];
+            Array.Copy(body, from, slice, 0, length);
+
             return new HttpFetchResponse
             {
                 Status = HttpFetchStatus.PartialContent,
                 StatusCode = 206,
-                ContentLength = tail.Length,
+                ContentLength = slice.Length,
                 TotalLength = body.Length,
                 RangeStart = from,
-                Content = new MemoryStream(tail),
+                Content = new MemoryStream(slice),
             };
         }
 
