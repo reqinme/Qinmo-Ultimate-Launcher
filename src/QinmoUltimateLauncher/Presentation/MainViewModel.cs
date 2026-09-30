@@ -592,6 +592,10 @@ public sealed class MainViewModel : ObservableObject
     {
         try
         {
+            // 立刻给反馈：在途请求要等底层醒过来才真正断掉，
+            // 这段时间界面不能看起来像没反应。
+            StatusText = "正在取消…";
+
             _cancellation?.Cancel();
             StatusText = "正在取消…";
         }

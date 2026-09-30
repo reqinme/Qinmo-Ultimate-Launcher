@@ -26,9 +26,11 @@ internal sealed class IdleTimeoutStream : Stream
     private readonly HttpWebRequest _request;
     private readonly Timer _timer;
     private readonly TimeSpan _idleTimeout;
+    private readonly CancellationTokenRegistration _cancellation;
     private bool _disposed;
 
-    public IdleTimeoutStream(Stream inner, HttpWebRequest request, TimeSpan idleTimeout)
+    public IdleTimeoutStream(
+        Stream inner, HttpWebRequest request, TimeSpan idleTimeout, CancellationToken cancellationToken)
     {
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
         _request = request ?? throw new ArgumentNullException(nameof(request));
@@ -40,6 +42,13 @@ internal sealed class IdleTimeoutStream : Stream
 
         _idleTimeout = idleTimeout;
         _timer = new Timer(OnIdle, null, Timeout.Infinite, Timeout.Infinite);
+
+        // **取消也要立刻掐断在途读取。**
+        // 只靠空闲超时的话，用户点了取消要等到下一次超时才看得到反应——
+        // 实测取消后界面停在"下载"上十几秒，下载其实早就停了。
+        _cancellation = cancellationToken.CanBeCanceled
+            ? cancellationToken.Register(Abort)
+            : default(CancellationTokenRegistration);
     }
 
     public override bool CanRead => _inner.CanRead;
@@ -96,6 +105,7 @@ internal sealed class IdleTimeoutStream : Stream
         if (disposing && !_disposed)
         {
             _disposed = true;
+            _cancellation.Dispose();
             _timer.Dispose();
             _inner.Dispose();
         }
@@ -105,14 +115,22 @@ internal sealed class IdleTimeoutStream : Stream
 
     private void OnIdle(object? state)
     {
-        // 主动掐断。正在阻塞的读取会因此抛出，转而走重试与换源。
+        Abort();
+    }
+
+    /// <summary>
+    /// 主动掐断。正在阻塞的读取会因此抛出，转而走重试与换源。
+    /// 空闲超时与用户取消都走这里——两者对底层要做的事是同一件。
+    /// </summary>
+    private void Abort()
+    {
         try
         {
             _request.Abort();
         }
         catch (ObjectDisposedException)
         {
-            // 请求已经被正常释放，说明这次只是计时器来晚了。
+            // 请求已经被正常释放，说明这次只是来晚了（计时器到点或取消令牌已触发）。
         }
     }
 }

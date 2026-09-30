@@ -125,7 +125,7 @@ public sealed class HttpTransport : IHttpTransport
         try
         {
             HttpWebResponse response = (HttpWebResponse)webRequest.GetResponse();
-            return BuildResponse(response, request, webRequest);
+            return BuildResponse(response, request, webRequest, cancellationToken);
         }
         catch (WebException ex)
         {
@@ -134,7 +134,7 @@ public sealed class HttpTransport : IHttpTransport
             {
                 try
                 {
-                    return BuildResponse(errorResponse, request, webRequest);
+                    return BuildResponse(errorResponse, request, webRequest, cancellationToken);
                 }
                 catch (Exception)
                 {
@@ -172,7 +172,7 @@ public sealed class HttpTransport : IHttpTransport
         }
     }
 
-    private static HttpFetchResponse BuildResponse(HttpWebResponse response, HttpFetchRequest request, HttpWebRequest webRequest)
+    private static HttpFetchResponse BuildResponse(HttpWebResponse response, HttpFetchRequest request, HttpWebRequest webRequest, CancellationToken cancellationToken)
     {
         HttpStatusCode statusCode = response.StatusCode;
         long? contentLength = response.ContentLength >= 0 ? response.ContentLength : (long?)null;
@@ -234,7 +234,7 @@ public sealed class HttpTransport : IHttpTransport
             // 其余 worker 早已退出，只剩一个线程阻塞在读取上，
             // 而 RequestTimeout 设的 60 秒并没有让 ReadWriteTimeout 触发。
             // 那才是先前"完整安装跑不完"的真正原因——不是网络慢，是卡住了。
-            Content = new IdleTimeoutStream(response.GetResponseStream(), webRequest, IdleTimeout(request)),
+            Content = new IdleTimeoutStream(response.GetResponseStream(), webRequest, IdleTimeout(request), cancellationToken),
         };
     }
 
