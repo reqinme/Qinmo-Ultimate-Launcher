@@ -463,4 +463,89 @@ public sealed class DownloadEngineTests
             return sb.ToString();
         }
     }
+    // ---------- 编排层的健壮性 ----------
+
+    /// <summary>进度接收方在报告时抛异常。真实场景：界面已关闭、输出流已释放、日志正在轮转。</summary>
+    private sealed class ThrowingProgress : System.IProgress<DownloadProgress>
+    {
+        public void Report(DownloadProgress value)
+        {
+            throw new ObjectDisposedException("progress sink");
+        }
+    }
+
+    [TestMethod]
+    public void EnsureAll_SurvivesAProgressSinkThatThrows()
+    {
+        // 进度上报失败绝不能拖垮一个已经下好的文件。
+        // 先前这里没有任何保护，一个 ObjectDisposedException 就是这么逃到编排层的。
+        string sandbox = NewSandbox();
+        byte[] body = Bytes("library-content");
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(Url, body);
+
+        DownloadEngine engine = new DownloadEngine(transport);
+        DownloadPlan plan = Plan(Item(Url, body, @"libraries\a\a\1.0\a-1.0.jar"));
+
+        DownloadReport report = engine.EnsureAll(
+            plan, sandbox, FastOptions(), new ThrowingProgress(), System.Threading.CancellationToken.None);
+
+        Assert.IsTrue(report.IsComplete, "进度接收方抛异常不该影响下载结果");
+        Assert.AreEqual(1, report.DownloadedCount);
+        CollectionAssert.AreEqual(body, File.ReadAllBytes(Path.Combine(sandbox, @"libraries\a\a\1.0\a-1.0.jar")));
+    }
+
+    [TestMethod]
+    public void EnsureAll_RetriesWhenTheConnectionIsReleasedEarly()
+    {
+        // 底层连接被提前释放属于可重试的传输故障。
+        // 它必须留在重试循环里——逃到编排层就没有重试，条目会以"尝试 0 次"永久失败。
+        string sandbox = NewSandbox();
+        byte[] body = Bytes("library-content");
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(Url, body);
+
+        int calls = 0;
+        transport.Interceptor = (request, call) =>
+        {
+            calls++;
+            if (calls == 1)
+            {
+                throw new ObjectDisposedException("connection");
+            }
+
+            return null;
+        };
+
+        DownloadEngine engine = new DownloadEngine(transport);
+        DownloadPlan plan = Plan(Item(Url, body, @"libraries\a\a\1.0\a-1.0.jar"));
+
+        DownloadReport report = engine.EnsureAll(plan, sandbox, FastOptions());
+
+        Assert.IsTrue(report.IsComplete, "第一次连接被提前释放后应当重试成功");
+        Assert.AreEqual(1, report.DownloadedCount);
+        Assert.AreEqual(2, report.Items[0].Attempts, "尝试次数必须如实反映重试，而不是 0");
+    }
+
+    [TestMethod]
+    public void EnsureAll_ReportsRealAttemptCountWhenEveryAttemptIsReleasedEarly()
+    {
+        string sandbox = NewSandbox();
+        byte[] body = Bytes("library-content");
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(Url, body);
+        transport.Interceptor = (request, call) => throw new ObjectDisposedException("connection");
+
+        DownloadEngine engine = new DownloadEngine(transport);
+        DownloadPlan plan = Plan(Item(Url, body, @"libraries\a\a\1.0\a-1.0.jar"));
+
+        DownloadReport report = engine.EnsureAll(plan, sandbox, FastOptions());
+
+        Assert.IsFalse(report.IsComplete);
+        Assert.AreEqual(1, report.Failures.Count);
+
+        // 关键断言：不是 0。0 意味着"一次都没试过"，那是编排层兜底 catch 的痕迹，
+        // 也正是 26.3 那次下载里最可疑的数字。
+        Assert.IsTrue(report.Failures[0].Attempts >= 1, "必须真的尝试过，而不是一次都没试就记成失败");
+    }
 }

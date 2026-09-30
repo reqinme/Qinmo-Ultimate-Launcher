@@ -124,14 +124,25 @@ public sealed class DownloadEngine
                             {
                                 completed++;
                                 bytesTransferred += report.BytesTransferred;
-                                progress?.Report(new DownloadProgress
+
+                                // **进度上报失败绝不能拖垮一个已经下好的文件。**
+                                // 界面被关掉、输出流被释放、日志在轮转——这些都不该让下载失败。
+                                // 先前这里没有任何保护，一个 ObjectDisposedException 就是这么
+                                // 逃到编排层的，而那里没有重试，条目一次都没试就被记成失败。
+                                try
                                 {
-                                    FilesCompleted = completed,
-                                    FilesTotal = plan.Items.Count,
-                                    BytesTransferred = bytesTransferred,
-                                    KnownTotalBytes = plan.KnownTotalBytes,
-                                    CurrentPath = report.Item.RelativePath,
-                                });
+                                    progress?.Report(new DownloadProgress
+                                    {
+                                        FilesCompleted = completed,
+                                        FilesTotal = plan.Items.Count,
+                                        BytesTransferred = bytesTransferred,
+                                        KnownTotalBytes = plan.KnownTotalBytes,
+                                        CurrentPath = report.Item.RelativePath,
+                                    });
+                                }
+                                catch (Exception ex) when (ex is ObjectDisposedException || ex is InvalidOperationException || ex is IOException)
+                                {
+                                }
                             }
                         }
                         catch (OperationCanceledException)
@@ -231,6 +242,14 @@ public sealed class DownloadEngine
             {
                 lastError = ErrorCode.DlFailed;
                 _log.Warn("download", "io failure during transfer", ErrorCode.DlFailed, ex.GetType().Name);
+            }
+            catch (ObjectDisposedException)
+            {
+                // 底层连接或响应被提前释放。它属于可重试的传输故障，
+                // 必须留在重试循环里——一旦逃到编排层，那里没有重试，
+                // 条目会以"尝试 0 次"永久失败。
+                lastError = ErrorCode.DlFailed;
+                _log.Warn("download", "connection released early; will retry", ErrorCode.DlFailed);
             }
             catch (UnauthorizedAccessException)
             {
