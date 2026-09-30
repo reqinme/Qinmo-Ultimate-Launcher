@@ -63,7 +63,7 @@
         </DataTemplate>
     </Window.Resources>
 
-    <Grid Margin="{StaticResource Qul.Thickness.Window}">
+    <Grid Margin="{StaticResource Qul.Thickness.Window}" KeyboardNavigation.TabNavigation="Cycle">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -87,7 +87,7 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button Style="{StaticResource Qul.Style.Button.Text}" Command="{Binding ThemeCommand}"
+                <Button Style="{StaticResource Qul.Style.Button.Text}" TabIndex="10" Command="{Binding ThemeCommand}"
                         AutomationProperties.Name="切换主题"
                         ToolTip="在 深色 / 浅色 / 跟随系统 之间切换">
                     <StackPanel Orientation="Horizontal">
@@ -97,7 +97,7 @@
                     </StackPanel>
                 </Button>
                 <Button Style="{StaticResource Qul.Style.Button.Text}" Margin="4,0,0,0"
-                        Command="{Binding OpenDataFolderCommand}" AutomationProperties.Name="打开数据目录">
+                        TabIndex="11" Command="{Binding OpenDataFolderCommand}" AutomationProperties.Name="打开数据目录">
                     <StackPanel Orientation="Horizontal">
                         <Path Data="{StaticResource Qul.Icon.Folder}" Style="{StaticResource Qul.Style.Icon.Small}"
                               Stroke="{DynamicResource Qul.Brush.Text.Secondary}" Margin="0,0,6,0" />
@@ -125,7 +125,7 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <ComboBox Grid.Column="0" ItemsSource="{Binding Versions}"
-                                  SelectedItem="{Binding SelectedVersion}"
+                                  TabIndex="20" SelectedItem="{Binding SelectedVersion}"
                                   IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}"
                                   AutomationProperties.Name="游戏版本">
                             <ComboBox.ItemContainerStyle>
@@ -144,7 +144,7 @@
                             </ComboBox.ItemTemplate>
                         </ComboBox>
                         <Button Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource Qul.Style.Button.Icon}"
-                                Command="{Binding RefreshCommand}" AutomationProperties.Name="刷新版本清单"
+                                TabIndex="21" Command="{Binding RefreshCommand}" AutomationProperties.Name="刷新版本清单"
                                 ToolTip="重新读取版本清单">
                             <Path Data="{StaticResource Qul.Icon.Refresh}" Style="{StaticResource Qul.Style.Icon}"
                                   Stroke="{DynamicResource Qul.Brush.Text.Secondary}" Width="14" Height="14" />
@@ -154,7 +154,7 @@
                     <TextBlock Text="身份来源" Style="{StaticResource Qul.Style.Text.FieldLabel}" />
                     <ComboBox Margin="{StaticResource Qul.Thickness.FieldBlock}"
                               ItemsSource="{Binding IdentityOptions}"
-                              SelectedItem="{Binding SelectedIdentity}"
+                              TabIndex="22" SelectedItem="{Binding SelectedIdentity}"
                               IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}"
                               AutomationProperties.Name="身份来源"
                               AutomationProperties.HelpText="离线账户无法进入正版验证服务器">
@@ -177,13 +177,13 @@
                     </ComboBox>
 
                     <TextBlock Text="离线账户名" Style="{StaticResource Qul.Style.Text.FieldLabel}" />
-                    <TextBox Text="{Binding OfflineName, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBox TabIndex="23" Text="{Binding OfflineName, UpdateSourceTrigger=PropertyChanged}"
                              AutomationProperties.Name="离线账户名"
                              AutomationProperties.HelpText="仅作本地标识，与官方账号无关" />
                     <TextBlock Text="仅作本地标识，与官方账号无关。" Style="{StaticResource Qul.Style.Text.Hint}" />
 
                     <TextBlock Text="目标服务器（可留空）" Style="{StaticResource Qul.Style.Text.FieldLabel}" Margin="0,16,0,4" />
-                    <TextBox Text="{Binding ServerTarget, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBox TabIndex="24" Text="{Binding ServerTarget, UpdateSourceTrigger=PropertyChanged}"
                              AutomationProperties.Name="目标服务器"
                              AutomationProperties.HelpText="留空时不会产生任何服务器相关结论" />
                     <TextBlock Style="{StaticResource Qul.Style.Text.Hint}"
@@ -203,7 +203,7 @@
                     <Grid Margin="0,0,0,8">
                         <TextBlock Text="启动前预检" Style="{StaticResource Qul.Style.Text.Subtitle}" VerticalAlignment="Center" />
                         <Button HorizontalAlignment="Right" Style="{StaticResource Qul.Style.Button.Text}"
-                                Command="{Binding RecheckCommand}" Content="重新检查"
+                                TabIndex="30" Command="{Binding RecheckCommand}" Content="重新检查"
                                 AutomationProperties.Name="重新检查" />
                     </Grid>
 
@@ -212,7 +212,7 @@
                     <!-- 能力告知的确认。没有它「启动」就不可用——这不是装饰。 -->
                     <Border Style="{StaticResource Qul.Style.Card.Status.Warning}" Margin="0,4,0,0"
                             Visibility="{Binding NeedsAcknowledgement, Converter={StaticResource BoolToVisibility}}">
-                        <CheckBox IsChecked="{Binding AcknowledgementGiven}"
+                        <CheckBox TabIndex="31" IsChecked="{Binding AcknowledgementGiven}"
                                   Content="我已了解上述限制，仍要继续启动。"
                                   AutomationProperties.Name="确认已知晓身份来源的能力限制" />
                     </Border>
@@ -255,10 +255,10 @@
                                Style="{StaticResource Qul.Style.Text.Secondary}" />
                 </StackPanel>
 
-                <Expander Grid.Row="2" Margin="0,12,0,0" IsExpanded="True" Header="运行日志"
+                <Expander Grid.Row="2" Margin="0,12,0,0" TabIndex="40" IsExpanded="True" Header="运行日志"
                           Foreground="{DynamicResource Qul.Brush.Text.Secondary}"
                           AutomationProperties.Name="运行日志">
-                    <ListBox x:Name="LogList" MinHeight="120" Margin="0,8,0,0"
+                    <ListBox x:Name="LogList" TabIndex="41" MinHeight="120" Margin="0,8,0,0"
                              ItemsSource="{Binding LogLines}"
                              Background="{DynamicResource Qul.Brush.Surface.Inset}"
                              BorderBrush="{DynamicResource Qul.Brush.Stroke.Subtle}" BorderThickness="1"
@@ -275,6 +275,7 @@
                                 <!-- 不设这个，读屏会把每一项念成 "Qul.Presentation.LogLine"（数据类型的名字）。
                                      列表项的 automation 名称默认取自内容的 ToString()，
                                      而 DataTemplate 里的 TextBlock 并不会自动成为容器的名称。 -->
+                                <Setter Property="IsTabStop" Value="False" />
                                 <Setter Property="AutomationProperties.Name" Value="{Binding Display}" />
                                 <Setter Property="Template">
                                     <Setter.Value>
@@ -323,11 +324,11 @@
                        Style="{StaticResource Qul.Style.Text.Hint}" />
 
             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                <Button Margin="0,0,8,0" Command="{Binding CopyDiagnosticsCommand}"
+                <Button Margin="0,0,8,0" TabIndex="50" Command="{Binding CopyDiagnosticsCommand}"
                         AutomationProperties.Name="复制诊断信息" Content="复制诊断信息" />
-                <Button Margin="0,0,8,0" Command="{Binding CancelCommand}"
+                <Button Margin="0,0,8,0" TabIndex="51" Command="{Binding CancelCommand}"
                         AutomationProperties.Name="取消" Content="取消" />
-                <Button Style="{StaticResource Qul.Style.Button.Primary}" Command="{Binding LaunchCommand}"
+                <Button Style="{StaticResource Qul.Style.Button.Primary}" TabIndex="52" Command="{Binding LaunchCommand}"
                         AutomationProperties.Name="启动游戏"
                         AutomationProperties.HelpText="需要先确认身份来源的能力限制">
                     <StackPanel Orientation="Horizontal">

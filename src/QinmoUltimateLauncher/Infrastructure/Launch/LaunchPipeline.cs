@@ -324,6 +324,16 @@ public sealed class LaunchPipeline
             WrapDownloadProgress(progress),
             cancellationToken);
 
+        // 取消不是失败。
+        // 下载引擎在取消时会把在途项记成"失败"并正常返回，所以必须先看取消标记——
+        // 否则用户点了取消，看到的却是"启动失败"外加一个错误码。
+        if (cancellationToken.IsCancellationRequested)
+        {
+            result.Cancelled = true;
+            Report(progress, LaunchStage.Cancelled, "已取消。");
+            return result;
+        }
+
         Report(
             progress,
             LaunchStage.Downloading, "下载完成：新下 " + result.Download.DownloadedCount
@@ -365,6 +375,16 @@ public sealed class LaunchPipeline
             },
             null,
             cancellationToken);
+
+        // 取消不是失败。
+        // 下载引擎在取消时会把在途项记成"失败"并正常返回，所以必须先看取消标记——
+        // 否则用户点了取消，看到的却是"启动失败"外加一个错误码。
+        if (cancellationToken.IsCancellationRequested)
+        {
+            result.Cancelled = true;
+            Report(progress, LaunchStage.Cancelled, "已取消。");
+            return result;
+        }
 
         if (!verification.IsComplete)
         {
