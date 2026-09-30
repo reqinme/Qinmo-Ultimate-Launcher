@@ -62,7 +62,7 @@
 | 验收标准 | 证据 | 判定 |
 |---|---|---|
 | 能拉起原版客户端并看到游戏窗口 | **1.7.10 实测：窗口标题 `Minecraft 1.7.10`，4.2 秒**（骨架指纹 `49331bc0b7d3` 与基线一致）；游戏日志显示纹理图集创建与声音引擎启动 | ✅ |
-| 离线身份不伪造官方会话 | 游戏日志中的会话串为 `token:0:…`，即本地占位串；全程未向 Mojang 发请求 | ✅ |
+| 离线身份不伪造官方会话 | **在最终构建上直接抓取了真实启动的 java 命令行**：`--accessToken 0`（本地占位零值）、`--session` 未出现；命令行里 **`authserver` / `sessionserver` / `api.mojang` / `clientToken` / `sessionId` 全部 0 处**，**且一个 URL 都没有** | ✅ |
 | 离线身份不得被伪装成已验证 | 由测试守护；曾抓到 `IsOnlineVerified` 被硬编码为 true 的合规缺陷并修复 | ✅ |
 | 骨架指纹稳定可复现 | `49331bc0b7d3`，重构前后逐字节一致 | ✅ |
 | **26.x 现代路径** | **真实启动通过**：5224 项 / 586.1 MB 全部就位，Java 25，
@@ -132,9 +132,9 @@ Realms 报 `Failed to parse into SignedJWT: 0`（证据见 `性能实测记录.m
 
 | 红线 | 核对方式 | 结果 |
 |---|---|---|
-| 不伪造任何官方会话 | 游戏日志中的会话串为本地占位串；离线 UUID 为 v3（结构上区别于 Mojang 的 v4） | ✅ |
+| 不伪造任何官方会话 | 最终构建实测：`--accessToken 0`（占位零值）；`--uuid a01e3843e5213998958af459800e4d11`，**版本位为 3（v3）**——结构上不可能与 Mojang 的 v4 标识撞上 | ✅ |
 | 不劫持官方端点、不实现破解登录 | **P4 时的表述需要更正。** P5 之后代码确实会调用微软 / Xbox / Minecraft 的**公开文档端点**（`MicrosoftAuthPrerequisites.cs` 里 7 个常量）。但那正是路线图授权 P5 做的事：**以已注册客户端的身份、经用户显式授权（设备码流程）走标准链路**。红线禁止的是**伪造会话、劫持或重放端点、破解登录**——这三项一项都没有实现；离线账户的 UUID 由 v3 规则派生，且不触碰任何验证端点 | ✅ |
-| 不冒用官方品牌与素材 | 全部图标为自制矢量；产品名与标识原创；素材台账在 `P7-发布工程规范.md` §6 | ✅ |
+| 不冒用官方品牌与素材 | 全部图标为自制矢量；产品名与标识原创；素材台账在 `P7-发布工程规范.md` §6。**最终构建实测**：主程序嵌入资源只有 1 项（`QinmoUltimateLauncher.g.resources`，我们自己的 BAML）；引用程序集**全是框架程序集**（mscorlib / PresentationFramework / System / WindowsBase / PresentationCore / System.Xaml / System.Core / System.IO.Compression / System.Security / System.IO.Compression.FileSystem），**零第三方、零 Mojang 程序集**。启动游戏时命令行里的 `mojang` 全部来自 `com/mojang/authlib`、`netty`、`realms` 等**运行游戏必需的官方依赖路径**，不是品牌冒用 | ✅ |
 
 ---
 
