@@ -30,6 +30,15 @@ internal sealed class FakeTransport : IHttpTransport
     public Func<string, int>? DelayMilliseconds { get; set; }
 
     /// <summary>
+    /// 按**整个请求**决定延迟，而不是只看 URL。
+    ///
+    /// 需要它是为了能只拖慢**分段请求**（<c>RangeFrom &gt; 0</c>）——
+    /// 这样取消才会落在某个分段任务**内部**，而不是在分段开始之前就被发现。
+    /// 两者走的是完全不同的代码路径，只有前者能判别"分段任务里的取消"。
+    /// </summary>
+    public Func<HttpFetchRequest, int>? DelayForRequest { get; set; }
+
+    /// <summary>
     /// 设为 true 时忽略 Range，一律回 200 + 整个文件——
     /// 用来验证分段下载能识别"服务端不支持 Range"并回退单连接。
     /// </summary>
@@ -45,7 +54,7 @@ internal sealed class FakeTransport : IHttpTransport
         Requests.Add(request);
         int call = Requests.Count;
 
-        int delay = DelayMilliseconds?.Invoke(request.Url) ?? 0;
+        int delay = DelayForRequest?.Invoke(request) ?? DelayMilliseconds?.Invoke(request.Url) ?? 0;
         if (delay > 0)
         {
             Thread.Sleep(delay);

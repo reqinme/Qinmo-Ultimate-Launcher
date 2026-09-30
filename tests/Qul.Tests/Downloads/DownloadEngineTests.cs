@@ -1020,12 +1020,14 @@ public sealed class DownloadEngineTests
         //      于是用户取消一次安装，程序认为下完了，继续往下走还报"安装完成"，
         //      缺的文件要到启动时才炸，那时已经看不出是取消造成的）
         //
-        // **这条用例并不能判别 F6 那处改动的具体实现。**
-        // 实测：把 `Task.WaitAll` 里重抛取消的那段临时还原成"一律吞掉"，用例照样通过——
-        // 说明它走的取消路径在分段任务开始之前就抛出了，到不了那个 AggregateException。
-        // 想要判别那条路径，需要让取消**确实落在某个分段任务内部**；
-        // 那需要一个可控的分段级延迟钩子，目前没有。
-        // 这里如实标注，而不是留一句听起来覆盖更广的注释。
+        // **这条用例确实能判别 F6。**（已按反向验证确认：把 `Task.WaitAll` 里
+        // 重抛取消的那段还原成"一律吞掉"，用例会以"取消之后必须保留可续传的残留"失败。）
+        //
+        // 关键在于 `DelayForRequest` **只拖慢带 Range 的分段请求**：
+        // 初始请求很快返回，取消因此落在某个分段任务**内部**，
+        // 让 `Task.WaitAll` 抛出 AggregateException —— 那才是 F6 修的那条路径。
+        // 早先用"一律延迟"的写法时，取消在分段开始之前就被发现，走的是另一条路，
+        // 撤掉修复用例照样通过；**当时我在注释里如实写了"判别不了"，没有硬说覆盖。**
         string sandbox = NewSandbox();
         byte[] body = BigBody(3 * 1024 * 1024);
 
@@ -1040,7 +1042,13 @@ public sealed class DownloadEngineTests
 
         FakeTransport transport = new FakeTransport();
         transport.Serve(Url, body);
-        transport.DelayMilliseconds = _ => 1200;   // 让取消落在取数据的途中
+        // **只拖慢分段请求**（带 Range 的那些），初始请求保持快。
+        //
+        // 这样取消才会落在某个分段任务**内部**，让 Task.WaitAll 抛出
+        // AggregateException —— 也就是 F6 修的那条路径。
+        // 先前一律延迟 1200 ms 的写法，取消在分段开始之前就被发现了，
+        // 走的是另一条路，撤掉 F6 的修复用例照样通过（实测过）。
+        transport.DelayForRequest = r => r.RangeFrom > 0 ? 1500 : 0;
 
         DownloadEngine engine = new DownloadEngine(transport);
 
@@ -1052,7 +1060,7 @@ public sealed class DownloadEngineTests
 
         using (CancellationTokenSource cts = new CancellationTokenSource())
         {
-            cts.CancelAfter(400);
+            cts.CancelAfter(600);
 
             try
             {

@@ -30,6 +30,15 @@ public static partial class CliRunner
     public const int ExitFailed = 1;
     public const int ExitUsage = 2;
 
+    /// <summary>
+    /// 用户取消（130 = 128 + SIGINT，shell 惯例）。
+    ///
+    /// **刻意不并进 ExitFailed**：取消不是失败。脚本里
+    /// <c>if ($LASTEXITCODE -ne 0)</c> 会把两者混为一谈，
+    /// 而它们的处置完全不同——失败要排查，取消只要重跑。
+    /// </summary>
+    public const int ExitCancelled = 130;
+
     public static int Run(BootContext boot, IReadOnlyList<string> args)
     {
         if (boot == null)
@@ -88,18 +97,50 @@ public static partial class CliRunner
             mode = LaunchPipelineMode.Prepare;
         }
 
-        LaunchPipelineResult result = new LaunchPipeline(boot).Run(
-            new LaunchPipelineRequest
+        LaunchPipelineRequest request = new LaunchPipelineRequest
+        {
+            VersionId = versionId,
+            Mode = mode,
+            IdentitySource = IdentitySource.Offline,
+            OfflineUserName = OptionValue(args, "--offline-name", "Player") ?? "Player",
+            MaxMemoryMb = ParseInt(OptionValue(args, "--memory", "2048"), 2048),
+            ServerTarget = OptionValue(args, "--server", null),
+        };
+
+        LaunchPipelineResult result;
+
+        using (CancellationTokenSource source = new CancellationTokenSource())
+        {
+            ConsoleCancelEventHandler handler = (sender, e) =>
             {
-                VersionId = versionId,
-                Mode = mode,
-                IdentitySource = IdentitySource.Offline,
-                OfflineUserName = OptionValue(args, "--offline-name", "Player") ?? "Player",
-                MaxMemoryMb = ParseInt(OptionValue(args, "--memory", "2048"), 2048),
-                ServerTarget = OptionValue(args, "--server", null),
-            },
-            new ConsoleProgress(boot),
-            CancellationToken.None);
+                // **Ctrl+C 应当优雅取消，而不是让进程直接消失。**
+                //
+                // 先前这里传的是 CancellationToken.None：命令行用户按一下 Ctrl+C，
+                // 进程立刻消失——日志没有收尾，已下到一半的 .qulpart 也没人管，
+                // 而它本来是**可续传**的。account login 早就这么处理了，install/launch 却漏了。
+                e.Cancel = true;
+                source.Cancel();
+            };
+
+            Console.CancelKeyPress += handler;
+
+            try
+            {
+                result = new LaunchPipeline(boot).Run(request, new ConsoleProgress(boot), source.Token);
+            }
+            finally
+            {
+                Console.CancelKeyPress -= handler;
+            }
+        }
+
+        if (result.Cancelled)
+        {
+            // **取消不是失败**，退出码也分开：130 = 128 + SIGINT，是 shell 的惯例。
+            // 报"已下载的部分还在"是有用的信息——下次运行不会从零开始。
+            Report(boot, "已取消。已下载的部分留在缓存里，下次运行会接着下。");
+            return ExitCancelled;
+        }
 
         if (!result.Succeeded)
         {
