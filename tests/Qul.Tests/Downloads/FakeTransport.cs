@@ -23,6 +23,12 @@ internal sealed class FakeTransport : IHttpTransport
     /// <summary>按调用序号注入故障。返回 null 表示交给默认逻辑。</summary>
     public Func<HttpFetchRequest, int, HttpFetchResponse?>? Interceptor { get; set; }
 
+    /// <summary>
+    /// 按 URL 注入延迟（毫秒），用来模拟"慢但能通"的源。
+    /// 只按失败换源是测不出慢源的——它永远不会失败，只会一直磨。
+    /// </summary>
+    public Func<string, int>? DelayMilliseconds { get; set; }
+
     public void Serve(string url, byte[] content)
     {
         _content[url] = content;
@@ -32,6 +38,12 @@ internal sealed class FakeTransport : IHttpTransport
     {
         Requests.Add(request);
         int call = Requests.Count;
+
+        int delay = DelayMilliseconds?.Invoke(request.Url) ?? 0;
+        if (delay > 0)
+        {
+            Thread.Sleep(delay);
+        }
 
         if (Interceptor != null)
         {

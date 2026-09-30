@@ -31,6 +31,13 @@ public sealed class DownloadOptions
     public long MinimumFreeBytes { get; set; } = 256L * 1024 * 1024;
 
     public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// 下载前是否先探测各源的实际速度。
+    /// 只按"失败"换源是不够的——一个慢但能通的源永远不会触发切换，
+    /// 几千个文件就那么磨完。探测用计划里最小的一个条目，代价可忽略。
+    /// </summary>
+    public bool ProbeSourceSpeed { get; set; } = true;
 }
 
 /// <summary>
@@ -79,6 +86,8 @@ public sealed class DownloadEngine
             reports[i] = new DownloadItemReport(plan.Items[i], DownloadItemState.Failed, ErrorCode.DlFailed, 0, 0);
         }
 
+        bool preferFallbackFirst = ProbeSourceOrder(plan, effective, cancellationToken);
+
         ErrorCode? spaceProblem = CheckFreeSpace(cacheRoot, plan.KnownTotalBytes, effective.MinimumFreeBytes);
         if (spaceProblem.HasValue)
         {
@@ -117,7 +126,7 @@ public sealed class DownloadEngine
                         try
                         {
                             DownloadItemReport report = ProcessItem(
-                                plan.Items[index], cacheRoot, effective, cancellationToken);
+                                plan.Items[index], cacheRoot, effective, preferFallbackFirst, cancellationToken);
                             reports[index] = report;
 
                             lock (progressGate)
@@ -182,6 +191,7 @@ public sealed class DownloadEngine
         DownloadItem item,
         string cacheRoot,
         DownloadOptions options,
+        bool preferFallbackFirst,
         CancellationToken cancellationToken)
     {
         string destination = Path.Combine(cacheRoot, item.RelativePath);
@@ -210,7 +220,7 @@ public sealed class DownloadEngine
 
             try
             {
-                transferred += FetchOnce(item, UrlForAttempt(item, attempt), destination, partial, options, cancellationToken);
+                transferred += FetchOnce(item, UrlForAttempt(item, attempt, preferFallbackFirst), destination, partial, options, cancellationToken);
 
                 if (Matches(partial, expected))
                 {
@@ -280,12 +290,47 @@ public sealed class DownloadEngine
     /// 这是从 PCL2 学来的一招——官方被限速或镜像抽风时，
     /// 死磕同一个源只会把重试次数浪费在同一个故障上。
     /// </summary>
-    private static string UrlForAttempt(DownloadItem item, int attempt)
+    private static string UrlForAttempt(DownloadItem item, int attempt, bool preferFallbackFirst)
     {
         int sources = 1 + item.FallbackUrls.Count;
-        int index = (attempt - 1) % sources;
+
+        if (sources == 1)
+        {
+            return item.Url;
+        }
+
+        // 探测说备用源更快，就从备用源开始；否则从配置的首选开始。
+        int start = preferFallbackFirst ? 1 : 0;
+        int index = (start + attempt - 1) % sources;
 
         return index == 0 ? item.Url : item.FallbackUrls[index - 1];
+    }
+
+    /// <summary>
+    /// 探测各下载源的实际吞吐，判断是否需要把备用源提到首选。
+    /// 样本不合适、探测无结论、或只有一个源时一律返回 false——保持配置的行为。
+    /// </summary>
+    private bool ProbeSourceOrder(DownloadPlan plan, DownloadOptions options, CancellationToken cancellationToken)
+    {
+        if (!options.ProbeSourceSpeed)
+        {
+            return false;
+        }
+
+        DownloadItem? sample = DownloadSourceProbe.PickSample(plan);
+
+        if (sample == null)
+        {
+            return false;
+        }
+
+        List<string> candidates = new List<string>(1 + sample.FallbackUrls.Count) { sample.Url };
+        candidates.AddRange(sample.FallbackUrls);
+
+        IReadOnlyList<string> ranked = new DownloadSourceProbe(_transport, _log)
+            .Rank(sample, candidates, cancellationToken);
+
+        return ranked.Count > 0 && !string.Equals(ranked[0], sample.Url, StringComparison.Ordinal);
     }
 
     /// <summary>

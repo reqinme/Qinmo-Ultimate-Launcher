@@ -13,6 +13,13 @@ namespace Qul.Tests.Diagnostics;
 /// P6 里能被钉死的那部分：预检清单的适用范围，以及诊断导出确实脱敏。
 /// </summary>
 [TestClass]
+[DoNotParallelize]
+/// <summary>
+/// **不并行**：这几个用例会读写 <c>Redactor</c> 的全局静态脱敏配置，
+/// 而整个测试程序集是方法级并行的。并行时一个用例改掉的路径前缀
+/// 会把另一个用例的断言静默破坏——表现为"偶尔红一次、重跑又绿"，
+/// 那比稳定失败更浪费时间：它会教人不必认真看待红灯。
+/// </summary>
 public sealed class PreflightAndDiagnosticTests
 {
     private static readonly string[] OfflineNotices =

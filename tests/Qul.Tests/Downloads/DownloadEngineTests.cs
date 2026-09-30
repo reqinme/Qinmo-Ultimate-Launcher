@@ -548,4 +548,77 @@ public sealed class DownloadEngineTests
         // 也正是 26.3 那次下载里最可疑的数字。
         Assert.IsTrue(report.Failures[0].Attempts >= 1, "必须真的尝试过，而不是一次都没试就记成失败");
     }
+    // ---------- 按实测速度选源 ----------
+
+    private const string MirrorUrl = "https://bmclapi2.bangbang93.com/libraries/a/a/1.0/a-1.0.jar";
+
+    [TestMethod]
+    public void PickSample_NeedsAtLeastTwoSources()
+    {
+        byte[] body = Bytes("x");
+        DownloadPlan single = Plan(Item(Url, body, @"libraries\a\a\1.0\a-1.0.jar"));
+
+        Assert.IsNull(DownloadSourceProbe.PickSample(single), "只有一个源就没有可探测的东西");
+
+        DownloadItem multi = Item(Url, body, @"libraries\a\a\1.0\a-1.0.jar");
+        multi.FallbackUrls = new[] { MirrorUrl };
+
+        Assert.IsNotNull(DownloadSourceProbe.PickSample(Plan(multi)));
+    }
+
+    [TestMethod]
+    public void EnsureAll_PrefersTheFasterSourceWhenThePrimaryIsSlow()
+    {
+        // 核心场景：官方**慢但能通**。
+        // 只按失败换源的实现永远不会切换，几千个文件就那么磨完；
+        // 而"官方慢"恰恰是引入镜像的初衷。
+        string sandbox = NewSandbox();
+        byte[] body = Bytes("library-content");
+
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(Url, body);
+        transport.Serve(MirrorUrl, body);
+        transport.DelayMilliseconds = url => string.Equals(url, Url, StringComparison.Ordinal) ? 120 : 0;
+
+        DownloadEngine engine = new DownloadEngine(transport);
+
+        DownloadItem item = Item(Url, body, @"libraries\a\a\1.0\a-1.0.jar");
+        item.FallbackUrls = new[] { MirrorUrl };
+
+        DownloadReport report = engine.EnsureAll(Plan(item), sandbox, FastOptions());
+
+        Assert.IsTrue(report.IsComplete);
+
+        int primary = transport.Requests.Count(r => string.Equals(r.Url, Url, StringComparison.Ordinal));
+        int mirror = transport.Requests.Count(r => string.Equals(r.Url, MirrorUrl, StringComparison.Ordinal));
+
+        Assert.AreEqual(1, primary, "官方只应被探测取一次，之后的真实下载不该再走它");
+        Assert.AreEqual(2, mirror, "镜像应被取两次：探测一次 + 真实下载一次");
+    }
+
+    [TestMethod]
+    public void EnsureAll_KeepsTheConfiguredOrderWhenProbingIsOff()
+    {
+        string sandbox = NewSandbox();
+        byte[] body = Bytes("library-content");
+
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(Url, body);
+        transport.Serve(MirrorUrl, body);
+        transport.DelayMilliseconds = url => string.Equals(url, Url, StringComparison.Ordinal) ? 120 : 0;
+
+        DownloadEngine engine = new DownloadEngine(transport);
+
+        DownloadItem item = Item(Url, body, @"libraries\a\a\1.0\a-1.0.jar");
+        item.FallbackUrls = new[] { MirrorUrl };
+
+        DownloadOptions options = FastOptions();
+        options.ProbeSourceSpeed = false;
+
+        DownloadReport report = engine.EnsureAll(Plan(item), sandbox, options);
+
+        Assert.IsTrue(report.IsComplete);
+        Assert.AreEqual(0, transport.Requests.Count(r => string.Equals(r.Url, MirrorUrl, StringComparison.Ordinal)),
+            "关掉探测就不该去碰备用源");
+    }
 }

@@ -12,6 +12,13 @@ namespace Qul.Tests.Domain;
 /// 这两样东西一旦漂移，症状是"用户看到未登记错误"和"令牌进了日志"，都属于发布后才发现的严重缺陷。
 /// </summary>
 [TestClass]
+[DoNotParallelize]
+/// <summary>
+/// **不并行**：这几个用例会读写 <c>Redactor</c> 的全局静态脱敏配置，
+/// 而整个测试程序集是方法级并行的。并行时一个用例改掉的路径前缀
+/// 会把另一个用例的断言静默破坏——表现为"偶尔红一次、重跑又绿"，
+/// 那比稳定失败更浪费时间：它会教人不必认真看待红灯。
+/// </summary>
 public sealed class DiagnosticsTests
 {
     private static readonly Regex IdPattern = new Regex(@"^QUL-[A-Z]+-\d{4}$", RegexOptions.Compiled);
