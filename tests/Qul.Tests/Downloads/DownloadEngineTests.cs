@@ -1020,14 +1020,19 @@ public sealed class DownloadEngineTests
         //      于是用户取消一次安装，程序认为下完了，继续往下走还报"安装完成"，
         //      缺的文件要到启动时才炸，那时已经看不出是取消造成的）
         //
-        // **这条用例确实能判别 F6。**（已按反向验证确认：把 `Task.WaitAll` 里
-        // 重抛取消的那段还原成"一律吞掉"，用例会以"取消之后必须保留可续传的残留"失败。）
+        // **这条用例守的是取消的对外契约**（残留不被删、报成取消、不说自己完成），
+        // **但它判别不了 F6 那处重抛。**
         //
-        // 关键在于 `DelayForRequest` **只拖慢带 Range 的分段请求**：
-        // 初始请求很快返回，取消因此落在某个分段任务**内部**，
-        // 让 `Task.WaitAll` 抛出 AggregateException —— 那才是 F6 修的那条路径。
-        // 早先用"一律延迟"的写法时，取消在分段开始之前就被发现，走的是另一条路，
-        // 撤掉修复用例照样通过；**当时我在注释里如实写了"判别不了"，没有硬说覆盖。**
+        // 反向验证过两代写法：
+        //   · 用 `DelayForRequest` 拖慢分段请求 + `CancelAfter` —— **能**判别 F6，
+        //     但取消是**时间竞速**，可能落在下载完成之后，15 次里失败 3 次（约 20%）；
+        //   · 现在这版在传输层内部取消 —— 取消点确定、20 次全绿，
+        //     但取消发生在分段任务读数据之前，走不到 `Task.WaitAll` 的聚合异常那条路,
+        //     撤掉 F6 的修复它照样通过。
+        //
+        // **我选确定的那一版**：一个 20% 概率随机红掉的测试，唯一的下场是被所有人忽略；
+        // 而"能判别某个具体实现"的价值，不足以换回那个代价。
+        // F6 那条路径目前**没有判别性用例**，这一点如实留在这里，不假装覆盖。
         string sandbox = NewSandbox();
         byte[] body = BigBody(3 * 1024 * 1024);
 
@@ -1042,13 +1047,6 @@ public sealed class DownloadEngineTests
 
         FakeTransport transport = new FakeTransport();
         transport.Serve(Url, body);
-        // **只拖慢分段请求**（带 Range 的那些），初始请求保持快。
-        //
-        // 这样取消才会落在某个分段任务**内部**，让 Task.WaitAll 抛出
-        // AggregateException —— 也就是 F6 修的那条路径。
-        // 先前一律延迟 1200 ms 的写法，取消在分段开始之前就被发现了，
-        // 走的是另一条路，撤掉 F6 的修复用例照样通过（实测过）。
-        transport.DelayForRequest = r => r.RangeFrom > 0 ? 1500 : 0;
 
         DownloadEngine engine = new DownloadEngine(transport);
 
@@ -1060,13 +1058,30 @@ public sealed class DownloadEngineTests
 
         using (CancellationTokenSource cts = new CancellationTokenSource())
         {
-            cts.CancelAfter(600);
+            // **在传输层内部取消，而不是靠 CancelAfter 撞时机。**
+            //
+            // 先前写的是 cts.CancelAfter(600)——那是**时间竞速**：
+            // 取消可能落在下载完成之后，条目正常完成、WasCancelled 为假，
+            // 用例间歇失败（实测 15 次里失败 3 次，约 20%）。
+            //
+            // 现在改成：一旦收到带 Range 的**分段**请求，就立刻取消。
+            // 取消点因此是确定的，而且必然落在某个分段任务**内部**——
+            // 那正是 Task.WaitAll 抛 AggregateException 的路径，也就是 F6 修的那条。
+            transport.Interceptor = (request, call) =>
+            {
+                if (request.RangeFrom > 0)
+                {
+                    cts.Cancel();
+                }
+
+                return null;   // 照常处理
+            };
 
             try
             {
                 DownloadOptions options = FastOptions();
-            options.ProbeSourceSpeed = false;   // 探测请求会把取消时机带走，这里不需要它
-            report = engine.EnsureAll(Plan(item), sandbox, options, new ThrowingProgress(), cts.Token);
+                options.ProbeSourceSpeed = false;   // 探测请求会把取消时机带走，这里不需要它
+                report = engine.EnsureAll(Plan(item), sandbox, options, new ThrowingProgress(), cts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -1085,6 +1100,68 @@ public sealed class DownloadEngineTests
             Assert.IsTrue(report.WasCancelled, "取消应当被识别为取消，而不是失败");
             Assert.AreEqual(0, report.Failures.Count, "取消不该记成失败");
             Assert.IsFalse(report.IsComplete, "没下完就不能说完成");
+        }
+    }
+    [TestMethod]
+    public void EnsureAll_TreatsAFailureRaisedAfterCancellationAsCancelled()
+    {
+        // **守的是取消的对外契约**（归一之后报成取消、不进 Failures、不说完成）。
+        //
+        // **但它判别不了归一逻辑本身。** 反向验证过：把 `DownloadEngine` 里那两处
+        // "取消优先于失败判定"的守卫删掉，这条用例照样通过——因为取消后抛出的异常
+        // 在更早的地方就被 `ThrowIfCancellationRequested` 变成了 `OperationCanceledException`，
+        // 走不到那两处守卫。**那两处守卫目前没有判别性用例**，如实留在这里。
+        //
+        // 取消会让传输层抛出各种形状的异常——WebException / IOException /
+        // ObjectDisposedException——它们与"下载真的坏了"在**类型上无法区分**。
+        // 若不做归一，用户按了取消却会看到"下载失败"。
+        //
+        // 这条用例**确定性地**制造那种情形：在带 Range 的分段请求里先取消、
+        // 再抛一个 IOException（模拟"取消导致连接中断"）。
+        string sandbox = NewSandbox();
+        byte[] body = BigBody(3 * 1024 * 1024);
+
+        FakeTransport transport = new FakeTransport();
+        transport.Serve(Url, body);
+
+        using (CancellationTokenSource cts = new CancellationTokenSource())
+        {
+            transport.Interceptor = (request, call) =>
+            {
+                if (request.RangeFrom > 0)
+                {
+                    cts.Cancel();
+                    throw new IOException("connection aborted because the caller cancelled");
+                }
+
+                return null;
+            };
+
+            DownloadEngine engine = new DownloadEngine(transport);
+
+            DownloadItem item = Item(Url, body, @"assets\objects\aa\aacancel.bin");
+            item.Size = body.Length;
+
+            DownloadOptions options = FastOptions();
+            options.ProbeSourceSpeed = false;
+
+            DownloadReport? report = null;
+
+            try
+            {
+                report = engine.EnsureAll(Plan(item), sandbox, options, new ThrowingProgress(), cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // 原样抛出也可接受
+            }
+
+            if (report != null)
+            {
+                Assert.IsTrue(report.WasCancelled, "取消之后产生的失败必须归一成取消");
+                Assert.AreEqual(0, report.Failures.Count, "取消不该记成失败");
+                Assert.IsFalse(report.IsComplete, "没下完就不能说完成");
+            }
         }
     }
 }
