@@ -21,6 +21,7 @@
 pub mod caps;
 pub mod layout;
 
+pub mod error;
 pub mod java;
 
 pub use caps::{
