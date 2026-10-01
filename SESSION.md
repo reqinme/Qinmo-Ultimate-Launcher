@@ -1,130 +1,76 @@
-# 上次收工（2026-10-01 · U0 完成）
+# 上次收工（2026-10-01 · U1 = S1 材质尖刺完成）
 
 ## 上次做到哪
 
-**U0 · 环境就绪 —— 已完成并验收通过**。仓库从"只有文档"变成"能跑测试的骨架"。
+**U0 完成（环境就绪）** → **U1 完成（S1 材质 4×2 矩阵）**，**结论：A 档成立**。
 
-**工具链（全部就绪）**：Rust 1.98.1（MSVC，含 clippy/rustfmt）· Node 24.9 · pnpm 10.34.5 ·
-JDK **8 / 17 / 21 三套齐全** + 额外 11/25 · MSVC 14.51 + Windows SDK 10.0.26100 · WebView2 154.0.4258.37。
+**S1 结论一句话**：**无边框窗口下 DWM 材质可用**（Mica / Acrylic / Tabbed 全部 `Ok` 且有可见效果）
+→ `docs/UI设计规格.md` §11.2 **确定走 A 档**（岛贴顶居中、浮在自绘标题栏之上），**§4 布局可以冻结**。
 
-**U0 验收结果**：
-
-| 项 | 结果 |
-|---|---|
-| `cargo test --workspace` | ✅ **16 项通过**（10 功能 + 6 架构约束） |
-| `cargo clippy -D warnings` | ✅ 0 警告 |
-| `cargo fmt --check` | ✅ 通过 |
-| `pnpm typecheck` | ✅ 通过 |
-| `pnpm lint` | ✅ 0 报错（含 3 条纪律规则） |
-| `pnpm test` | ✅ **12 项通过** |
-
-**落地的东西**（不是空壳，都是方案里已定死的契约）：
-
-- `crates/qul-core/src/caps.rs` —— **能力描述符**（方案 §3.3）。禁用态**无法不带原因**：类型系统挡住了，
-  且 JSON 反序列化也补了校验（`CapabilityWire`），因为"JSON 不认类型"。
-- `crates/qul-core/src/layout.rs` —— **三层目录 + 相对路径**（方案 §5.5）。含 `..` / 绝对路径 / 盘符拦截。
-- `crates/qul-core/tests/architecture.rs` —— **6 条架构约束**，把纪律变成断言。
-- `src/` —— 前端骨架 + **契约校验**（`assertCapabilitiesValid`，与 Rust 侧同一规则的边界兜底）。
-- `eslint.config.js` —— **3 条纪律规则**：禁字面颜色值 / **禁按产品名分支** / 禁 toggle 布尔状态。
-- `.github/workflows/verify.yml` —— CI 三个 job（rust / web / guard）。
+**完整数据、复现命令、5 项遗留**：`docs/M0-尖刺报告.md`
 
 ## 下一步的第一件事
 
-**做 U1 = S1 尖刺：材质 4×2 矩阵。**
+**做 U2 = S2 · 透明 × blur × 材质**（极快，1 小时级；任务书说可与 U1 同一次时段做完）。
 
-1. 新建 `spikes/s1-material/`，放一个最小 Tauri 2 应用（`cargo new` + `tauri init` 即可）
-2. 遍历 **`{Mica, Acrylic}` × `{有边框 decorations:true, 无边框 decorations:false}`** 四格，
-   加上**浅色主题**与**纯色兜底**，凑满 8 张截图
-3. 每格记录：用的是哪个 API（`DWMWA_SYSTEMBACKDROP_TYPE` 还是 `SetWindowCompositionAttribute`）、
-   材质是否真的生效、有没有黑边/白边
-4. 产出：8 张截图 + 一张 API 记录表 → **这是 U1 的交付物，也是全项目最早能看到东西的时刻**
+要回答的：**窗口透明 + CSS `backdrop-filter` 到底能不能共存**。
+- 已知（方案 §4.1 的平台事实）：**Windows WebView2 上两者不能共存**，且这是本项目的设计起点
+- S2 要做的是**把这条从"已知"变成"我实测过"**：两组对比截图 + 结论
+- 落点：`docs/M0-尖刺报告.md` 追加一节；若结论与方案不同，**方案 §4.1 要改**
 
-**结论出来后对号入座**：`docs/UI设计规格.md` **§11.2** 已写死 A / B1 / B2 三档预案，
-**不需要临场决策**。若结果是 B1 或 B2，§4 的布局设计要按那一档改（这是唯一被 S1 阻塞的东西）。
+复用 S1 的尖刺工程即可（`spikes/s1-material/` 已能开透明窗口）——
+**新增一个 CSS `backdrop-filter` 的测试页，两组对比**。
+
+## ⚠️ 本次学到的三条硬经验（都已进文档，别重蹈）
+
+1. **"API 返回 Ok" ≠ "有可见效果"。**
+   S1 第一轮 8 格全部 `apply_ok: true`，而像素分析显示它们与对照组**数值一模一样**（纯白 255）。
+   根因：**WebView2 默认不透明，把材质整个盖住** → 必须 `transparent(true)`。
+   → **判据只能是"看图 + 像素分析"，`apply_ok` 只作参考。**
+
+2. **`.ps1` 脚本一律纯 ASCII。**
+   PowerShell 5.1 对**无 BOM** 的脚本按 ANSI 解码；中文会破坏 here-string 终止符，
+   而报错完全指向错误方向（`using 指令必须出现在...之前`、`缺少 using 指令`）。
+   **纯 ASCII 根治**，不要依赖"编辑后记得补 BOM"（编辑器一改 BOM 就没了）。
+   另：here-string 的结束符 `"@` **必须在行首且后面不跟内容**。
+
+3. **加"会自己生成构建产物"的目录时，`.gitignore` 必须在第一次 `git add` 之前写全。**
+   本次 `git add -A` 把尖刺的 `target/`（含 .exe）与 `gen/schemas/` 一起暂存了。
+   **提交前逐行看 `git status --porcelain`** 远比事后 `git reset --soft` 便宜。
 
 ## 卡住的 / 待查的
 
-- **⚠️⚠️ 验证方法学（两轮里摔了两次，这条优先级最高）**
+- **⚠️⚠️ 验证方法学（三轮里摔了三次，优先级最高）**
+  1. 用 `HTTP 200` 证明"页面能用" → 实际白屏（200 只证明服务器响应了）
+  2. 用带 `--allow-file-access-from-files` 的截图证明"dist 双击能开"
+     → 真实浏览器没这个 flag，`file://` 下 ES module 一律被 CORS 拦
+  3. 用 `apply_ok: true` 证明"材质可用" → 实际完全不可见（WebView2 不透明）
+  **共同点：用比真实条件宽松的证据替代"看到结果"。**
+  **规则：验证条件必须与真实使用条件一致；判据必须能反映最终用户看到的东西。**
 
-  **规则一：验证条件必须与真实使用条件一致。**
-  两次翻车都源于此：
-  1. 用 `HTTP 200` 证明"页面能用" → 实际白屏（200 只证明服务器响应了）。
-  2. 用 `--allow-file-access-from-files` 截图，证明"`dist/index.html` 双击能开"
-     → 真实浏览器**没有**这个 flag，`file://` 下 CORS 必然拒绝加载 ES module。
+- **`file://` 打不开本项目前端**（浏览器安全模型，非 bug）。看界面只能走 HTTP：
+  dev 用 `http://localhost:5173/`（**必须 `localhost`，不是 `127.0.0.1`**——只绑 IPv6）；
+  将来 Tauri 用自定义协议。**永远不要建议"双击 dist/index.html"**。
 
-  **规则二：`file://` 打不开本项目的前端，这不是 bug 而是浏览器安全模型。**
-  `file://` 的 origin 是 `null`，每个文件算独立源，**ES module 一律被 CORS 拦**。
-  与 `base` 是绝对还是相对路径**无关**。
-  → **看界面只能走 HTTP**：dev 用 `http://localhost:5173/`；
-    将来 Tauri 用自定义协议（`tauri://localhost`）——**两条都是 HTTP 语义，都不受此限**。
-  → **永远不要建议"双击 dist/index.html"**。
+- **git 身份**：`reqinme <328903704+reqinme@users.noreply.github.com>`（新版 noreply 格式）
 
-  **规则三：`--dump-dom` 在本机不可靠**（同一命令一次给 560 字节、一次给 0 字节）。
-  **只认截图**，且截图必须用默认 flag：
-  ```powershell
-  $edge="${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
-  & $edge --headless=new --disable-gpu --hide-scrollbars --window-size=1200,860 `
-    --screenshot="$env:TEMP\shot.png" --virtual-time-budget=9000 `
-    --user-data-dir="$env:TEMP\qul$((Get-Random))" "http://localhost:5173/"
-  ```
-  **判据**：**28 KB ≈ 有内容；4.7 KB = 纯白**。
-
-  **规则四：dev server 只绑 IPv6**。用 `http://localhost:5173/`，
-  **不要用 `127.0.0.1`**（实测连不上）。
-
-- **git 身份已配置**（仓库级）：`reqinme <328903704+reqinme@users.noreply.github.com>`
-  —— 用**新版 noreply 格式**（含账号 ID），这样提交会关联 GitHub 账号但**不暴露真实邮箱**。
-- **Minecraft 未安装**（`%APPDATA%\.minecraft` 不存在）→ S10「干净环境」与 S11「官方能力基线」**暂不可做**（属 U11）。
-- **代理环境**：系统只有 PAC（`http://127.0.0.1/pac.txt?S302`），`ProxyEnable=0`。
-  Node/pnpm **不走 PAC**，实测直连 npmjs 对部分包慢到不可用（单请求 240 秒）→ 已用 `.npmrc` 固定镜像源解决。
-  **这条以后装任何 Node 依赖都会用到。**
-
-## ⚠️ 因"改为公开"而产生、尚未处理的三件事
-
-> **背景变化**：此前所有文档的前提是"**个人自用、不分发**"。现在仓库**公开**（`reqinme/Qinmo-Ultimate-Launcher`），
-> 这个前提**不再成立**。以下三条由它引起，**公开前必须处理**。
-
-1. **许可义务真的被触发了** —— `docs/来源记录.md` 的 25 个来源里含 **AGPL / GPL** 项目。
-   文档里现在写的"个人自用使大多数许可义务不被触发"**已失效**。
-   **不阻塞已推送的内容**（当前 main 里没有第三方代码），但**必须在引入任何借鉴代码之前逐条过一遍台账**。
-2. **ADR-0014（代码签名：个人自用不签名）需要重开** —— 它自己就写着"仅当决定对外分发时重开本决策"。
-3. **README 与方案里多处"个人自用、不分发"的表述需要改** —— 否则文档与现实矛盾，而这正是本项目
-   最该避免的失效模式（第三轮审计已三次抓到同类问题）。
-
-**建议**：把这三条与"来源台账逐条复核"合并成**一个单元**，插在 U1 之前或 U1 之后（不影响 S1 的实测）。
-
-## 远端策略（已定）
-
-| 引用 | 内容 |
-|---|---|
-| `main` | **新 Rust 项目**（当前 `239e56e`） |
-| `legacy/csharp` | **第一轮 C#/WPF/net48 实现完整保留**（`f8e2261`） |
-| `tag legacy-csharp-final` | 同一提交的归档标签 |
-
-- 旧版**不是半成品**：远端 README 记录"P0–P7 工程完成、291 用例全绿、Release 307 KB、冷启动 328 ms、
-  空闲工作集 37.5 MB"，另有 18 份规范文档。**本地 `_archive/` 是它的完整克隆（HEAD 与远端一致）。**
-- 它的 README 已存为 `_archive/README-旧CSharp版.md`（**不在当前 main 顶层**，因为那是上一轮的东西）。
-- **旧 README 里有一条对我们的直接影响**：它写"本机实测官方源比 bmclapi 快约 8 倍"。
-  这与"我们此前测的 0.22 MB/s 走代理"**可能都对**（不同网络路径），但**坐实了 S5 必须先做归因**。
+- **Minecraft 未安装** → S10 / S11 暂不可做（属 U11）
 
 ## 这次决定的（避免下次重新纠结）
 
-- **`.npmrc` 固定 `registry.npmmirror.com` 并入库**。理由：直连 npmjs 实测不可用（不是配置错，是链路），
-  而写进项目级配置能让本机/CI/以后任何机器行为一致、可评审、可回滚。**镜像不影响 lockfile 的 sha512 校验。**
-- **pnpm 的构建脚本白名单只放行 `esbuild`**（写进 `package.json` 的 `pnpm.onlyBuiltDependencies`）。
-  **保留白名单机制本身**——将来引入带 postinstall 的依赖要逐个评审，不图省事关掉整个限制。
-- **vitest 必须与 vite 同代**（vite 6 → vitest 3）。vitest 2 会拖进 vite 5，造成两套类型冲突。
-- **U0 只做"能跑通"，但**不造空壳**：落的都是方案已定死的契约（能力描述符 / 三层目录 / 路径安全）。
-  **理由**：这些契约的测试本身就是 U0 验收的一部分，而空壳的测试没有意义。
-- **架构测试的禁用词表要精确到"断言的对象"**。本次两处误报（`shader` 被当成游戏词汇、
-  `零 Tauri` 注释被当成依赖）都源于"扫全文"而非"只看该看的东西"——
-  **改法是收窄断言对象，不是放宽规则**。
-- **`.gitignore` 排除 `repos/` 与 `_archive/`**：它们是**资料不是源码**（600+ MB），入库只会拖慢每次 clone。
-  代价：新机器 clone 后需要**另行获取这两个目录**——目前它们只存在于本机。
+- **微软登录的授权流程 = 设备码**，应用注册已实测就绪。规格：`docs/身份与授权规格.md`（锚点 `[IDENTITY]`）
+  - **C4（第三方启动器条款核对）仍未做，标 P0**——它决定"能不能做"，不是"怎么做"
+- **`spikes/` 排除在 workspace 之外**（`Cargo.toml` 的 `exclude`），
+  `cargo test` 不受其影响；尖刺仍可独立构建
+- **尖刺的验证工具与产品代码分离**：截图/分析脚本在壳里，不在 Rust 里。
+  理由：**截图是验证手段，不是被测对象**；混在一起会让"图不对"与"材质不对"分不清
+- **`PrintWindow(..., 2)` 取不到 DWM 合成内容**（对无边框 Mica 返回近全白）
+  → 验证材质只能用**屏幕截图 + 像素分析**
 
 ## 候选（想到但**未批准开工**的活）
 
-- `.editorconfig` / `rustfmt.toml` / `clippy.toml` —— 目前用默认配置已能通过 CI，**建议并入 U1 顺手做**。
-- `docs/待决.md` 与 `docs/任务清单.md` —— M0 阶段用本文件 + 任务书原文已够，**留到 M1 再建**。
-- `repos/` 的只读性需要"防误改"保障（现在是靠自觉 + `.gitignore`）——
-  可考虑加只读属性或提交前检查，**但 M0 阶段收益低，记为候选**。
+- **公开合规三条**（因仓库公开而产生，见上一版 SESSION.md）：
+  来源台账 25 项的许可复核 / ADR-0014 重开 / README 与方案里"个人自用"的表述
+  → 建议**插在 U2 之后、U3 之前**，不与实测冲突
+- `.editorconfig` / `rustfmt.toml` / `clippy.toml` 统一风格配置（现用默认已能过 CI）
+- `docs/待决.md` 与 `docs/任务清单.md`（M0 阶段用本文件 + 任务书已够，留到 M1）
