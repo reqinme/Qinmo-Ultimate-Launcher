@@ -147,17 +147,111 @@ const PATH_FRAGMENT_MARKERS: &[&str] = &[
     "assets_dir",
 ];
 
+/// 去掉 `#[cfg(test)]` 块——**只留生产代码**。
+///
+/// **为什么必须排除测试代码**：
+/// 扫描生产代码是为了守"**内核不许按产品分支**"。
+/// 而**测试里写 `let mut bedrock = ...` 是完全正当的**——
+/// 测试必须在代码里提到产品，否则它就没法验证"切到基岩版时行为包出现"。
+///
+/// 这条也是踩出来的：初版扫了 `src/` 全部内容，于是测试里的
+/// `let mut bedrock` 被当成"内核代码出现产品名"而报警。
+/// **判据应当是"产品名出现在生产代码的代码/字符串里"，不是"文件里出现过这个词"。**
+///
+/// 实现用花括号配对跳过整个 `#[cfg(test)]` 项，而不是"从该行到文件末尾"——
+/// 后者会在有人把测试模块写在文件中间时**静默漏掉后面的生产代码**。
+fn strip_cfg_test_blocks(src: &str) -> String {
+    let mut out = String::with_capacity(src.len());
+    let bytes = src.as_bytes();
+    let mut i = 0usize;
+
+    while i < src.len() {
+        // 找下一个 `#[cfg(test)]`
+        match src[i..].find("#[cfg(test)]") {
+            None => {
+                out.push_str(&src[i..]);
+                break;
+            }
+            Some(off) => {
+                let attr_at = i + off;
+                out.push_str(&src[i..attr_at]);
+
+                // 从属性往前找它修饰的那个项的 `{`
+                let mut j = attr_at;
+                let mut depth_seen = false;
+                while j < src.len() {
+                    match bytes[j] {
+                        b'{' => {
+                            depth_seen = true;
+                            break;
+                        }
+                        // 遇到 `;` 说明是 `#[cfg(test)] mod x;` 这类声明，没有块
+                        b';' => break,
+                        _ => j += 1,
+                    }
+                }
+                if !depth_seen {
+                    // 没有块：跳过属性本身即可
+                    i = attr_at + "#[cfg(test)]".len();
+                    continue;
+                }
+
+                // 花括号配对，跳过整个块
+                let mut depth = 0i32;
+                let mut k = j;
+                while k < src.len() {
+                    match bytes[k] {
+                        b'{' => depth += 1,
+                        b'}' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                k += 1;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    k += 1;
+                }
+                i = k;
+            }
+        }
+    }
+    out
+}
+
 #[test]
 fn 内核代码里不许出现厂商与产品品牌() {
+    // ⚠️ **这条规则修正过两次，两次的理由都必须留着。**
+    //
+    // **修正一：注释不算。**
+    // 加入基岩版能力（`BehaviorPacks` / `SkinPacks`）后它报警
+    // `caps.rs: 代码中出现 bedrock` —— 因为我们**必须在文档注释里解释
+    // "为什么行为包是产品专属的"**，而那必然要提到基岩版。
+    // 注释**不进二进制**，没有技术后果；真正有后果的是
+    // **代码/标识符/字符串**（`bedrock_dir`、`if product == "bedrock"`、
+    // 能力 key 拼错）。而 `strip_comments` 恰好保留这两者。
+    // 另一条独立证据：`BehaviorPacks` 这个**枚举名本身已经是中性的**
+    // （不叫 `BedrockBehaviorPacks`）。该禁的是"标识符带产品名"。
+    //
+    // **修正二：测试代码不算。**
+    // 修完注释后它仍报警，这次命中的是测试里的 `let mut bedrock = ...`。
+    // 而**测试必须在代码里提到产品**，否则没法验证"切到基岩版时行为包出现"。
+    // → **只扫生产代码**（排除 `#[cfg(test)]` 块）。
+    //
+    // 两条修正指向同一个判据：
+    // **"产品名出现在生产代码的代码/字符串里"才算违规**，
+    // 而不是"某个文件里出现过这个词"。
     let mut violations = Vec::new();
 
     for file in rust_files(&core_src_dir()) {
         let src = fs::read_to_string(&file).expect("源码应为 UTF-8");
-        let code = strip_comments(&src).to_lowercase();
+        let production = strip_cfg_test_blocks(&src);
+        let code = strip_comments(&production).to_lowercase();
         for bad in FORBIDDEN_BRANDS_IN_CORE_CODE {
             if code.contains(bad) {
                 violations.push(format!(
-                    "{}: 代码中出现 `{}`（内核不许认识具体厂商/产品）",
+                    "{}: 生产代码/字符串中出现 `{}`（产品名只许出现在注释与测试里）",
                     file.display(),
                     bad
                 ));
@@ -167,7 +261,10 @@ fn 内核代码里不许出现厂商与产品品牌() {
 
     assert!(
         violations.is_empty(),
-        "架构约束被违反：\n  {}\n\n内核只放通用模型与规则；厂商与产品概念属于 qul-provider-*。",
+        "架构约束被违反：\n  {}\n\n\
+         内核只放通用模型与规则。产品概念属于 qul-provider-*，\n\
+         产品差异要靠**能力描述符的 `reason`** 表达，不是按产品名分支。\n\
+         （注释与测试里提到产品是允许的——见本测试上方说明。）",
         violations.join("\n  ")
     );
 }

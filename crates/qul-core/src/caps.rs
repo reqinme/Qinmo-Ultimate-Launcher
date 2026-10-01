@@ -36,20 +36,44 @@ pub enum CapabilityKey {
     Launch,
     /// 启动前能做预检（依赖/内存/运行时）
     Preflight,
+    /// 能检测本机已安装的实例（每个产品查法不同：普通路径 / 商店包）
+    DetectInstalled,
 
     // ── 内容管理（产品相关区，界面按 enabled 才渲染）──────────
-    /// 能管理模组
+    //
+    // ⚠️ **这一组里既有通用项、也有产品专属项**，见 `product_specific()`。
+    //   通用（表意中性，跨产品同名）：Mods / ResourcePacks / Worlds /
+    //     Configs / Screenshots
+    //   产品专属（只在某些产品下有意义，缺失靠 `reason` 表达）：
+    //     Shaders（Java）/ BehaviorPacks（基岩）/ SkinPacks（基岩）/ Loaders（Java）
+    /// 能管理模组类内容
     Mods,
-    /// 能管理资源包/行为包
+    /// 能管理资源包
     ResourcePacks,
     /// 能管理光影
+    ///
+    /// **产品专属**：Java 版有，基岩版没有 → 基岩实例上必须
+    /// `disabled("基岩版不支持光影")`。
     Shaders,
-    /// 能管理存档
+    /// 能管理行为包
+    ///
+    /// **产品专属**：基岩版有，Java 版没有。这是"能力驱动界面"最典型的一处——
+    /// 切到基岩版实例时「光影」自动消失、「行为包」自动出现（方案 §3.3）。
+    BehaviorPacks,
+    /// 能管理皮肤包
+    ///
+    /// **产品专属**：基岩版有，Java 版没有。
+    SkinPacks,
+    /// 能管理世界/存档
     Worlds,
     /// 能管理配置
     Configs,
     /// 能截图/管理截图
     Screenshots,
+    /// 能安装与管理加载器（Fabric / Forge / NeoForge …）
+    ///
+    /// **产品专属**：Java 版有，基岩版没有"加载器"这个概念。
+    Loaders,
 
     // ── 稳定与诊断 ────────────────────────────────────────────
     /// 能捕获崩溃并归因
@@ -68,6 +92,12 @@ pub enum CapabilityKey {
     Isolation,
     /// 能离线游玩
     OfflinePlay,
+
+    // ── 依赖组件 ──────────────────────────────────────────────
+    /// 能检测并引导安装依赖组件（Gaming Services / GameInput）
+    ///
+    /// **产品专属**：基岩版需要，Java 版没有这个概念。
+    ProductDependencies,
 }
 
 impl CapabilityKey {
@@ -78,17 +108,22 @@ impl CapabilityKey {
         Self::CreateInstance,
         Self::Launch,
         Self::Preflight,
+        Self::DetectInstalled,
         Self::Mods,
         Self::ResourcePacks,
         Self::Shaders,
+        Self::BehaviorPacks,
+        Self::SkinPacks,
         Self::Worlds,
         Self::Configs,
         Self::Screenshots,
+        Self::Loaders,
         Self::CrashAnalysis,
         Self::LogFiltering,
         Self::Snapshots,
         Self::Isolation,
         Self::OfflinePlay,
+        Self::ProductDependencies,
     ];
 
     /// 稳定性标识（落进 `profile.json` 与前后端消息里）。
@@ -99,17 +134,22 @@ impl CapabilityKey {
             Self::CreateInstance => "create_instance",
             Self::Launch => "launch",
             Self::Preflight => "preflight",
+            Self::DetectInstalled => "detect_installed",
             Self::Mods => "mods",
             Self::ResourcePacks => "resource_packs",
             Self::Shaders => "shaders",
+            Self::BehaviorPacks => "behavior_packs",
+            Self::SkinPacks => "skin_packs",
             Self::Worlds => "worlds",
             Self::Configs => "configs",
             Self::Screenshots => "screenshots",
+            Self::Loaders => "loaders",
             Self::CrashAnalysis => "crash_analysis",
             Self::LogFiltering => "log_filtering",
             Self::Snapshots => "snapshots",
             Self::Isolation => "isolation",
             Self::OfflinePlay => "offline_play",
+            Self::ProductDependencies => "product_dependencies",
         }
     }
 
@@ -122,10 +162,43 @@ impl CapabilityKey {
     /// 实例级的能力**必须**在实例描述符里被求值；产品级只作为默认值继承。
     pub const fn kind(self) -> CapabilityKind {
         match self {
-            // 隔离能力随形态变（GDK vs UWP），所以是实例级
+            // 隔离与快照随形态变（GDK vs UWP 差别极大），所以是实例级
             Self::Isolation | Self::Snapshots => CapabilityKind::Instance,
+            // 依赖组件是"这台机器上装没装"，也是实例级
+            Self::ProductDependencies => CapabilityKind::Instance,
             _ => CapabilityKind::Product,
         }
+    }
+
+    /// **这一项是不是"产品专属"的**（只在某些产品下才有意义）。
+    ///
+    /// **为什么需要这个区分——它是"能力驱动界面"的落点**：
+    ///
+    /// 界面的**第二级左导航**要随产品换一套。换的依据**不是**
+    /// `if product == "bedrock"`，而是**遍历这个列表、只渲染 `enabled` 的项**：
+    ///
+    /// | 产品专属项 | Java 版 | 基岩版 |
+    /// |---|---|---|
+    /// | `Shaders` 光影 | ✅ | ⛔ `disabled("基岩版不支持光影")` |
+    /// | `BehaviorPacks` 行为包 | ⛔ `disabled("Java 版没有行为包")` | ✅ |
+    /// | `SkinPacks` 皮肤包 | ⛔ | ✅ |
+    /// | `Loaders` 加载器 | ✅ | ⛔ `disabled("基岩版没有加载器")` |
+    /// | `ProductDependencies` 依赖组件 | ⛔ | ✅ |
+    ///
+    /// **通用项**（`Mods` / `ResourcePacks` / `Worlds` / `Configs` /
+    /// `Screenshots` / `Launch` / `Preflight` …）在**任何**产品下都有意义。
+    ///
+    /// **纪律**：新增能力时**必须显式决定它属于哪一类**。
+    /// **不许让产品名散落进界面**——那正是这套设计要消灭的东西。
+    pub const fn product_specific(self) -> bool {
+        matches!(
+            self,
+            Self::Shaders
+                | Self::BehaviorPacks
+                | Self::SkinPacks
+                | Self::Loaders
+                | Self::ProductDependencies
+        )
     }
 }
 
@@ -361,5 +434,108 @@ mod tests {
         );
         assert!(caps.contains(CapabilityKey::Shaders));
         assert!(!caps.contains(CapabilityKey::Mods), "未声明 ≠ 禁用");
+    }
+
+    /// **这一组测试守的是"能力驱动界面"那件事本身。**
+    ///
+    /// 方案 §3.3 的原话是：切到基岩版实例时，「光影」自动消失、「行为包」自动出现。
+    /// 下面两个测试就是**把这句话写成断言**——如果哪天有人把
+    /// `BehaviorPacks` 从 `product_specific()` 里删掉，或者忘了在
+    /// 基岩能力集里声明它，这里会挂。
+    #[test]
+    fn 产品专属项包含两边的差异点() {
+        // Java 有、基岩没有
+        assert!(CapabilityKey::Shaders.product_specific());
+        assert!(CapabilityKey::Loaders.product_specific());
+        // 基岩有、Java 没有
+        assert!(CapabilityKey::BehaviorPacks.product_specific());
+        assert!(CapabilityKey::SkinPacks.product_specific());
+        assert!(CapabilityKey::ProductDependencies.product_specific());
+        // 通用项**不许**被标成产品专属（否则界面会误以为要按产品筛选）
+        for k in [
+            CapabilityKey::Mods,
+            CapabilityKey::ResourcePacks,
+            CapabilityKey::Worlds,
+            CapabilityKey::Configs,
+            CapabilityKey::Screenshots,
+            CapabilityKey::Launch,
+            CapabilityKey::Preflight,
+        ] {
+            assert!(!k.product_specific(), "{:?} 不该是产品专属", k);
+        }
+    }
+
+    #[test]
+    fn 切产品时界面条目会真的换一套() {
+        // 模拟一个 Java 实例的能力表
+        let mut java = Capabilities::new();
+        for k in [
+            CapabilityKey::Launch,
+            CapabilityKey::Mods,
+            CapabilityKey::ResourcePacks,
+            CapabilityKey::Shaders,
+            CapabilityKey::Worlds,
+            CapabilityKey::Configs,
+            CapabilityKey::Loaders,
+        ] {
+            java.set(k, Capability::enabled());
+        }
+        // Java 没有行为包 / 皮肤包 / 依赖组件
+        java.set(
+            CapabilityKey::BehaviorPacks,
+            Capability::disabled("Java 版没有行为包").unwrap(),
+        );
+        java.set(
+            CapabilityKey::SkinPacks,
+            Capability::disabled("Java 版没有皮肤包").unwrap(),
+        );
+
+        // 模拟一个基岩版实例的能力表
+        let mut bedrock = Capabilities::new();
+        for k in [
+            CapabilityKey::Launch,
+            CapabilityKey::ResourcePacks,
+            CapabilityKey::BehaviorPacks,
+            CapabilityKey::SkinPacks,
+            CapabilityKey::Worlds,
+            CapabilityKey::ProductDependencies,
+        ] {
+            bedrock.set(k, Capability::enabled());
+        }
+        bedrock.set(
+            CapabilityKey::Shaders,
+            Capability::disabled("基岩版不支持光影").unwrap(),
+        );
+        bedrock.set(
+            CapabilityKey::Loaders,
+            Capability::disabled("基岩版没有加载器").unwrap(),
+        );
+
+        // 界面渲染左导航的方式：**只取 enabled 的项**，不写任何产品判断
+        let render = |c: &Capabilities| -> Vec<&'static str> {
+            CapabilityKey::ALL
+                .iter()
+                .filter(|k| c.get(**k).is_some_and(|v| v.is_enabled()))
+                .map(|k| k.as_str())
+                .collect()
+        };
+
+        let j = render(&java);
+        let b = render(&bedrock);
+
+        // 差异点：两边各自出现、各自消失
+        assert!(j.contains(&"shaders"), "Java 应有光影：{:?}", j);
+        assert!(!j.contains(&"behavior_packs"), "Java 不该有行为包");
+        assert!(b.contains(&"behavior_packs"), "基岩应有行为包：{:?}", b);
+        assert!(!b.contains(&"shaders"), "基岩不该有光影");
+        assert!(b.contains(&"skin_packs"), "基岩应有皮肤包");
+        assert!(b.contains(&"product_dependencies"), "基岩应有依赖组件");
+        assert!(!b.contains(&"loaders"), "基岩不该有加载器");
+
+        // 通用项两边都在（**界面不需要为它们写产品判断**）
+        for common in ["launch", "resource_packs", "worlds"] {
+            assert!(j.contains(&common), "Java 应含通用项 {}", common);
+            assert!(b.contains(&common), "基岩应含通用项 {}", common);
+        }
     }
 }
