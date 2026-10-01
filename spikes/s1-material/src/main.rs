@@ -188,6 +188,21 @@ fn main() {
     // Default is OPAQUE (false): that is the configuration we actually intend
     // to ship (material via DWM, no CSS blur). Pass --transparent to test the
     // other side.
+    // ── S3: the ready signal ──────────────────────────────────────────────
+    //
+    // S3 measures COLD START. To do that the harness needs one unambiguous
+    // instant meaning "the window is up and its page has loaded", and it must
+    // come from the app itself rather than from polling for a window title
+    // (polling adds its own latency and can match the wrong window).
+    //
+    // The file is written from Tauri's on_page_load callback, so it exists only
+    // once the webview has actually loaded the page.
+    let ready_path: Option<PathBuf> = arg_value(&args, "--ready-json").map(PathBuf::from);
+
+    // S3 phase A is the "bare window" baseline. Bare means no page content
+    // beyond a title, so the harness passes --no-page to load a minimal page.
+    let no_page = has_flag(&args, "--no-page");
+
     let transparent = has_flag(&args, "--transparent");
 
     // ── S2: does the page exercise `backdrop-filter`? ──────────────────────
@@ -211,7 +226,21 @@ fn main() {
         if blur { "blur" } else { "noblur" }
     );
 
-    let html = build_html(&run_id, &material, dark, decorations, transparent, blur);
+    // ── the page ──────────────────────────────────────────────────────────
+    //
+    // `--no-page` is S3 phase A's "bare window": the smallest page that still
+    // loads, so the measurement is the PLATFORM cost (Tauri + WebView2 + one
+    // paint) rather than the cost of our own first screen. Measuring our real
+    // first screen here would conflate the platform with the app, which is the
+    // same mistake S3's two-phase design exists to avoid.
+    let html = if no_page {
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>S3 bare</title>\
+         <style>html,body{margin:0;height:100%;background:#ffffff}</style></head>\
+         <body></body></html>"
+            .to_string()
+    } else {
+        build_html(&run_id, &material, dark, decorations, transparent, blur)
+    };
     let html_dir = result_path
         .parent()
         .map(|p| p.join(format!("page-{run_id}")))
@@ -248,6 +277,9 @@ fn main() {
     let title = format!("S1 | {run_id}");
     let result_path_setup = result_path.clone();
     let html_path_display = html_url.clone();
+    // Cloned for the on_page_load closure: it is `move`, so it would otherwise
+    // take ownership and the later code could not read the path any more.
+    let ready_path_for_load = ready_path.clone();
 
     tauri::Builder::default()
         .setup(move |app| {
@@ -273,6 +305,34 @@ fn main() {
             // 界面零 CSS 模糊）。透明那一侧是用来验"透明会不会破坏
             // backdrop-filter"的。
             .transparent(transparent)
+            // ── S3: write the ready signal the moment the page has loaded ──
+            //
+            // on_page_load fires after the webview has loaded the URL, i.e. after
+            // the window is up and its content exists. The harness waits for this
+            // file and differences its mtime against the process START time
+            // (reported below as wall_ms / perf_ms), which gives a cold-start
+            // number that does not depend on how often the harness polls.
+            .on_page_load(move |window, _payload| {
+                let Some(path) = ready_path_for_load.clone() else { return };
+                let wall_ms = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as u64)
+                    .unwrap_or(0);
+                let hwnd = window
+                    .hwnd()
+                    .map(|x| format!("{}", x.0 as isize))
+                    .unwrap_or_else(|_| "unavailable".into());
+                let payload = format!(
+                    "{{\"event\":\"page-loaded\",\"wall_ms\":{wall_ms},\"pid\":{},\"hwnd\":\"{hwnd}\"}}",
+                    std::process::id()
+                );
+                // A failure here must be loud: a missing ready file looks exactly
+                // like "the app never became ready", which would corrupt S3.
+                match fs::write(&path, payload) {
+                    Ok(()) => println!("READY_JSON : {}", path.display()),
+                    Err(e) => eprintln!("写 ready JSON 失败 —— {e}"),
+                }
+            })
             .build()?;
 
             // ── 延迟后在后台线程里应用材质 ─────────────────────────────
