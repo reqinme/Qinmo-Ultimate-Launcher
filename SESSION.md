@@ -44,18 +44,33 @@ JDK **8 / 17 / 21 三套齐全** + 额外 11/25 · MSVC 14.51 + Windows SDK 10.0
 
 ## 卡住的 / 待查的
 
-- **⚠️ 收工检查清单新增一条（因一次真实白屏事故）**：
-  **每次改动前端配置或依赖后，必须用真浏览器载一次页面并看 DOM**——
-  因为 `pnpm test` 跑的是纯逻辑、`pnpm build` 不经过 dev server，
-  **两者都绿页面仍可能是白的**。可用的命令（已验证有效）：
+- **⚠️⚠️ 验证方法学（两轮里摔了两次，这条优先级最高）**
+
+  **规则一：验证条件必须与真实使用条件一致。**
+  两次翻车都源于此：
+  1. 用 `HTTP 200` 证明"页面能用" → 实际白屏（200 只证明服务器响应了）。
+  2. 用 `--allow-file-access-from-files` 截图，证明"`dist/index.html` 双击能开"
+     → 真实浏览器**没有**这个 flag，`file://` 下 CORS 必然拒绝加载 ES module。
+
+  **规则二：`file://` 打不开本项目的前端，这不是 bug 而是浏览器安全模型。**
+  `file://` 的 origin 是 `null`，每个文件算独立源，**ES module 一律被 CORS 拦**。
+  与 `base` 是绝对还是相对路径**无关**。
+  → **看界面只能走 HTTP**：dev 用 `http://localhost:5173/`；
+    将来 Tauri 用自定义协议（`tauri://localhost`）——**两条都是 HTTP 语义，都不受此限**。
+  → **永远不要建议"双击 dist/index.html"**。
+
+  **规则三：`--dump-dom` 在本机不可靠**（同一命令一次给 560 字节、一次给 0 字节）。
+  **只认截图**，且截图必须用默认 flag：
   ```powershell
   $edge="${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
   & $edge --headless=new --disable-gpu --hide-scrollbars --window-size=1200,860 `
-    --screenshot="$env:TEMP\shot.png" --virtual-time-budget=8000 `
-    --user-data-dir="$env:TEMP\p" "http://localhost:5173/"
-  # 然后看这张图；或加 --dump-dom 重定向到文件，检查 #root 里有没有内容
+    --screenshot="$env:TEMP\shot.png" --virtual-time-budget=9000 `
+    --user-data-dir="$env:TEMP\qul$((Get-Random))" "http://localhost:5173/"
   ```
-  **注意**：dev server 只绑 IPv6，要用 `http://localhost:5173/`，**不能**用 `127.0.0.1`。
+  **判据**：**28 KB ≈ 有内容；4.7 KB = 纯白**。
+
+  **规则四：dev server 只绑 IPv6**。用 `http://localhost:5173/`，
+  **不要用 `127.0.0.1`**（实测连不上）。
 
 - **git 身份已配置**（仓库级）：`reqinme <328903704+reqinme@users.noreply.github.com>`
   —— 用**新版 noreply 格式**（含账号 ID），这样提交会关联 GitHub 账号但**不暴露真实邮箱**。

@@ -19,6 +19,13 @@ import react from "@vitejs/plugin-react";
  */
 export default defineConfig({
   root: "web",
+  // 相对路径。**理由是 Tauri**：它用自定义协议（tauri://localhost）加载前端，
+  // 绝对路径 '/assets/..' 在那个协议下会 404。
+  //
+  // ⚠️ **不要**把它当成'因此就能双击 dist/index.html 打开'：
+  // file:// 的 origin 是 null，ES module 会被 CORS 一律拦掉（与路径是否相对无关）。
+  // 看界面只能走 HTTP：dev 用 http://localhost:5173/。
+  base: "./",
   plugins: [react()],
   clearScreen: false,
   // 允许 Tauri 注入的环境变量（Tauri 2 用 TAURI_ 前缀）
