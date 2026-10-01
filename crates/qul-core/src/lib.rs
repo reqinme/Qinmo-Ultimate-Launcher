@@ -22,6 +22,7 @@ pub mod caps;
 pub mod layout;
 
 pub mod crash;
+pub mod download;
 pub mod error;
 pub mod identity;
 pub mod java;
@@ -30,6 +31,7 @@ pub mod plan;
 pub mod provider;
 pub mod retry;
 pub mod scrub;
+pub mod source;
 
 pub use caps::{
     Capabilities, Capability, CapabilityKey, CapabilityKind, DetailKey, DisabledItem,
