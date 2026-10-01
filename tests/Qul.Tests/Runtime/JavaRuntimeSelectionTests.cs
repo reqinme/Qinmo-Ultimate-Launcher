@@ -1,3 +1,5 @@
+using Qul.Infrastructure.Launch;
+using Qul.Domain.Configuration;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -343,5 +345,63 @@ public sealed class JavaRuntimeSelectionTests
         {
             return _candidates;
         }
+    }
+    // ---------- 配置 → 来源列表：接线本身 ----------
+
+    [TestMethod]
+    public void BuildJavaProviders_PutsTheManualPathFirstWhenConfigured()
+    {
+        // **这条守的是接线，不是解析器的语义。**
+        //
+        // 解析器早就会优先用手动指定（`Resolver_PrefersTheManualOverride` 守着那一半），
+        // `ManualJavaRuntimeProvider` 也一直存在。缺的是**中间那根线**：
+        // 生产线只传了"本机探测"，于是 `java.mode` / `java.manualPath`
+        // 读写了却从不生效——而 P3 规范写着"用户手动指定覆盖"。
+        //
+        // 两个用例各守一半，合起来才是完整的。
+        IReadOnlyList<IJavaRuntimeProvider> providers = LaunchPipeline.BuildJavaProviders(
+            new JavaSettings { Mode = JavaSelectionMode.Manual, ManualPath = @"C:\some\java.exe" },
+            null);
+
+        Assert.AreEqual(2, providers.Count, "手动 + 探测，两个来源");
+        Assert.AreEqual("manual", providers[0].Name, "手动指定必须排在第一个");
+        Assert.AreEqual("detected", providers[1].Name, "本机探测仍在，用于回落");
+    }
+
+    [TestMethod]
+    public void BuildJavaProviders_DoesNotAddAManualSourceWhenTheModeIsAuto()
+    {
+        // 自动模式下即使填了路径也不该生效——否则用户改成"自动"却仍被手动路径劫持。
+        IReadOnlyList<IJavaRuntimeProvider> providers = LaunchPipeline.BuildJavaProviders(
+            new JavaSettings { Mode = JavaSelectionMode.Auto, ManualPath = @"C:\some\java.exe" },
+            null);
+
+        Assert.AreEqual(1, providers.Count);
+        Assert.AreEqual("detected", providers[0].Name);
+    }
+
+    [TestMethod]
+    public void BuildJavaProviders_SkipsAnEmptyManualPath()
+    {
+        // 选了手动却没填路径：不要造一个永远返回空的来源。
+        foreach (string? empty in new string?[] { null, string.Empty, "   " })
+        {
+            IReadOnlyList<IJavaRuntimeProvider> providers = LaunchPipeline.BuildJavaProviders(
+                new JavaSettings { Mode = JavaSelectionMode.Manual, ManualPath = empty },
+                null);
+
+            Assert.AreEqual(1, providers.Count, "空路径不应产生手动来源：" + (empty ?? "<null>"));
+            Assert.AreEqual("detected", providers[0].Name);
+        }
+    }
+
+    [TestMethod]
+    public void BuildJavaProviders_SurvivesANullSettingsObject()
+    {
+        // 防御：配置对象缺失时仍然给出可用的探测来源，而不是抛。
+        IReadOnlyList<IJavaRuntimeProvider> providers = LaunchPipeline.BuildJavaProviders(null!, null);
+
+        Assert.AreEqual(1, providers.Count);
+        Assert.AreEqual("detected", providers[0].Name);
     }
 }

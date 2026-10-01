@@ -555,6 +555,35 @@ public sealed class LaunchPipeline
     }
     // ---------- 辅助 ----------
 
+    /// <summary>
+    /// 按配置组装 Java 来源。**手动指定排在第一个**（解析器的覆盖语义是"手动优先"）。
+    ///
+    /// **抽成静态纯函数是为了能直接测。** <see cref="LaunchPipeline"/> 要 <c>BootContext</c>
+    /// 才能实例化，而"配置 → 来源列表"这段逻辑本身什么都不需要。
+    ///
+    /// 这一段先前**根本不存在**：生产线只传 <c>DetectedJavaRuntimeProvider</c>，
+    /// 于是 `java.mode` / `java.manualPath` 两个配置项读写了却从不生效——
+    /// 而 P3 规范白纸黑字写着"用户手动指定覆盖"。那是八个死配置里唯一**违反已写下要求**的一个。
+    /// </summary>
+    public static IReadOnlyList<IJavaRuntimeProvider> BuildJavaProviders(JavaSettings java, SessionLog? log)
+    {
+        List<IJavaRuntimeProvider> providers = new List<IJavaRuntimeProvider>();
+
+        if (java != null
+            && java.Mode == JavaSelectionMode.Manual
+            && !string.IsNullOrWhiteSpace(java.ManualPath))
+        {
+            string manualPath = java.ManualPath!;
+
+            // 用访问器而不是值：Provider 每次 Discover 时现取，路径改了立刻反映。
+            providers.Add(new ManualJavaRuntimeProvider(new JavaExecutableProbe(log), () => manualPath));
+        }
+
+        // 本机探测永远排在后面：手动指定优先，但它跑不起来时仍要能回落到探测。
+        providers.Add(new DetectedJavaRuntimeProvider());
+
+        return providers;
+    }
     private JavaResolutionOutcome ResolveJavaCached(int requiredMajor)
     {
         lock (_javaGate)
@@ -566,7 +595,7 @@ public sealed class LaunchPipeline
         }
 
         JavaResolutionOutcome outcome = new JavaRuntimeResolver(
-            new IJavaRuntimeProvider[] { new DetectedJavaRuntimeProvider() })
+            BuildJavaProviders(_boot.Config.Java, _log))
             .Resolve(new JavaSelectionRequest { RequiredMajorVersion = requiredMajor });
 
         lock (_javaGate)
