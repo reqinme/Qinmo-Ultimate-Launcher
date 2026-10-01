@@ -23,6 +23,7 @@ pub mod layout;
 
 pub mod error;
 pub mod java;
+pub mod retry;
 
 pub use caps::{
     Capabilities, Capability, CapabilityKey, CapabilityKind, DetailKey, DisabledItem,

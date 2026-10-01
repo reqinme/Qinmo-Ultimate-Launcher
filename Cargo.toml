@@ -7,6 +7,18 @@ members = ["crates/qul-core", "crates/qul-infra", "crates/qul-app", "crates/qul-
 # 排除之后它仍是**合法可构建**的独立包（`cargo build --manifest-path spikes/.../Cargo.toml`）。
 exclude = ["spikes"]
 
+# ── 工作区统一的包元数据 ──────────────────────────────────────
+[workspace.package]
+# **1.89 是硬下限，不是随手填的数字。**
+#
+# `std::fs::File::lock` / `try_lock`（原子写与文件锁的底座，见 ADR-0013）
+# 正是在 1.89 稳定。声明一个更低的 MSRV 不会让代码在新工具链上跑得更广，
+# 只会让"1.77 也能编"这句话变成**假的**——而这个谎在 CI 换工具链时才会暴露。
+#
+# 这一条是 `cargo clippy` 抓出来的：`-D warnings` 下 MSRV 不匹配是 error。
+# 也就是说**测试全绿的同时，声明可以是错的**——能被工具检查的声明，就该让工具去检查。
+rust-version = "1.89"
+
 # ── 工作区统一依赖版本（成员 crate 用 `dep.workspace = true` 引用）──
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

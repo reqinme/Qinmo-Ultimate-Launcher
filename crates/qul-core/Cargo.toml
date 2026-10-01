@@ -2,7 +2,8 @@
 name = "qul-core"
 version = "0.0.0"
 edition = "2021"
-rust-version = "1.77"
+# MSRV 由工作区统一声明：`std::fs::File::lock` 需要 1.89（原子写与文件锁用到）。
+rust-version.workspace = true
 description = "内核：通用模型 + 规则（零 IO、零 Tauri、零 MC 词汇）"
 publish = false
 

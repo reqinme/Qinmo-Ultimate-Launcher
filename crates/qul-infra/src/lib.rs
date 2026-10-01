@@ -7,4 +7,5 @@
 //!
 //! 本层目前只有一块内容：Java 运行时探测（方案 M0 尖刺 S6）。
 
+pub mod fsx;
 pub mod java;

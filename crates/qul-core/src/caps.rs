@@ -622,7 +622,8 @@ impl Capabilities {
     /// 前者已由 [`CapabilityWire`] 拦截，本方法用于测试与运行时断言。
     pub fn validate(&self) -> Result<(), ReasonError> {
         for v in self.universal.values().chain(self.detail.values()) {
-            if !v.is_enabled() && v.reason().map_or(true, |r| r.trim().is_empty()) {
+            // `is_none_or` 需要 Rust 1.82+；工作区 MSRV 已是 1.89（见根 `Cargo.toml`）。
+            if !v.is_enabled() && v.reason().is_none_or(|r| r.trim().is_empty()) {
                 return Err(ReasonError);
             }
         }

@@ -2,7 +2,8 @@
 name = "qul-infra"
 version = "0.0.0"
 edition = "2021"
-rust-version = "1.77"
+# MSRV 由工作区统一声明：`std::fs::File::lock` 需要 1.89（原子写与文件锁用到）。
+rust-version.workspace = true
 description = '基础设施：一切碰文件系统 / 注册表 / 子进程 / 网络的东西'
 publish = false
 
