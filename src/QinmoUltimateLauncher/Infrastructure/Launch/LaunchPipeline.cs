@@ -236,6 +236,16 @@ public sealed class LaunchPipeline
         for (int i = 0; i < resolution.Notes.Count; i++)
         {
             notes.Add(resolution.Notes[i]);
+
+            // **把 Java 解析的说明写进日志。**
+            //
+            // 解析器精心记了"为什么没用你指定的 Java"（不可用 / 不满足要求），
+            // 但先前**没有任何地方显示它们**——于是它注释里那句
+            // "静默回落会让用户以为自己的设置生效了"在实际上依然成立：
+            // 用户在配置里指定了 Java，程序用了别的，而他一无所知。
+            //
+            // 这些说明同时是排障时最需要的东西，所以进日志（也就进了诊断报告）。
+            _log.Info("java", resolution.Notes[i]);
         }
 
         if (!resolution.Succeeded)
