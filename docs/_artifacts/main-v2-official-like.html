@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>秦墨 · 主界面（仿官方布局）</title>
+<style>
+/* ==========================================================================
+   主界面 v2 · 布局结构参照官方启动器（左栏 + 大横幅 + 搜索 + 内容区 + 右栏）
+   但：**文字全部自己写、图形全部自绘** —— 不复制任何素材。
+   令牌/层次/描边/排版用我们自己的体系（UI 规格 v1.7）。
+
+   关于"素材"的说明：真实产品需要**自绘**或**用户自有**的封面图。
+   这里用中性渐变块占位 —— 既避免版权问题，也让"哪里该放什么图"一目了然。
+   ========================================================================== */
+:root{
+  --surface-panel:rgb(0 0 0 / 5%);
+  --surface-card:rgb(255 255 255 / 66%);
+  --surface-raised:#ffffff;
+  --surface-active:rgb(0 0 0 / 8%);
+  --surface-selected:rgb(0 0 0 / 9%);
+  --surface-hover:rgb(0 0 0 / 5%);
+  --stroke-subtle:rgb(0 0 0 / 12%);
+  --stroke-strong:rgb(0 0 0 / 24%);
+  --divider:rgb(0 0 0 / 8%);
+  --text-primary:#1a1a1c; --text-secondary:#4a4a4f; --text-disabled:#8e8e93;
+  --accent:#0a66c2; --text-on-accent:#fff;
+  --java:#0a66c2; --sandbox:#1a7f37; --other:#8250df;
+  --radius-md:8px; --radius-lg:12px;
+  --hairline:1px;
+  --elev-2:0 10px 28px rgb(0 0 0 / 18%);
+  --font-ui:"Microsoft YaHei UI","Noto Sans SC",system-ui,sans-serif;
+  --font-mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+  --edge:linear-gradient(135deg, rgb(255 255 255 / 88%), rgb(255 255 255 / 38%));
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{ font:14px/1.6 var(--font-ui); color:var(--text-primary); background:#cfccc8; padding:22px 24px 6px; }
+.mica{ position:fixed; inset:0; z-index:-2;
+  background:radial-gradient(1200px 800px at 22% 12%, #b9b4ae 0%, #cbc7c2 45%, #dcd9d5 100%), #cfccc8; }
+.mica-tint{ position:fixed; inset:0; z-index:-1;
+  background:linear-gradient(180deg, rgb(240 238 235 / 80%), rgb(233 230 227 / 86%)); }
+
+.sheet{ max-width:1400px; margin:0 auto 20px; }
+.sheet h2{ font-size:15px; font-weight:600; margin:0 0 2px; }
+.sheet .cap{ font-size:12px; color:var(--text-disabled); margin:0 0 9px; }
+
+.win{ width:1360px; height:760px; border-radius:10px; overflow:hidden;
+  border:var(--hairline) solid var(--stroke-subtle);
+  display:grid; grid-template-rows:38px 1fr 26px; }
+
+/* ---------- 标题栏 ---------- */
+.tb{ display:flex; align-items:center; gap:12px; padding-left:12px; }
+.brand{ display:flex; align-items:center; gap:8px; font-weight:600; font-size:15px; white-space:nowrap; }
+.brand .mk{ width:19px;height:19px;border-radius:5px;background:linear-gradient(140deg,#0a66c2,#6d4aff);
+  display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff; }
+.tb-spacer{ flex:1; }
+.wc{ display:flex; }
+.wc div{ width:46px;height:38px;display:grid;place-items:center;color:var(--text-secondary);font-size:11px; }
+
+/* ---------- 主体：左栏 236 / 内容 / 右栏 260 ---------- */
+.body{ display:grid; grid-template-columns:236px 1fr 260px; min-height:0; }
+
+.side{ border-right:var(--hairline) solid var(--divider); display:flex; flex-direction:column; min-height:0; }
+
+/* 账户卡 */
+.acct{ display:flex; align-items:center; gap:11px; padding:13px 16px; border-bottom:var(--hairline) solid var(--divider); }
+.acct .av{ width:34px;height:34px;border-radius:50%;flex:0 0 auto;
+  background:linear-gradient(150deg,#0a66c2,#6d4aff); display:grid;place-items:center;
+  font-size:14px;font-weight:700;color:#fff }
+.acct .nm{ font-size:13px;font-weight:600; line-height:1.25; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap }
+.acct .sub{ font-size:11px;color:var(--text-secondary) }
+
+/* 产品族切换：**这是仿官方最重要的一处结构**
+   官方把"产品"摆成左栏的一列（且每个产品各占一行）。
+   我们只有两个产品，所以用**紧凑两行**，不给它占满整栏 */
+.products{ padding:10px 10px 4px; display:grid; gap:2px; }
+.prod{ display:flex; align-items:center; gap:11px; height:38px; padding:0 11px;
+  border-radius:8px; color:var(--text-secondary); font-size:13.5px; position:relative; }
+.prod .sq{ width:20px;height:20px;border-radius:5px;flex:0 0 auto; display:grid;place-items:center;
+  font-size:10px;font-weight:700;color:#fff }
+.prod.on{ background:var(--surface-selected); color:var(--text-primary); }
+.prod.on::before{ content:"";position:absolute;left:0;top:8px;bottom:8px;width:2px;
+  border-radius:2px;background:var(--accent) }
+.prod .tag{ margin-left:auto; font-size:10.5px; color:var(--text-disabled) }
+
+/* 一级导航（我们自己的七项，顺序按用户定稿） */
+.nav{ padding:6px 10px 10px; display:grid; gap:1px; border-bottom:var(--hairline) solid var(--divider); }
+.nav a{ display:flex;align-items:center;gap:11px;height:34px;padding:0 11px;border-radius:8px;
+  color:var(--text-secondary);text-decoration:none;font-size:14px;position:relative }
+.nav a.on{ background:var(--surface-selected); color:var(--text-primary) }
+.nav a.on::before{ content:"";position:absolute;left:0;top:8px;bottom:8px;width:2px;
+  border-radius:2px;background:var(--accent) }
+.nav a .n{ margin-left:auto;font-size:11px;color:var(--text-disabled) }
+.nav a .badge{ margin-left:auto; min-width:16px;height:16px;padding:0 5px;border-radius:999px;
+  background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center }
+
+.side-btm{ margin-top:auto; padding:8px 10px 10px; display:grid; gap:1px;
+  border-top:var(--hairline) solid var(--divider) }
+.side-btm a{ display:flex;align-items:center;gap:11px;height:34px;padding:0 11px;border-radius:8px;
+  color:var(--text-secondary);text-decoration:none;font-size:14px }
+.verline{ padding:0 12px 10px; font:11px/1.4 var(--font-mono); color:var(--text-disabled) }
+
+/* ---------- 内容区 ---------- */
+.content{ padding:16px 18px; overflow:hidden; display:flex; flex-direction:column; gap:13px; min-width:0 }
+.hero{ position:relative; border-radius:var(--radius-lg); overflow:hidden; height:280px; flex:0 0 auto;
+  border:var(--hairline) solid var(--stroke-subtle);
+  /* 中性渐变占位：真实产品这里是**自绘或用户自有**的封面图 */
+  background:
+    radial-gradient(600px 300px at 18% 20%, #6d4aff55, transparent 70%),
+    radial-gradient(700px 400px at 75% 70%, #0a66c255, transparent 72%),
+    linear-gradient(135deg,#2b2f3a,#3a3f4d 55%,#4a4034); }
+.hero .scrim{ position:absolute; inset:0;
+  background:linear-gradient(90deg, rgb(0 0 0 / 62%) 0%, rgb(0 0 0 / 34%) 45%, transparent 72%) }
+.hero .art-note{ position:absolute; right:12px; top:10px; font-size:11px; color:#ffffffb0 }
+.hero .txt{ position:absolute; left:24px; bottom:22px; right:48%; color:#fff }
+.hero .txt h3{ margin:0 0 8px; font-size:26px; font-weight:600; letter-spacing:.2px }
+.hero .txt p{ margin:0 0 14px; font-size:13.5px; line-height:1.65; color:#ffffffd0 }
+.hero .pause{ position:absolute; right:18px; bottom:18px; width:34px;height:34px;border-radius:8px;
+  background:rgb(0 0 0 / 45%); border:var(--hairline) solid #ffffff40; color:#fff;
+  display:grid;place-items:center; font-size:13px }
+
+.btn{ height:34px;padding:0 20px;border-radius:8px;display:inline-flex;align-items:center;gap:8px;
+  font-size:14px;font-weight:600;border:var(--hairline) solid transparent }
+.btn--primary{ background:var(--accent);color:var(--text-on-accent) }
+.btn--ghost{ background:rgb(255 255 255 / 58%);color:var(--text-primary);border-color:var(--stroke-subtle);font-weight:500 }
+.btn--on-art{ background:rgb(255 255 255 / 16%); color:#fff; border-color:#ffffff45; font-weight:500 }
+.btn--sm{ height:28px;font-size:13px;padding:0 12px }
+
+/* 搜索行 */
+.searchrow{ display:flex; align-items:center; gap:10px; flex:0 0 auto }
+.search{ flex:1; display:flex;align-items:center;gap:9px;height:38px;padding:0 14px;
+  border:var(--hairline) solid var(--stroke-strong); border-radius:8px; background:var(--surface-card);
+  color:var(--text-disabled); font-size:14px }
+.filter{ display:flex;align-items:center;gap:7px;height:38px;padding:0 14px;border-radius:8px;
+  border:var(--hairline) solid var(--stroke-subtle); background:var(--surface-card);
+  color:var(--text-secondary); font-size:13px }
+
+/* 内容卡 */
+.sectionhead{ display:flex; align-items:center; gap:10px; font-size:15px; font-weight:600; flex:0 0 auto }
+.sectionhead .muted{ font-size:12px; color:var(--text-disabled); font-weight:400 }
+.cards{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; min-height:0 }
+.card{ border:var(--hairline) solid transparent; border-radius:var(--radius-lg); overflow:hidden;
+  background:linear-gradient(var(--surface-card),var(--surface-card)) padding-box, var(--edge) border-box;
+  display:flex; flex-direction:column }
+.card .thumb{ height:96px; flex:0 0 auto }
+.card .cb{ padding:10px 12px 12px; display:flex; flex-direction:column; gap:3px; min-height:0 }
+.card .t{ font-size:13.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.card .d{ font-size:11.5px; color:var(--text-secondary); line-height:1.5;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
+.card .m{ font-size:11px; color:var(--text-disabled); margin-top:auto; padding-top:6px;
+  display:flex; align-items:center; gap:6px }
+
+/* ---------- 右栏 ---------- */
+.rail{ border-left:var(--hairline) solid var(--divider); padding:16px 14px;
+  display:flex; flex-direction:column; gap:12px; min-height:0; overflow:hidden }
+.rail h4{ margin:0; font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:8px }
+.tile{ border-radius:10px; overflow:hidden; border:var(--hairline) solid var(--stroke-subtle);
+  position:relative; flex:0 0 auto }
+.tile .cap{ position:absolute; left:10px; bottom:8px; right:10px; color:#fff; font-size:12.5px;
+  font-weight:600; text-shadow:0 1px 6px rgb(0 0 0 / 60%) }
+.tile .art-note{ position:absolute; right:8px; top:6px; font-size:10px; color:#ffffff9c }
+.dl{ border:var(--hairline) solid transparent; border-radius:10px; padding:10px 12px;
+  background:linear-gradient(var(--surface-card),var(--surface-card)) padding-box, var(--edge) border-box }
+.dl .bar{ height:5px;border-radius:3px;background:var(--surface-active);overflow:hidden;margin-top:8px }
+.dl .bar i{ display:block;height:100%;background:var(--accent) }
+
+.statusbar{ display:flex;align-items:center;gap:12px;padding:0 16px;border-top:var(--hairline) solid var(--divider);
+  color:var(--text-secondary);font-size:12px;font-family:var(--font-mono) }
+.statusbar .grow{flex:1}
+.statusbar .pill{border:var(--hairline) solid var(--stroke-subtle);border-radius:999px;padding:1px 8px}
+.badge-p{ font-size:10.5px; padding:1px 6px; border-radius:999px; border:var(--hairline) solid var(--stroke-subtle);
+  background:rgb(255 255 255 / 55%); color:var(--text-secondary) }
+</style>
+</head>
+<body>
+<div class="mica"></div><div class="mica-tint"></div>
+
+<div class="sheet">
+  <h2>主界面 v2 · 仿官方布局</h2>
+  <p class="cap">
+    结构照官方：<b>左栏（账户 + 产品 + 导航）· 大横幅 · 搜索行 · 内容卡 · 右栏（推荐 + 下载）</b>。
+    但文字全部自己写、图形全部自绘（横幅与缩略图是<b>中性渐变占位</b>——真实产品这里要放自绘或用户自有的封面图）。
+  </p>
+
+  <div class="win">
+    <!-- 标题栏 -->
+    <div class="tb">
+      <div class="brand"><span class="mk">秦</span>秦墨</div>
+      <div class="tb-spacer"></div>
+      <div class="wc"><div>─</div><div>▢</div><div>✕</div></div>
+    </div>
+
+    <div class="body">
+      <!-- ============ 左栏 ============ -->
+      <nav class="side">
+        <div class="acct">
+          <div class="av">R</div>
+          <div style="min-width:0">
+            <div class="nm">reqinme</div>
+            <div class="sub">Microsoft 账户</div>
+          </div>
+        </div>
+
+        <!-- 产品：官方把产品摆成一列；我们只有两个，所以紧凑两行 -->
+        <div class="products">
+          <div class="prod on"><span class="sq" style="background:var(--java)">J</span>Minecraft：Java 版
+            <span class="tag">6</span></div>
+          <div class="prod"><span class="sq" style="background:var(--sandbox)">B</span>Minecraft：基岩版
+            <span class="tag">2</span></div>
+        </div>
+
+        <!-- 一级导航（用户定稿的七项，上四下三） -->
+        <div class="nav">
+          <a class="on"><span>⌂</span>主页</a>
+          <a><span>▤</span>实例<span class="n">8</span></a>
+          <a><span>↓</span>下载<span class="badge">3</span></a>
+        </div>
+        <div class="side-btm">
+          <a><span>◉</span>账号管理</a>
+          <a><span>▦</span>百宝箱</a>
+          <a><span>⚒</span>设置</a>
+          <a><span>ⓘ</span>关于</a>
+          <div class="verline" style="margin-top:4px">v0.1.0</div>
+        </div>
+      </nav>
+
+      <!-- ============ 内容区 ============ -->
+      <main class="content">
+        <!-- 大横幅 -->
+        <div class="hero">
+          <div class="scrim"></div>
+          <div class="art-note">封面图为占位 · 真实产品需自绘或用户自有</div>
+          <div class="txt">
+            <h3>1.20.1 · Fabric 已就绪</h3>
+            <p>上次运行 2 小时前 · 内存 4096 MB · 38 个模组 · 依赖已校验
+              <br>本次启动预计 8 秒</p>
+            <div style="display:flex;gap:10px;align-items:center">
+              <button class="btn btn--primary" style="height:40px;font-size:15px;padding:0 30px">▶&nbsp; 启动</button>
+              <button class="btn btn--on-art">管理实例</button>
+              <button class="btn btn--on-art">打开目录</button>
+            </div>
+          </div>
+          <div class="pause">❙❙</div>
+        </div>
+
+        <!-- 搜索行 -->
+        <div class="searchrow">
+          <div class="search">⌕&nbsp; 要找什么？实例、模组、整合包、版本…</div>
+          <div class="filter">筛选 ⋮≡</div>
+        </div>
+
+        <!-- 内容卡 -->
+        <div class="sectionhead">最近运行 <span class="muted">按上次启动时间</span></div>
+        <div class="cards">
+          <div class="card">
+            <div class="thumb" style="background:linear-gradient(135deg,#3b4a6b,#5b6d92)"></div>
+            <div class="cb">
+              <div class="t">1.21.4 · 原版</div>
+              <div class="d">昨天 · 1 小时 12 分 · 无模组</div>
+              <div class="m"><span class="badge-p">Java</span><span>启动</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="thumb" style="background:linear-gradient(135deg,#5a4632,#8a6a44)"></div>
+            <div class="cb">
+              <div class="t">1.19.2 · Forge</div>
+              <div class="d">3 天前 · 4 小时 05 分 · 84 个模组</div>
+              <div class="m"><span class="badge-p">Java</span><span>启动</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="thumb" style="background:linear-gradient(135deg,#2f5a3a,#4e8a5c)"></div>
+            <div class="cb">
+              <div class="t">基岩版 · 1.21.120</div>
+              <div class="d">上周 · 38 分 · 沙箱形态，内容包不可管理</div>
+              <div class="m"><span class="badge-p">基岩</span><span>启动</span></div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- ============ 右栏 ============ -->
+      <aside class="rail">
+        <h4>推荐 <span class="muted" style="font-size:11px;font-weight:400">自绘占位</span></h4>
+        <div class="tile" style="height:112px;background:linear-gradient(135deg,#5b3a8a,#8a5bd0)">
+          <div class="art-note">占位</div>
+          <div class="cap">整合包推荐</div>
+        </div>
+        <div class="tile" style="height:96px;background:linear-gradient(135deg,#8a4a3a,#c07a4a)">
+          <div class="art-note">占位</div>
+          <div class="cap">本周热门模组</div>
+        </div>
+        <div class="tile" style="height:80px;background:linear-gradient(135deg,#3a5a8a,#4a7ac0)">
+          <div class="art-note">占位</div>
+          <div class="cap">新版本速览</div>
+        </div>
+
+        <h4 style="margin-top:4px">下载中 <span class="badge-p">3</span></h4>
+        <div class="dl">
+          <div style="font-size:12.5px;font-weight:600">1.21.4 客户端</div>
+          <div class="mono" style="font-size:11px;color:var(--text-secondary);margin-top:2px">62% · 1.2/1.9 GB · ↓12.4 MB/s</div>
+          <div class="bar"><i style="width:62%"></i></div>
+        </div>
+        <div class="dl">
+          <div style="font-size:12.5px;font-weight:600">Fabric 加载器</div>
+          <div class="mono" style="font-size:11px;color:var(--text-secondary);margin-top:2px">排队中 · 第 2 位</div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="statusbar">
+      <span>v0.1.0</span><span class="pill">Minecraft：Java 版</span><span>官方源</span><span>↓ 12.4 MB/s</span>
+      <span class="grow"></span><span>Java 21 · 内存 118 MB</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>
