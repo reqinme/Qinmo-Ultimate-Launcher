@@ -1,0 +1,43 @@
+[
+  {
+    "_readme": [
+      "离线 UUID 的交叉验证向量。",
+      "",
+      "WHY THIS FILE EXISTS:",
+      "  离线 UUID 的推导规则**不是我们发明的** —— 它必须与服务器推导出来的一致，",
+      "  否则同一个名字在本地与服务器上会是两个人（物品栏、权限、白名单全对不上）。",
+      "",
+      "  所以它不是'我们的实现'，而是**一个跨启动器的兼容契约**。",
+      "  本项目自己的一份文档早就把它记成了那样：",
+      "    docs/XMCL-源码调研.md:186 —— 「离线 UUID 的生成规则（OfflinePlayer:<name>",
+      "    的 MD5 变体）……**跨启动器兼容契约**」",
+      "    docs/XMCL-源码调研.md:309 —— 「**值得独立成模块 + 测试**」",
+      "",
+      "HOW THESE VECTORS WERE MADE (see xmcl-cross-check.cjs):",
+      "  用 XMCL 的**原始实现**在 Node 里算出来，而算了两遍：",
+      "    ① 走 Node 的 crypto 模块（对应 XMCL 的 index.ts）",
+      "    ② 走一份**手写的 MD5**（对应 XMCL 的 index.browser.ts，逐行照搬其结构）",
+      "  两者必须一致，否则脚本自己退出非零。",
+      "",
+      "  于是这个文件承载的是**三份独立实现的互证**：",
+      "    HMCL          OfflineAccountFactory.java:86",
+      "    Prism         MinecraftAccount.cpp:282（含字节级的 version/variant 操作）",
+      "    XMCL          packages/user-offline-uuid/",
+      "",
+      "⚠️ 而它们**都是 MD5（v3）**，不是 SHA-1（v5）。",
+      "   `nameUUIDFromBytes` 这个名字听起来像 SHA-1 —— 我据此以为错过一次。",
+      "   Prism 那份再实现把字节级操作写全了，是这个判据的决定性证据。",
+      "",
+      "用法：crates/qul-core/tests/offline_uuid_vectors.rs 读它并逐串比对。",
+      "**不要手工编辑下面的 uuid 值** —— 它们来自外部实现，改了就失去互证意义。"
+    ]
+  },
+  { "name": "Steve", "uuid": "5627dd98-e6be-3c21-b8a8-e92344183641" },
+  { "name": "Alex", "uuid": "36532b5e-c442-3dbb-a24c-c7e55d0f979a" },
+  { "name": "Notch", "uuid": "b50ad385-829d-3141-a216-7e7d7539ba7f" },
+  { "name": "abc", "uuid": "3d5cec06-bd15-31fa-982f-5dac8c06f1c7" },
+  { "name": "a_b_c", "uuid": "f27d3579-dae6-31d8-af42-92c0b5e0b8f8" },
+  { "name": "TestUser123", "uuid": "fc484a9b-4142-3457-8016-f639bdb119cf" },
+  { "name": "xxxxxxxxxxxxxxxx", "uuid": "747ff128-9900-304c-93a4-99b22af9f083" },
+  { "name": "qinme", "uuid": "3cc633ee-3fe1-3544-9257-cbb088b9ec4f" }
+]

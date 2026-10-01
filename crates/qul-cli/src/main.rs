@@ -25,6 +25,7 @@ mod i18n_demo;
 mod instance_demo;
 mod java_plan;
 mod launch_demo;
+mod offline_demo;
 mod scrub_demo;
 use qul_app::AppService;
 use qul_core::java::{choose_java, missing_java_message, GameVersion};
@@ -38,6 +39,18 @@ fn main() {
         Some("scrub-demo") => std::process::exit(scrub_demo::run_scrub_demo()),
         Some("i18n-demo") => std::process::exit(i18n_demo::run_i18n_demo()),
         Some("instance-demo") => std::process::exit(instance_demo::run_instance_demo()),
+        Some("offline-demo") => {
+            // 可选的位置参数：账户名（默认 `Steve`）。
+            let pos: Vec<String> = args
+                .iter()
+                .skip(1)
+                .filter(|a| !a.starts_with("--"))
+                .cloned()
+                .collect();
+            std::process::exit(offline_demo::run_offline_demo(
+                pos.first().map(|s| s.as_str()),
+            ));
+        }
         Some("java-plan") => {
             // 可选的位置参数：版本 id。而 `--assumptions` 走另一个取证 ——
             // **刻意分成两个输出**：选 Java 与"我们做了哪些假设"是两个不同的问题，

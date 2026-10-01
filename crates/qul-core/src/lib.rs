@@ -32,6 +32,7 @@ pub mod inflate;
 pub mod instance;
 pub mod java;
 pub mod migrate;
+pub mod offline;
 pub mod plan;
 pub mod provider;
 pub mod retry;
