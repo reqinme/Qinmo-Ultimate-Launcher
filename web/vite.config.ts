@@ -29,17 +29,24 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     /**
-     * **显式声明 charset。**
+     * ⚠️ **这里刻意不设 `headers`。教训记在下面。**
      *
-     * 实测 Vite dev server 返回 `Content-Type: text/html`（**不带 charset**），
-     * 那次是靠 HTML 里的 `<meta charset="UTF-8">` 兜住的。
-     * 但界面里到处是中文（以及那个最要紧的"禁用原因"）
-     * ——**编码只能靠猜的时候，中文是最先坏的那一类内容。**
-     * 显式声明不花任何代价，何必留一个"只要 meta 忘了就全乱"的隐患。
+     * 我一度为了"显式声明 charset"加了：
+     * ```js
+     * headers: { "Content-Type": "text/html; charset=utf-8" }
+     * ```
+     * **这一行把整个页面干成了白屏。** 因为 Vite dev server 的 `headers`
+     * 会作用于**所有**响应（包括 `/src/*.tsx`），于是 JS 模块被标成 `text/html`，
+     * 而浏览器对 ES module **强制校验 MIME 类型** → 拒绝执行 → React 不挂载。
+     *
+     * **修法不是"给 JS 也配一个头"，而是根本不设这个头**：
+     * Vite 对每种文件本就给出正确的 Content-Type，
+     * 而中文编码的问题 HTML 里的 `<meta charset="UTF-8">` 已经解决
+     * （实测 `document.title` 取到的就是「秦墨」，不是乱码）。
+     *
+     * **通用教训**：想在"传输层"给整个 server 加一条通用规则时，
+     * 先问它会不会盖掉框架**按文件类型**做的正确判断。
      */
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-    },
     // 只监听 web/ 子树，避免把 repos/ 的变动也当成"项目源文件变了"
     watch: {
       ignored: ["**/repos/**", "**/_archive/**", "**/target/**"],

@@ -44,6 +44,19 @@ JDK **8 / 17 / 21 三套齐全** + 额外 11/25 · MSVC 14.51 + Windows SDK 10.0
 
 ## 卡住的 / 待查的
 
+- **⚠️ 收工检查清单新增一条（因一次真实白屏事故）**：
+  **每次改动前端配置或依赖后，必须用真浏览器载一次页面并看 DOM**——
+  因为 `pnpm test` 跑的是纯逻辑、`pnpm build` 不经过 dev server，
+  **两者都绿页面仍可能是白的**。可用的命令（已验证有效）：
+  ```powershell
+  $edge="${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
+  & $edge --headless=new --disable-gpu --hide-scrollbars --window-size=1200,860 `
+    --screenshot="$env:TEMP\shot.png" --virtual-time-budget=8000 `
+    --user-data-dir="$env:TEMP\p" "http://localhost:5173/"
+  # 然后看这张图；或加 --dump-dom 重定向到文件，检查 #root 里有没有内容
+  ```
+  **注意**：dev server 只绑 IPv6，要用 `http://localhost:5173/`，**不能**用 `127.0.0.1`。
+
 - **git 身份已配置**（仓库级）：`reqinme <328903704+reqinme@users.noreply.github.com>`
   —— 用**新版 noreply 格式**（含账号 ID），这样提交会关联 GitHub 账号但**不暴露真实邮箱**。
 - **Minecraft 未安装**（`%APPDATA%\.minecraft` 不存在）→ S10「干净环境」与 S11「官方能力基线」**暂不可做**（属 U11）。
