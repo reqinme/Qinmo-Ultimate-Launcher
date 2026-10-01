@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>灵动岛 · 状态细节</title>
+<style>
+:root{
+  --gray-9:#f5f5f7; --gray-7:#a1a1a6; --gray-5:#6e6e73; --gray-3:#2c2c2e;
+  --accent-5:#4c9aff; --success-5:#3fb950; --warning-5:#d29922;
+  --surface-panel:rgb(255 255 255 / 8%);
+  --surface-card:rgb(255 255 255 / 12%);
+  --surface-raised:#242426;
+  --surface-active:rgb(255 255 255 / 10%);
+  --stroke-subtle:rgb(255 255 255 / 10%);
+  --stroke-strong:rgb(255 255 255 / 20%);
+  --text-primary:#f2f2f4; --text-secondary:#a1a1a6; --text-disabled:#6e6e73;
+  --accent:var(--accent-5);
+  --radius-md:8px; --radius-lg:12px; --radius-xl:16px;
+  --hairline:1px;
+  --elev-2:0 8px 24px rgb(0 0 0 / 34%);
+  --font-ui:"Microsoft YaHei UI","Noto Sans SC",system-ui,sans-serif;
+  --font-mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; padding:28px 32px;
+  font:14px/1.6 var(--font-ui); color:var(--text-primary);
+  background:radial-gradient(1000px 600px at 20% 0%, #3a3a40 0%, #232327 55%, #191a1d 100%), #1b1c1f;
+}
+h1{ font-size:20px; font-weight:600; margin:0 0 4px; }
+.sub{ color:var(--text-secondary); font-size:13px; margin:0 0 26px; }
+.grid{ display:grid; grid-template-columns:280px 1fr; gap:16px 26px; align-items:center; }
+.label{ color:var(--text-secondary); font-size:13px; }
+.label b{ color:var(--text-primary); font-weight:600; display:block; font-size:14px; }
+.label span{ font-size:12px; color:var(--text-disabled); }
+
+/* ---------- 岛的外形：Compact 高 32 / Expanded 高 ≤220 ---------- */
+.island{
+  display:inline-flex; align-items:center; gap:10px;
+  height:32px; padding:0 12px;
+  border:var(--hairline) solid var(--stroke-strong);
+  border-radius:999px;
+  background:var(--surface-raised);
+  box-shadow:var(--elev-2);
+  white-space:nowrap;
+}
+.island .dot{ width:7px; height:7px; border-radius:50%; background:var(--success-5); }
+.island .sep{ width:var(--hairline); height:14px; background:var(--stroke-subtle); }
+.island .who{ font-size:13px; color:var(--text-secondary); }
+.island .mono{ font-family:var(--font-mono); font-size:13px; }
+.island .spin{
+  width:12px;height:12px;border-radius:50%;
+  border:2px solid var(--surface-active); border-top-color:var(--accent);
+}
+
+/* 环形进度 */
+.ring{
+  width:16px;height:16px;border-radius:50%;
+  background:conic-gradient(var(--accent) 0turn 0.62turn, rgba(255,255,255,.14) 0.62turn 1turn);
+  position:relative;
+}
+.ring::after{
+  content:""; position:absolute; inset:3px; border-radius:50%;
+  background:var(--surface-raised);
+}
+
+/* Expanded：向下展开的面板 */
+.expanded{
+  border:var(--hairline) solid var(--stroke-strong);
+  border-radius:var(--radius-xl);
+  background:var(--surface-raised);
+  box-shadow:var(--elev-2);
+  padding:14px 16px;
+  max-width:560px;
+}
+.expanded .head{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.expanded .title{ font-size:15px; font-weight:600; }
+.expanded .rows{ display:grid; gap:7px; }
+.expanded .r{ display:flex; justify-content:space-between; font-size:13px; }
+.expanded .r span:first-child{ color:var(--text-secondary); }
+.expanded .r span:last-child{ font-family:var(--font-mono); }
+.bar{ height:6px;border-radius:3px;background:var(--surface-active);overflow:hidden;margin-top:12px }
+.bar i{ display:block;height:100%;width:62%;background:var(--accent) }
+.errline{
+  display:flex;align-items:center;gap:10px;
+  font-family:var(--font-mono);font-size:13px;
+}
+.errline .code{
+  border:var(--hairline) solid rgb(248 81 73 / 45%);
+  background:rgb(248 81 73 / 14%); color:#ffb4ae;
+  border-radius:6px; padding:1px 7px;
+}
+.tip{ margin-top:30px; color:var(--text-disabled); font-size:12px; }
+</style>
+</head>
+<body>
+<h1>灵动岛 · 八个状态</h1>
+<p class="sub">硬规则：<b>任意时刻只有一个岛、一个主状态</b>；多任务排队，不并排。切换只用 transform 与 opacity。</p>
+
+<div class="grid">
+  <div class="label"><b>Idle</b><span>默认态，≤120px</span></div>
+  <div><span class="island"><span class="dot"></span><span class="who">官方源</span><span class="sep"></span><span class="who">reqinme</span></span></div>
+
+  <div class="label"><b>Probe</b><span>启动前预检</span></div>
+  <div><span class="island"><span class="spin"></span><span class="who">预检中 · 3 项</span></span></div>
+
+  <div class="label"><b>Download</b><span>环形进度 + 速率</span></div>
+  <div><span class="island"><span class="ring"></span><span class="mono">62%</span><span class="sep"></span><span class="mono">1.2/1.9 GB</span><span class="sep"></span><span class="mono">↓12.4 MB/s</span><span class="sep"></span><span class="who">剩 2 分</span></span></div>
+
+  <div class="label"><b>Install</b><span>加载器 / 整合包</span></div>
+  <div><span class="island"><span class="mono">3/5</span><span class="sep"></span><span class="who">正在写入 libraries/…</span></span></div>
+
+  <div class="label"><b>Launch</b><span>五阶段步进</span></div>
+  <div><span class="island"><span class="mono">4/5</span><span class="sep"></span><span class="who">已进入游戏主界面</span></span></div>
+
+  <div class="label"><b>Running</b><span>计时 + 内存</span></div>
+  <div><span class="island"><span class="dot" style="background:var(--accent-5)"></span><span class="mono">01:24:07</span><span class="sep"></span><span class="mono">内存 2.1 GB</span><span class="sep"></span><span class="who">局域网已开启</span></span></div>
+
+  <div class="label"><b>Error</b><span>错误码 + 一句人话</span></div>
+  <div><span class="island" style="border-color:rgb(248 81 73 / 45%)"><span class="errline"><span class="code">QUL-JAVA-0007</span><span>找不到 Java 21</span></span></span></div>
+
+  <div class="label"><b>Update</b><span>发现新版本</span></div>
+  <div><span class="island"><span class="who">v0.2.0 可用</span><span class="sep"></span><span style="color:var(--accent)">重启更新</span></span></div>
+</div>
+
+<h1 style="margin-top:34px;font-size:17px">Expanded 态（点击岛后向下展开，高 ≤220px）</h1>
+<div class="expanded" style="margin-top:12px">
+  <div class="head"><span class="ring"></span><span class="title">正在下载 1.20.1 · Fabric</span>
+    <span style="margin-left:auto;color:var(--text-secondary);font-size:13px">可关闭，任务不丢失</span></div>
+  <div class="rows">
+    <div class="r"><span>进度</span><span>62% · 1.2 GB / 1.9 GB</span></div>
+    <div class="r"><span>速度</span><span>↓ 12.4 MB/s（官方源，6 段并行）</span></div>
+    <div class="r"><span>剩余</span><span>约 2 分 10 秒</span></div>
+    <div class="r"><span>当前文件</span><span>libraries/…/netty-4.1.97.jar</span></div>
+  </div>
+  <div class="bar"><i></i></div>
+</div>
+
+<p class="tip">
+  说明：本图为静态稿。岛的颜色与描边全部取自语义令牌；禁用/错误态用的是 state.danger 的成对前景与背景，不靠单一色相表意。
+</p>
+</body>
+</html>

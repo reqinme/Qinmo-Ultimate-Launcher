@@ -1,0 +1,58 @@
+﻿[
+    {
+        "id":  "mica-bare-auto",
+        "apply_ok":  true,
+        "error":  null,
+        "png":  "C:\\Users\\hjc20\\Documents\\DeepSeek desktop\\Qinmo Ultimate Launcher\\spikes\\s1-material\\out\\shot-mica-bare-auto.png",
+        "note":  "1650x1140 deco=False dark="
+    },
+    {
+        "id":  "mica-deco-auto",
+        "apply_ok":  true,
+        "error":  null,
+        "png":  "C:\\Users\\hjc20\\Documents\\DeepSeek desktop\\Qinmo Ultimate Launcher\\spikes\\s1-material\\out\\shot-mica-deco-auto.png",
+        "note":  "1650x1140 deco=True dark="
+    },
+    {
+        "id":  "acrylic-bare-auto",
+        "apply_ok":  true,
+        "error":  null,
+        "png":  "C:\\Users\\hjc20\\Documents\\DeepSeek desktop\\Qinmo Ultimate Launcher\\spikes\\s1-material\\out\\shot-acrylic-bare-auto.png",
+        "note":  "1650x1140 deco=False dark="
+    },
+    {
+        "id":  "acrylic-deco-auto",
+        "apply_ok":  true,
+        "error":  null,
+        "png":  "C:\\Users\\hjc20\\Documents\\DeepSeek desktop\\Qinmo Ultimate Launcher\\spikes\\s1-material\\out\\shot-acrylic-deco-auto.png",
+        "note":  "1650x1140 deco=True dark="
+    },
+    {
+        "id":  "mica-bare-dark",
+        "apply_ok":  true,
+        "error":  null,
+        "png":  "C:\\Users\\hjc20\\Documents\\DeepSeek desktop\\Qinmo Ultimate Launcher\\spikes\\s1-material\\out\\shot-mica-bare-dark.png",
+        "note":  "1650x1140 deco=False dark=True"
+    },
+    {
+        "id":  "mica-bare-light",
+        "apply_ok":  true,
+        "error":  null,
+        "png":  "C:\\Users\\hjc20\\Documents\\DeepSeek desktop\\Qinmo Ultimate Launcher\\spikes\\s1-material\\out\\shot-mica-bare-light.png",
+        "note":  "1650x1140 deco=False dark=False"
+    },
+    {
+        "id":  "none-bare-auto",
+        "apply_ok":  true,
+        "error":  null,
+        "png":  "C:\\Users\\hjc20\\Documents\\DeepSeek desktop\\Qinmo Ultimate Launcher\\spikes\\s1-material\\out\\shot-none-bare-auto.png",
+        "note":  "1650x1140 deco=False dark="
+    },
+    {
+        "id":  "tabbed-bare-auto",
+        "apply_ok":  true,
+        "error":  null,
+        "png":  "C:\\Users\\hjc20\\Documents\\DeepSeek desktop\\Qinmo Ultimate Launcher\\spikes\\s1-material\\out\\shot-tabbed-bare-auto.png",
+        "note":  "1650x1140 deco=False dark="
+    }
+]

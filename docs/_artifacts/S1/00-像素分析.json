@@ -1,0 +1,87 @@
+﻿{
+    "generated_at":  "2026-10-01T15:03:09",
+    "control_cell":  "none-bare-auto",
+    "rows":  [
+                 {
+                     "cell":  "acrylic-bare-auto",
+                     "center_mean":  144.4,
+                     "center_stddev":  10.6,
+                     "top_mean":  150.8,
+                     "top_stddev":  9.5,
+                     "left_stddev":  42.4,
+                     "bottom_stddev":  2.8,
+                     "frame_variance":  18.2
+                 },
+                 {
+                     "cell":  "acrylic-deco-auto",
+                     "center_mean":  139,
+                     "center_stddev":  0,
+                     "top_mean":  221.9,
+                     "top_stddev":  27.8,
+                     "left_stddev":  5,
+                     "bottom_stddev":  2.8,
+                     "frame_variance":  11.9
+                 },
+                 {
+                     "cell":  "mica-bare-auto",
+                     "center_mean":  242.5,
+                     "center_stddev":  0,
+                     "top_mean":  242.2,
+                     "top_stddev":  2.8,
+                     "left_stddev":  14.4,
+                     "bottom_stddev":  4.2,
+                     "frame_variance":  7.1
+                 },
+                 {
+                     "cell":  "mica-bare-dark",
+                     "center_mean":  31.1,
+                     "center_stddev":  0.3,
+                     "top_mean":  34.3,
+                     "top_stddev":  22.4,
+                     "left_stddev":  64.7,
+                     "bottom_stddev":  17.5,
+                     "frame_variance":  34.9
+                 },
+                 {
+                     "cell":  "mica-bare-light",
+                     "center_mean":  242.5,
+                     "center_stddev":  0,
+                     "top_mean":  241.2,
+                     "top_stddev":  13.2,
+                     "left_stddev":  77,
+                     "bottom_stddev":  4.2,
+                     "frame_variance":  31.5
+                 },
+                 {
+                     "cell":  "mica-deco-auto",
+                     "center_mean":  242.5,
+                     "center_stddev":  0,
+                     "top_mean":  237.9,
+                     "top_stddev":  29.8,
+                     "left_stddev":  14.2,
+                     "bottom_stddev":  4.3,
+                     "frame_variance":  16.1
+                 },
+                 {
+                     "cell":  "none-bare-auto",
+                     "center_mean":  12,
+                     "center_stddev":  0,
+                     "top_mean":  252.9,
+                     "top_stddev":  16.9,
+                     "left_stddev":  19.7,
+                     "bottom_stddev":  13.1,
+                     "frame_variance":  16.6
+                 },
+                 {
+                     "cell":  "tabbed-bare-auto",
+                     "center_mean":  216.2,
+                     "center_stddev":  0.4,
+                     "top_mean":  216.7,
+                     "top_stddev":  2.8,
+                     "left_stddev":  3.4,
+                     "bottom_stddev":  2.2,
+                     "frame_variance":  2.8
+                 }
+             ],
+    "note":  "frame_variance ~ translucency: high means content visible behind the window."
+}

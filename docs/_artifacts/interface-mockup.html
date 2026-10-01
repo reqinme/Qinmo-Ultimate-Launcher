@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>秦墨 · 界面效果图（静态稿）</title>
+
+<!-- ==========================================================================
+     这是按 docs/UI设计规格.md 画的**静态效果图**，不是产品代码。
+
+     它严格遵循规程里的四条：
+       1. 颜色只用语义令牌（本文件是"令牌层"，唯一允许写字面色值的地方）
+       2. 零 CSS backdrop-filter —— 窗口材质由 DWM 提供，界面层不叠模糊
+       3. 层次靠「不透明度阶梯 + 1px 描边 + 留白」，不靠阴影
+       4. 卡片不带投影，投影只用于浮层
+
+     窗口"材质"用一层 300x300 灰度渐变模拟（真实运行时由 DWM 给的桌面采样）。
+     测得的 150% 缩放下 DPI 策略：描边用 --hairline（2dppx 时 0.5px）。
+     ========================================================================== -->
+
+<style>
+:root{
+  /* ---- 第一层·调色板（gray.N：N 越大 = 离背景越远 / 对比越强）---- */
+  --gray-9:#f5f5f7; --gray-7:#a1a1a6; --gray-5:#6e6e73; --gray-3:#2c2c2e; --gray-0:#131315;
+  --accent-5:#4c9aff; --success-5:#3fb950; --warning-5:#d29922; --danger-5:#f85149;
+
+  /* ---- 第二层·语义令牌（组件只准用这一层）---- */
+  --surface-panel:rgb(255 255 255 / 8%);
+  --surface-card:rgb(255 255 255 / 12%);
+  --surface-raised:#242426;
+  --surface-hover:rgb(255 255 255 / 6%);
+  --surface-active:rgb(255 255 255 / 10%);
+  --surface-selected:rgb(255 255 255 / 13%);
+
+  --stroke-subtle:rgb(255 255 255 / 10%);
+  --stroke-strong:rgb(255 255 255 / 20%);
+  --divider:rgb(255 255 255 / 7%);
+
+  --text-primary:#f2f2f4;
+  --text-secondary:#a1a1a6;
+  --text-disabled:#6e6e73;
+
+  --accent:var(--accent-5);
+  --text-on-accent:#0b1220;
+
+  --focus-ring:rgb(76 154 255 / 70%);
+
+  --radius-sm:4px; --radius-md:8px; --radius-lg:12px; --radius-xl:16px;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
+  --space-5:20px; --space-6:24px; --space-7:32px; --space-8:40px;
+
+  --hairline:1px;
+  --elev-2:0 8px 24px rgb(0 0 0 / 34%);
+
+  --font-ui:"Microsoft YaHei UI","Noto Sans SC",system-ui,sans-serif;
+  --font-mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+  /* 字号阶梯（高 DPI 下 WebView2 按 CSS px 渲染，这里用固定 px 模拟 150%） */
+  --font-caption:12px; --font-body-sm:13px; --font-body:14px;
+  --font-body-lg:15px; --font-title-sm:17px; --font-title:21px; --font-display:28px;
+}
+@media (min-resolution:2dppx){ :root{ --hairline:0.5px; } }
+
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{
+  font:var(--font-body)/1.6 var(--font-ui);
+  color:var(--text-primary);
+  /* 模拟 DWM Mica：一层带渐变的桌面采样（深浅不均，正是 Mica 的真实观感） */
+  background:
+    radial-gradient(1100px 700px at 18% 8%,  #3a3a40 0%, #232327 55%, #191a1d 100%),
+    #1b1c1f;
+  overflow:hidden;
+}
+
+/* ======================= 窗口骨架 ======================= */
+.win{
+  width:1280px; height:800px;
+  display:grid;
+  grid-template-rows:36px 1fr 26px;   /* 标题栏 36 / 内容 / 状态条 26 */
+  position:relative;
+}
+
+/* ---------- 标题栏（自绘 36px）---------- */
+.titlebar{
+  display:flex; align-items:center; gap:var(--space-3);
+  padding:0 0 0 var(--space-3);
+  position:relative;
+}
+.brand{
+  display:flex; align-items:center; gap:var(--space-2);
+  font-weight:600; font-size:var(--font-body-lg);
+  padding-right:var(--space-2);
+  white-space:nowrap;
+}
+.brand .mark{
+  width:18px; height:18px; border-radius:5px;
+  background:linear-gradient(140deg,var(--accent),#7c5cff);
+  display:grid; place-items:center; color:#fff; font-size:11px; font-weight:700;
+}
+.search{
+  display:flex; align-items:center; gap:var(--space-2);
+  height:26px; width:190px; padding:0 var(--space-3);
+  border:var(--hairline) solid var(--stroke-subtle);
+  border-radius:var(--radius-md);
+  background:var(--surface-panel);
+  color:var(--text-disabled); font-size:var(--font-body-sm);
+  white-space:nowrap;
+}
+.search kbd{
+  margin-left:auto; font:var(--font-caption)/1 var(--font-mono);
+  border:var(--hairline) solid var(--stroke-subtle);
+  border-radius:3px; padding:2px 4px; color:var(--text-secondary);
+}
+
+/* 灵动岛：Compact 态。规格给的"预留槽位"是这里的关键——
+   品牌+搜索约 320px、窗口控制 138px，1280 窗口下中间只剩 ~540px。 */
+.island-slot{ flex:1; display:flex; justify-content:center; }
+.island{
+  display:flex; align-items:center; gap:var(--space-2);
+  height:32px; padding:0 var(--space-3);
+  border:var(--hairline) solid var(--stroke-strong);
+  border-radius:999px;
+  background:var(--surface-raised);
+  box-shadow:var(--elev-2);
+  white-space:nowrap;
+}
+.island .dot{ width:7px; height:7px; border-radius:50%; background:var(--success-5); }
+.island .sep{ width:var(--hairline); height:14px; background:var(--stroke-subtle); }
+.island .who{ font-size:var(--font-body-sm); color:var(--text-secondary); }
+
+.wincontrols{ display:flex; }
+.wincontrols div{
+  width:46px; height:36px; display:grid; place-items:center;
+  color:var(--text-secondary); font-size:11px;
+}
+.wincontrols div.close{ }
+.wincontrols div.close:hover{ background:#c42b1c; color:#fff; }
+
+/* ---------- 主体：左导航 + 内容 ---------- */
+.body{ display:grid; grid-template-columns:200px 1fr; min-height:0; }
+
+.sidebar{
+  padding:var(--space-2);
+  display:flex; flex-direction:column; gap:2px;
+  border-right:var(--hairline) solid var(--divider);
+}
+.nav{
+  display:flex; align-items:center; gap:var(--space-3);
+  height:34px; padding:0 var(--space-3);
+  border-radius:var(--radius-md);
+  color:var(--text-secondary); font-size:var(--font-body-lg);
+  position:relative;
+}
+.nav.on{
+  background:var(--surface-selected);
+  color:var(--text-primary);
+}
+.nav.on::before{
+  content:""; position:absolute; left:0; top:8px; bottom:8px; width:2px;
+  border-radius:2px; background:var(--accent);
+}
+.nav .ico{ width:16px; text-align:center; opacity:.9; }
+.nav-sec{
+  margin:var(--space-4) var(--space-3) var(--space-1);
+  font-size:var(--font-caption); color:var(--text-disabled);
+  letter-spacing:.6px;
+}
+.nav--tools{ margin-top:auto; }
+
+.content{ padding:var(--space-5) var(--space-6); overflow:hidden; }
+
+/* ---------- 卡片与面板（层次：面板 → 卡片，各带 1px 描边）---------- */
+.panel{
+  border:var(--hairline) solid var(--stroke-subtle);
+  border-radius:var(--radius-lg);
+  background:var(--surface-panel);
+  padding:var(--space-4);
+}
+.card{
+  border:var(--hairline) solid var(--stroke-subtle);
+  border-radius:var(--radius-md);
+  background:var(--surface-card);
+  padding:var(--space-3);
+}
+
+/* 当前实例 */
+.hero{ margin-bottom:var(--space-4); }
+.hero-top{ display:flex; align-items:flex-start; gap:var(--space-4); }
+.avatar{
+  width:56px; height:56px; border-radius:var(--radius-md);
+  background:linear-gradient(150deg,#4c9aff,#8a6cff);
+  display:grid; place-items:center; font-size:22px; font-weight:700; color:#fff;
+  flex:0 0 auto;
+}
+.hero-info{ flex:1; min-width:0; }
+.hero-name{ display:flex; align-items:center; gap:var(--space-2); }
+.hero-name h1{ margin:0; font-size:var(--font-title); font-weight:600; }
+.chip{
+  font-size:var(--font-caption); padding:1px 7px; border-radius:999px;
+  border:var(--hairline) solid var(--stroke-subtle);
+  background:var(--surface-card); color:var(--text-secondary);
+}
+.chip--accent{ border-color:rgb(76 154 255 / 45%); color:#bcd8ff; background:rgb(76 154 255 / 14%); }
+.hero-meta{
+  margin-top:var(--space-2); display:flex; flex-wrap:wrap; gap:var(--space-2) var(--space-4);
+  color:var(--text-secondary); font-size:var(--font-body-sm);
+  font-family:var(--font-mono);
+}
+.actions{ margin-top:var(--space-4); display:flex; align-items:center; gap:var(--space-3); }
+.btn{
+  height:34px; padding:0 var(--space-6); border-radius:var(--radius-md);
+  display:inline-flex; align-items:center; gap:var(--space-2);
+  font-size:var(--font-body-lg); font-weight:600;
+  border:var(--hairline) solid transparent;
+}
+.btn--primary{ background:var(--accent); color:var(--text-on-accent); }
+.btn--ghost{
+  background:transparent; color:var(--text-primary);
+  border-color:var(--stroke-subtle); padding:0 var(--space-4); font-weight:500;
+}
+.btn--ghost.more::after{ content:"▾"; margin-left:var(--space-1); color:var(--text-secondary); }
+
+/* 三张统计卡 */
+.stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:var(--space-4); }
+.stat h3{
+  margin:0 0 var(--space-3); font-size:var(--font-body-lg); font-weight:600;
+  display:flex; align-items:center; gap:var(--space-2);
+}
+.stat .k{
+  font-size:var(--font-caption); color:var(--text-secondary);
+  text-transform:uppercase; letter-spacing:.5px;
+}
+.stat .v{ font-size:var(--font-title); font-weight:600; margin-top:2px; font-family:var(--font-mono); }
+.stat .v small{ font-size:var(--font-body-sm); color:var(--text-secondary); font-weight:400; margin-left:var(--space-1); }
+.stat .row{ display:flex; justify-content:space-between; padding:var(--space-1) 0; font-size:var(--font-body-sm); }
+.stat .row span:last-child{ color:var(--text-secondary); font-family:var(--font-mono); }
+.bar{ height:6px; border-radius:3px; background:var(--surface-active); overflow:hidden; margin-top:var(--space-3); }
+.bar i{ display:block; height:100%; width:62%; background:var(--accent); }
+.legend{ display:flex; gap:var(--space-3); margin-top:var(--space-2); font-size:var(--font-caption); color:var(--text-secondary); }
+.swatch{ display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:4px; }
+
+/* 状态条（常驻 4 项 + 右侧可展开详情） */
+.statusbar{
+  display:flex; align-items:center; gap:var(--space-3);
+  padding:0 var(--space-4);
+  border-top:var(--hairline) solid var(--divider);
+  color:var(--text-secondary); font-size:var(--font-caption);
+  font-family:var(--font-mono);
+}
+.statusbar .grow{ flex:1; }
+.statusbar .pill{
+  border:var(--hairline) solid var(--stroke-subtle);
+  border-radius:999px; padding:1px 8px;
+}
+
+/* ---------- 说明条（不属于界面，是效果图的注记）----------
+   放在窗口**下方**的独立区域，不能压在界面上——第一版把它塞进 content，
+   结果盖住了左导航的"设置"。注记不是 UI，就不该占 UI 的位置。 */
+.caption{
+  padding:8px var(--space-6) 0;
+  font-size:var(--font-caption); color:var(--text-disabled);
+  background:transparent;
+}
+</style>
+</head>
+<body>
+
+<div class="win">
+
+  <!-- ================= 标题栏 ================= -->
+  <header class="titlebar">
+    <div class="brand"><span class="mark">秦</span>秦墨</div>
+    <div class="search">⌕&nbsp; 搜索实例、版本、模组<span>…</span><kbd>Ctrl K</kbd></div>
+
+    <!-- 灵动岛 · Compact 态（Idle） -->
+    <div class="island-slot">
+      <div class="island">
+        <span class="dot"></span>
+        <span class="who">官方源</span>
+        <span class="sep"></span>
+        <span class="who">reqinme</span>
+      </div>
+    </div>
+
+    <div class="wincontrols">
+      <div>─</div><div>▢</div><div class="close">✕</div>
+    </div>
+  </header>
+
+  <!-- ================= 主体 ================= -->
+  <div class="body">
+
+    <!-- 左导航：产品相关区（由能力描述符生成）+ 工具区（固定可见） -->
+    <nav class="sidebar">
+      <div class="nav on"><span class="ico">⌂</span>主页</div>
+      <div class="nav"><span class="ico">▤</span>实例</div>
+
+      <div class="nav-sec">当前实例 · 1.20.1 Fabric</div>
+      <div class="nav"><span class="ico">✦</span>模组</div>
+      <div class="nav"><span class="ico">◧</span>资源包</div>
+      <!-- 能力描述符 enabled:false → 禁用态 + 原因（不隐藏） -->
+      <div class="nav" style="color:var(--text-disabled)" title="当前加载器不支持光影">
+        <span class="ico">◐</span>光影<span style="margin-left:auto;font-size:var(--font-caption)">不支持</span>
+      </div>
+      <div class="nav"><span class="ico">▣</span>存档</div>
+      <div class="nav"><span class="ico">⚙</span>配置</div>
+
+      <div class="nav nav--tools"><span class="ico">▦</span>百宝箱</div>
+      <div class="nav"><span class="ico">◉</span>账户</div>
+      <div class="nav"><span class="ico">⚒</span>设置</div>
+    </nav>
+
+    <!-- 内容区 -->
+    <main class="content">
+
+      <!-- 当前实例 -->
+      <section class="panel hero">
+        <div class="hero-top">
+          <div class="avatar">1</div>
+          <div class="hero-info">
+            <div class="hero-name">
+              <h1>1.20.1 · Fabric</h1>
+              <span class="chip chip--accent">Fabric 0.16.5</span>
+              <span class="chip">Java 21</span>
+              <span class="chip">正版账户</span>
+            </div>
+            <div class="hero-meta">
+              <span>内存 4096 MB</span>
+              <span>上次启动 2 小时前</span>
+              <span>磁盘 1.9 GB</span>
+              <span>38 个模组</span>
+            </div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn btn--primary">▶&nbsp; 启动</button>
+          <button class="btn btn--ghost">打开目录</button>
+          <button class="btn btn--ghost">编辑</button>
+          <button class="btn btn--ghost more">更多</button>
+        </div>
+      </section>
+
+      <!-- 三张卡 -->
+      <section class="stats">
+
+        <div class="card stat">
+          <h3>最近游玩</h3>
+          <div class="row"><span>1.20.1 · Fabric</span><span>2 小时前</span></div>
+          <div class="row"><span>1.21.4 · 原版</span><span>昨天</span></div>
+          <div class="row"><span>1.19.2 · Forge</span><span>3 天前</span></div>
+          <div class="row"><span>基岩版 1.21.120</span><span>上周</span></div>
+        </div>
+
+        <div class="card stat">
+          <h3>运行统计</h3>
+          <div class="k">本周累计</div>
+          <div class="v">14<small>小时 22 分</small></div>
+          <div class="bar"><i></i></div>
+          <div class="legend">
+            <span><i class="swatch" style="background:var(--accent)"></i>1.20.1 Fabric</span>
+            <span><i class="swatch" style="background:var(--text-disabled)"></i>其它</span>
+          </div>
+        </div>
+
+        <div class="card stat">
+          <h3>磁盘与缓存</h3>
+          <div class="k">实例占用</div>
+          <div class="v">1.9<small>GB / 共 6.4 GB</small></div>
+          <div class="bar"><i style="width:30%"></i></div>
+          <div class="row" style="margin-top:var(--space-2)"><span>可回收缓存</span><span>412 MB</span></div>
+        </div>
+
+      </section>
+
+      <div class="note" style="display:none"></div>
+    </main>
+  </div>
+
+  <!-- ================= 状态条（常驻 4 项）================= -->
+  <footer class="statusbar">
+    <span>v0.1.0</span>
+    <span class="pill">MC Java</span>
+    <span>官方源</span>
+    <span>↓ 12.4 MB/s</span>
+    <span class="grow"></span>
+    <span>Java 21 · 内存 118 MB</span>
+  </footer>
+
+</div>
+
+<!-- 注记放在窗口之外，避免遮挡界面 -->
+<div class="caption">
+  静态效果图 · 按 docs/UI设计规格.md 绘制 · 窗口材质由 DWM 提供（此处以渐变模拟）· 界面层零 CSS 模糊
+</div>
+</body>
+</html>
