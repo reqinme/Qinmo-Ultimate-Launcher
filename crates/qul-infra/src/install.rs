@@ -712,6 +712,39 @@ pub fn install(
             .collect::<Vec<_>>();
         // **落到实例内**，而不是 `%temp%` —— 方案 §8 第 6 项。
         let dest = crate::zip::natives_dir(instance_root, version_id);
+        //
+        // 🔴 **每个 natives 包解到自己的子目录** —— 而这是实测逼出来的。
+        //
+        // ## 原来的做法（直接解到根）为什么错
+        //
+        // 它把 jar 内部路径**原样**保留，于是 LWJGL 的 dll 落在
+        // `windows/x64/org/lwjgl/lwjgl.dll`。而**只有 `jtracy-jni-windows.dll`
+        // 落在根部**（那个 jar 把 dll 放在根）。
+        //
+        // 结果是 **natives 根里只有 1 个 dll，另外 21 个在深层** ——
+        // 而启动参数要做的事是"给一个目录，让 JVM 在里面找 dll"。
+        // `java.library.path` **不递归**，所以那 21 个全都找不到。
+        //
+        // 实测的失败长这样（`qul launch` 真的跑了一次）：
+        //
+        // ```text
+        //   java.nio.file.InvalidPathException: Illegal char <:> at index 105
+        //     at com.mojang.blaze3d.platform.NativeLibrariesBootstrap.configureLWJGLLibraryPath
+        // ```
+        //
+        // ## 为什么是"按包分名空间"而不是"摊平到根"
+        //
+        // 因为**实测有两个不同的 jar 都含 `org/lwjgl/lwjgl.dll`**
+        //（基础 `lwjgl` 包与 `lwjgl-opengl` 包）—— 摊平会让其中一个**静默覆盖**另一个。
+        //
+        // 而按包分名空间之后，`java.library.path` 可以指向**每个包自己的目录**，
+        // 于是不会有覆盖，且每个目录里都**只有该包的 dll**。
+        //
+        // ## 而它顺带让官方模板的四个变量全部成立
+        //
+        // 官方模板会拼 `${natives_directory}/java`、`/jna`、`/lwjgl`、`/netty`
+        // —— 那四个目录由**调用方**建（见 `qul launch`），
+        // 而 `${natives_directory}` 本身始终是**一个真实存在的目录**。
         std::fs::create_dir_all(&dest).map_err(|e| InstallError::Extract {
             rel: "(natives)".into(),
             why: format!("建目录失败：{e}"),
@@ -746,6 +779,20 @@ pub fn install(
                     cfg2.excluded_prefixes.push(x.clone());
                 }
             }
+            // **每个包自己的子目录** —— 名字取 jar 的文件名（去掉 `.jar`）。
+            // 用文件名而不是库名：实测库名里有 `:`，而它在路径里是合法的但很难读；
+            // 而文件名与磁盘上的那个 jar 一一对应，查问题时能直接对回去。
+            let ns = n
+                .path
+                .rsplit('/')
+                .next()
+                .unwrap_or("natives")
+                .trim_end_matches(".jar");
+            let dest = dest.join(ns);
+            std::fs::create_dir_all(&dest).map_err(|e| InstallError::Extract {
+                rel: n.path.clone(),
+                why: format!("建 natives 子目录失败：{e}"),
+            })?;
             match crate::zip::extract(&bytes, &dest, &cfg2, Some(cancel)) {
                 Ok(out) => {
                     extracted += out.files;

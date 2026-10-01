@@ -28,6 +28,7 @@ mod install_cmd;
 mod instance_demo;
 mod java_plan;
 mod launch_chain;
+mod launch_cmd;
 mod launch_demo;
 mod offline_demo;
 mod scrub_demo;
@@ -73,6 +74,41 @@ fn main() {
                 offline,
                 with_assets,
                 verbose,
+            }));
+        }
+        // ── `qul launch [版本id] --offline-account <名字> --i-know-the-limits [--dry-run] ──
+        Some("launch") => {
+            let mut version = None;
+            let mut data_root = None;
+            let mut offline_account = None;
+            let mut i_know = false;
+            let mut dry_run = false;
+            let mut quiet = false;
+            let mut java = None;
+            let mut it = args.iter().skip(1);
+            while let Some(a) = it.next() {
+                match a.as_str() {
+                    "--offline-account" => offline_account = it.next().cloned(),
+                    "--i-know-the-limits" => i_know = true,
+                    "--dry-run" => dry_run = true,
+                    "--quiet" | "-q" => quiet = true,
+                    "--java" => java = it.next().map(std::path::PathBuf::from),
+                    "--dir" => data_root = it.next().map(std::path::PathBuf::from),
+                    other if other.starts_with('-') => {
+                        println!("不认识的选项：{other}");
+                        std::process::exit(2);
+                    }
+                    other => version = Some(other.to_string()),
+                }
+            }
+            std::process::exit(launch_cmd::run_launch(&launch_cmd::LaunchArgs {
+                version,
+                data_root,
+                offline_account,
+                i_know_the_limits: i_know,
+                dry_run,
+                quiet,
+                java,
             }));
         }
         Some("launch-chain") => {
