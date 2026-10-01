@@ -251,7 +251,30 @@ pub fn download(
             continue;
         }
         if !resp.is_success() {
+            // **4xx 不重试，5xx 才重试。**
+            //
+            // 这条纪律的判据不是"哪个更严重"，而是**重试有没有可能改变结果**：
+            //
+            // - `4xx` 是"我不会给你这个"（404 元数据过期、403 无权限）——
+            //   重试是**在骂一个已经明确拒绝我们的服务器**，
+            //   而且会让用户在 404 上白等整整一分种的退避（规格 §4 的总等待）。
+            // - `5xx` 是"我暂时不行" —— 重试有意义。
+            //
+            // 唯一的例外是 **`408 Request Timeout` 与 `429 Too Many Requests`**：
+            // 它们在语义上就是"等一下再来"，所以属于可重试的那一侧。
+            // 把它们按状态码范围一刀切掉会丢掉两个真实的恢复机会。
+            let retryable = resp.status >= 500 || resp.status == 408 || resp.status == 429;
             last_reason = format!("HTTP {}", resp.status);
+            if !retryable {
+                return DownloadOutcome::Failed {
+                    reason: format!(
+                        "{last_reason} —— 这一条不会因为重试而改变，已立即放弃\
+                         （避免让用户白等退避时间）"
+                    ),
+                    attempts,
+                    verify_attempts: 0,
+                };
+            }
             std::thread::sleep(std::time::Duration::from_millis(
                 cfg.retry.delay_before(attempts - 1),
             ));
@@ -416,11 +439,22 @@ pub fn download_segmented(
         let resp = match transport.fetch(&req) {
             Ok(r) => r,
             Err(e) => {
+                // **失败时必须清掉临时文件。**
+                //
+                // 这一条是 `多段遇到段长度不符会拒绝而不是写坏` 那条测试抓出来的：
+                // 第一版只清掉"HTTP 层面的失败"，而**传输层的失败**（截断、
+                // 连接中断）直接把临时文件留在了磁盘上。
+                //
+                // 后果有两个，都不小：
+                // ① 一个 `.download` 文件白占着几 GB（用户看不到它，但它算占盘）；
+                // ② 下一次下载会拿它当"已有进度"，而它的内容是不完整的 ——
+                //    于是续传会从一个**错的位置**接着写。
+                let _ = std::fs::remove_file(&tmp);
                 return DownloadOutcome::Failed {
                     reason: format!("第 {} 段请求失败：{e}", seg.index),
                     attempts: 1,
                     verify_attempts: 0,
-                }
+                };
             }
         };
         // I4：**分段的每一段都必须真的是 206** —— 拿到 200 说明服务端忽略了 Range，
