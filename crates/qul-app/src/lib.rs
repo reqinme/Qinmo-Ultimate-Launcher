@@ -83,4 +83,111 @@ impl AppService {
             o.enabled_count, o.disabled_count
         )
     }
+
+    // ─────────────────── M1：产品调用链（注册 → 规划 → 执行）───────────────────
+    //
+    // ## 为什么这三个函数必须在编排层，而不是在 CLI 里
+    //
+    // M1 的出口条件是 **"`MockProvider` 走通 CLI 调用链"**。
+    // 若把"查注册表 → 查缺哪些事实 → 规划 → 解析 → 执行"这段顺序写在 CLI 里，
+    // 那么界面（M4）要用同一条链时**只能再写一遍** —— 而那正是 S4 要防的分叉。
+    //
+    // **顺序本身是这里唯一的知识**，而它是会出错的那部分：
+    // 少查一次"缺哪些事实"，就会把一个带默认值的命令交给操作系统；
+    // 忘了先 `resolve` 就执行，就会把 `{RUNTIME}` 当成路径去打开。
+    // 所以顺序留在这一层，调用方只提供"用哪个产品、有哪些事实、用谁执行"。
+    //
+    // ## 为什么注册表是参数而不是字段
+    //
+    // 因为 `AppService` 是 `Clone + Default` 的（M0 的链路样板就依赖这一点），
+    // 而装着 `Box<dyn ...>` 的字段会让两者都失去。
+    // **把"提供者从哪来"与"顺序是什么"分开**，两边都简单。
+
+    /// 列出注册表里的全部产品（界面侧渲染产品切换用）。
+    ///
+    /// 返回 `(产品码, 展示名, 形态列表)`。
+    /// **刻意返回元组而不是自定义结构体**：`tests/layering.rs` 断言
+    /// 编排层只暴露 `AppService` 一个公开结构体，
+    /// 而那条断言是在防"编排层成为第二个内核"——
+    /// 所以这里宁可用元组，也不新造一个契约。
+    pub fn products(
+        &self,
+        registry: &qul_core::provider::ProductRegistry,
+    ) -> Vec<(
+        &'static str,
+        &'static str,
+        Vec<qul_core::provider::VariantDescriptor>,
+    )> {
+        registry
+            .iter()
+            .map(|p| (p.key(), p.display_name(), p.variants()))
+            .collect()
+    }
+
+    /// **规划并解析**：产出可以直接交给操作系统的命令。
+    ///
+    /// 界面侧用它做"启动前预览"（把要执行的命令显示出来，
+    /// 这是方案 §5.8 安全基线里"执行必须可被检查"的落点）；
+    /// CLI 用它打印命令。
+    ///
+    /// **它不执行任何东西** —— 所以"参数对不对"可以在不启动进程的前提下被断言。
+    pub fn plan_command(
+        &self,
+        registry: &qul_core::provider::ProductRegistry,
+        product: &str,
+        variant: &str,
+        facts: &qul_core::provider::Facts,
+    ) -> Result<qul_core::plan::ResolvedCommand, qul_core::provider::PlanError> {
+        let p = registry.get(product).ok_or_else(|| {
+            let known: Vec<&str> = registry.iter().map(|x| x.key()).collect();
+            qul_core::provider::PlanError::new(
+                qul_core::error::ErrorCode::MetaVersionInvalid,
+                format!("没有注册名为 {product} 的产品"),
+                format!("已注册的产品：{}", known.join("、")),
+            )
+        })?;
+
+        // **先查"缺哪些本机事实"，再规划。**
+        // 反过来（先规划，失败再猜）会让错误信息变成"未知失败"——
+        // 而"缺一个事实"与"事实的值不对"是完全不同的两件事。
+        let missing = facts.missing(&p.required_facts());
+        if !missing.is_empty() {
+            let names: Vec<String> = missing.iter().map(|k| k.to_string()).collect();
+            return Err(qul_core::provider::PlanError::new(
+                qul_core::error::ErrorCode::PlanUnresolvedPlaceholder,
+                format!("缺少本机事实：{}", names.join("、")),
+                "这通常是启动器内部缺陷；请导出诊断日志以便定位。",
+            ));
+        }
+
+        let plan = p.plan(variant, facts)?;
+        plan.resolve().map_err(|un| {
+            let names: Vec<String> = un.iter().map(|u| u.name.clone()).collect();
+            qul_core::provider::PlanError::new(
+                qul_core::error::ErrorCode::PlanUnresolvedPlaceholder,
+                format!("启动计划里有未解析的占位符：{}", names.join("、")),
+                "这通常是启动器内部缺陷；请导出诊断日志以便定位。",
+            )
+        })
+    }
+
+    /// **执行启动并回收进程。**
+    ///
+    /// 它内部走的是 [`AppService::plan_command`] —— **同一个顺序**，
+    /// 所以界面与 CLI 不可能"一个先查事实、一个不查"。
+    ///
+    /// 返回 `Ok(None)` 表示**被取消**（不是失败）：
+    /// 取消是用户的意愿，见的 `retry::Outcome` 文档。
+    pub fn launch(
+        &self,
+        registry: &qul_core::provider::ProductRegistry,
+        product: &str,
+        variant: &str,
+        facts: &qul_core::provider::Facts,
+        executor: &dyn qul_core::provider::ProcessExecutor,
+        cancel: &qul_core::retry::CancelToken,
+    ) -> Result<Option<i32>, qul_core::provider::PlanError> {
+        let cmd = self.plan_command(registry, product, variant, facts)?;
+        executor.run(&cmd, cancel)
+    }
 }

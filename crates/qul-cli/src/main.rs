@@ -21,6 +21,7 @@
 //! **刻意手写参数解析**：现阶段引入 clap 只是为两条子命令，
 //! 却要承担一条新依赖及其许可审查。等到子命令真的多起来再换。
 
+mod launch_demo;
 use qul_app::AppService;
 use qul_core::java::{choose_java, missing_java_message, GameVersion};
 use qul_core::{Capabilities, Capability, CapabilityKey};
@@ -29,6 +30,7 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(|s| s.as_str()) {
         Some("java") => run_java(args.iter().any(|a| a == "--json")),
+        Some("launch-demo") => std::process::exit(launch_demo::run_launch_demo()),
         Some("--help") | Some("-h") => print_help(),
         None => run_overview(),
         Some(other) => {
@@ -46,6 +48,7 @@ fn print_help() {
     println!("  qul            打印能力概览");
     println!("  qul java       探测本机 Java，并按游戏版本给出选择");
     println!("  qul java --json  同上，输出 JSON（供自动化消费）");
+    println!("  qul launch-demo  产品调用链演示（M1 出口条件；**不启动任何真实程序**）");
     println!("  qul --help     显示本帮助");
 }
 

@@ -17,4 +17,7 @@ path = "src/main.rs"
 qul-app = { path = "../qul-app" }
 qul-core = { path = "../qul-core" }
 qul-infra = { path = "../qul-infra" }
+# CLI 依赖假 Provider：M1 出口条件要求"MockProvider 走通 CLI 调用链"。
+# **CLI 可以依赖 provider，而 qul-app 不可以** —— 见 qul-app/tests/layering.rs。
+qul-provider-mock = { path = "../qul-provider-mock" }
 serde_json = { workspace = true }

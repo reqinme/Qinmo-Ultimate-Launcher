@@ -24,6 +24,8 @@ pub mod layout;
 pub mod error;
 pub mod identity;
 pub mod java;
+pub mod plan;
+pub mod provider;
 pub mod retry;
 
 pub use caps::{

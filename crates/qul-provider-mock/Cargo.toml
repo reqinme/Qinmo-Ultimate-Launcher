@@ -1,0 +1,12 @@
+[package]
+name = "qul-provider-mock"
+version = "0.0.0"
+edition = "2021"
+rust-version.workspace = true
+description = '假 Provider：只为验证"注册 → 规划 → 执行"这条调用链，不实现任何真实产品'
+publish = false
+
+[dependencies]
+# Provider 只依赖内核（拿窄 trait 与形状），**不依赖 infra、不依赖 app**。
+# 这条方向是方案 §3 的分层要求：第三个实现者的成本决定了架构好不好。
+qul-core = { path = "../qul-core" }
