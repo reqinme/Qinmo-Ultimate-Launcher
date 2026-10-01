@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>秦墨 · 主页定稿（左侧空态 / 内容在右侧分段）</title>
+<style>
+:root{
+  --surface-card:rgb(255 255 255 / 66%);
+  --surface-active:rgb(0 0 0 / 8%);
+  --surface-selected:rgb(0 0 0 / 9%);
+  --stroke-subtle:rgb(0 0 0 / 12%);
+  --divider:rgb(0 0 0 / 8%);
+  --text-primary:#1a1a1c; --text-secondary:#4a4a4f; --text-disabled:#8e8e93;
+  --accent:#0a66c2; --text-on-accent:#fff;
+  --hairline:1px;
+  --font-ui:"Microsoft YaHei UI","Noto Sans SC",system-ui,sans-serif;
+  --font-mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+  --edge:linear-gradient(135deg, rgb(255 255 255 / 88%), rgb(255 255 255 / 38%));
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{ font:14px/1.6 var(--font-ui); color:var(--text-primary); background:#cfccc8; padding:20px 22px 6px; }
+.mica{ position:fixed; inset:0; z-index:-2;
+  background:radial-gradient(1200px 800px at 22% 12%, #b9b4ae 0%, #cbc7c2 45%, #dcd9d5 100%), #cfccc8; }
+.mica-tint{ position:fixed; inset:0; z-index:-1;
+  background:linear-gradient(180deg, rgb(240 238 235 / 80%), rgb(233 230 227 / 86%)); }
+.mono{ font-family:var(--font-mono) }
+.sheet{ max-width:1420px; margin:0 auto 16px }
+.sheet h2{ font-size:15px; font-weight:600; margin:0 0 2px }
+.sheet .cap{ font-size:12px; color:var(--text-disabled); margin:0 0 8px }
+.win{ width:1380px; height:772px; border-radius:10px; overflow:hidden;
+  border:var(--hairline) solid var(--stroke-subtle); display:grid; grid-template-rows:38px 1fr 26px }
+.tb{ display:flex; align-items:center; gap:12px; padding-left:12px }
+.brand{ display:flex; align-items:center; gap:8px; white-space:nowrap }
+.brand .mk{ width:20px;height:20px;border-radius:5px;background:linear-gradient(140deg,#0a66c2,#6d4aff);
+  display:grid;place-items:center;font-size:9.5px;font-weight:800;color:#fff }
+.brand .nm{ font-weight:700; font-size:15px; letter-spacing:.6px }
+.tb-spacer{ flex:1 } .wc{ display:flex }
+.wc div{ width:46px;height:38px;display:grid;place-items:center;color:var(--text-secondary);font-size:11px }
+.body2{ display:grid; grid-template-columns:224px 1fr; min-height:0 }
+.side{ border-right:var(--hairline) solid var(--divider); display:flex; flex-direction:column; min-height:0 }
+.acct{ padding:11px 13px; border-bottom:var(--hairline) solid var(--divider) }
+.acct .top{ display:flex; align-items:center; gap:9px }
+.acct .av{ width:33px;height:33px;border-radius:50%;flex:0 0 auto;
+  background:linear-gradient(150deg,#0a66c2,#6d4aff); display:grid;place-items:center;
+  font-size:13.5px;font-weight:700;color:#fff }
+.acct .nm{ font-size:12.5px;font-weight:600; line-height:1.3 }
+.acct .src{ font-size:10.5px;color:var(--text-secondary) }
+.auth{ margin-top:7px; display:grid; gap:2px }
+.authrow{ display:flex; align-items:center; gap:6px; font-size:11px }
+.dot{ width:6px;height:6px;border-radius:50%;flex:0 0 auto }
+.dot.ok{ background:#1a7f37 } .dot.no{ background:#cf222e }
+.authrow .s{ margin-left:auto; font-size:10.5px; color:var(--text-disabled) }
+.nav{ padding:7px 9px; display:grid; gap:1px }
+.nav a{ display:flex;align-items:center;gap:9px;height:31px;padding:0 10px;border-radius:8px;
+  color:var(--text-secondary);text-decoration:none;font-size:13px;position:relative }
+.nav a.on{ background:var(--surface-selected); color:var(--text-primary) }
+.nav a.on::before{ content:"";position:absolute;left:0;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--accent) }
+.nav a .n{ margin-left:auto;font-size:10.5px;color:var(--text-disabled) }
+.nav a .badge{ margin-left:auto; min-width:15px;height:15px;padding:0 5px;border-radius:999px;
+  background:var(--accent);color:#fff;font-size:9.5px;font-weight:700;display:grid;place-items:center }
+/* 二级分类区（主页：空态） */
+.lv2zone{ flex:1; min-height:0; display:flex; flex-direction:column;
+  border-top:var(--hairline) solid var(--divider); background:rgb(0 0 0 / 2%) }
+.empty{ height:100%; display:grid; place-items:center; text-align:center;
+  color:var(--text-disabled); font-size:11.5px; line-height:1.7; padding:0 16px }
+.empty .big{ font-size:19px; display:block; margin-bottom:5px; opacity:.6 }
+.side-btm{ flex:0 0 auto; padding:7px 9px 9px; display:grid; gap:1px;
+  border-top:var(--hairline) solid var(--divider) }
+.side-btm a{ display:flex;align-items:center;gap:9px;height:30px;padding:0 10px;border-radius:8px;
+  color:var(--text-secondary);text-decoration:none;font-size:12.5px }
+.verline{ padding:1px 11px 5px; font:10px/1.4 var(--font-mono); color:var(--text-disabled) }
+
+.content{ padding:13px 15px; overflow:hidden; display:flex; flex-direction:column; gap:10px; min-width:0 }
+.hero{ position:relative; border-radius:11px; overflow:hidden; height:210px; flex:0 0 auto;
+  border:var(--hairline) solid var(--stroke-subtle);
+  background:
+    radial-gradient(460px 210px at 18% 22%, #6d4aff55, transparent 70%),
+    radial-gradient(520px 280px at 76% 70%, #0a66c255, transparent 72%),
+    linear-gradient(135deg,#2b2f3a,#3a3f4d 55%,#40382e) }
+.hero .scrim{ position:absolute; inset:0; background:linear-gradient(90deg, rgb(0 0 0 / 58%) 0%, rgb(0 0 0 / 28%) 48%, transparent 76%) }
+.hero .artnote{ position:absolute; right:10px; top:8px; font-size:10px; color:#ffffffa8 }
+.hero .switcher{ position:absolute; left:16px; top:13px; display:flex; gap:5px }
+.sw{ display:flex; align-items:center; gap:6px; height:26px; padding:0 11px; border-radius:999px;
+  border:var(--hairline) solid #ffffff38; background:rgb(0 0 0 / 34%); color:#ffffffc8; font-size:11.5px }
+.sw.on{ background:rgb(255 255 255 / 92%); color:#1a1a1c; border-color:transparent; font-weight:600 }
+.sw .d{ width:6px;height:6px;border-radius:2px }
+.hero .txt{ position:absolute; left:16px; bottom:14px; right:40%; color:#fff }
+.hero .txt h3{ margin:0 0 4px; font-size:19px; font-weight:600 }
+.hero .txt p{ margin:0 0 10px; font-size:12px; color:#ffffffd2 }
+.btn{ height:29px;padding:0 15px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;
+  font-size:12.5px;font-weight:600;border:var(--hairline) solid transparent }
+.btn--primary{ background:var(--accent);color:var(--text-on-accent) }
+.btn--ghost{ background:rgb(255 255 255 / 58%);color:var(--text-primary);border-color:var(--stroke-subtle);font-weight:500 }
+.btn--onart{ background:rgb(255 255 255 / 16%); color:#fff; border-color:#ffffff45; font-weight:500 }
+.btn--sm{ height:25px;font-size:11.5px;padding:0 9px }
+.badge-p{ font-size:10px; padding:1px 6px; border-radius:999px; border:var(--hairline) solid var(--stroke-subtle);
+  background:rgb(255 255 255 / 55%); color:var(--text-secondary) }
+.panel{ border:var(--hairline) solid transparent; border-radius:11px;
+  background:linear-gradient(var(--surface-card),var(--surface-card)) padding-box, var(--edge) border-box }
+/* ★ 首页分段：最近运行 / 收藏 / 新闻 / 更新日志 */
+.seg{ display:flex; align-items:center; gap:5px; flex:0 0 auto }
+.seg .s{ height:29px; padding:0 13px; border-radius:999px; display:inline-flex; align-items:center; gap:7px;
+  font-size:12.5px; color:var(--text-secondary);
+  border:var(--hairline) solid var(--stroke-subtle); background:var(--surface-card) }
+.seg .s.on{ background:var(--accent); color:#fff; border-color:transparent; font-weight:600 }
+.seg .s .n{ font-size:10.5px; opacity:.85 }
+.seg .sp{ flex:1 }
+.cards{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; min-height:0 }
+.card{ border:var(--hairline) solid transparent; border-radius:10px; overflow:hidden;
+  background:linear-gradient(var(--surface-card),var(--surface-card)) padding-box, var(--edge) border-box;
+  display:flex; flex-direction:column }
+.card .thumb{ height:74px; flex:0 0 auto }
+.card .cb{ padding:8px 10px 10px; display:flex; flex-direction:column; gap:2px }
+.card .t{ font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.card .d{ font-size:10.5px; color:var(--text-secondary) }
+.card .go{ margin-top:3px; font-size:10.5px; color:var(--accent); font-weight:600 }
+.statusbar{ display:flex;align-items:center;gap:10px;padding:0 13px;border-top:var(--hairline) solid var(--divider);
+  color:var(--text-secondary);font-size:11px;font-family:var(--font-mono) }
+.statusbar .grow{flex:1}
+.statusbar .pill{border:var(--hairline) solid var(--stroke-subtle);border-radius:999px;padding:1px 7px}
+.note{ max-width:1420px; margin:0 auto 14px; font-size:12.5px; line-height:1.7; padding:11px 14px;
+  border-radius:10px; border:1px solid var(--stroke-subtle); background:var(--surface-card) }
+.note b{ color:#c2410c }
+</style>
+</head>
+<body>
+<div class="mica"></div><div class="mica-tint"></div>
+
+<div class="note" style="margin-top:0">
+  <b>主页定稿</b>：侧边栏中间那块（二级分类区）<b>保持空态</b>；
+  <b>最近运行 / ⭐收藏 / 新闻 / 更新日志 放在右侧内容区</b>，用页内分段切换。
+  <br><span style="color:var(--text-disabled)">分段是<b>页内控件</b>（用于筛选/切换），不是层级——层级只由左侧两栏表达。</span>
+</div>
+
+<!-- ============ 主页 · 默认（最近运行） ============ -->
+<div class="sheet">
+  <h2>屏 1 · 主页 —— 默认停在「最近运行」</h2>
+  <div class="win" style="margin-top:6px">
+    <div class="tb"><div class="brand"><span class="mk">QUL</span><span class="nm">QUL</span></div>
+      <div class="tb-spacer"></div><div class="wc"><div>─</div><div>▢</div><div>✕</div></div></div>
+    <div class="body2">
+      <nav class="side">
+        <div class="acct"><div class="top"><div class="av">R</div>
+          <div><div class="nm">reqinme</div><div class="src">微软账户 · 已登录</div></div></div>
+          <div class="auth">
+            <div class="authrow"><span class="dot ok"></span><span>Java 版</span><span class="s">已授权</span></div>
+            <div class="authrow"><span class="dot no"></span><span>基岩版</span><span class="s">未授权</span></div>
+          </div></div>
+        <div class="nav"><a class="on"><span>⌂</span>主页</a>
+          <a><span>▤</span>实例<span class="n">8</span></a>
+          <a><span>↓</span>下载<span class="badge">3</span></a></div>
+        <div class="lv2zone"><div class="empty">
+          <div><span class="big">—</span>主页没有下级分类</div></div></div>
+        <div class="side-btm">
+          <a><span>◉</span>账号管理</a><a><span>▦</span>百宝箱</a>
+          <a><span>⚒</span>设置</a><a><span>ⓘ</span>关于</a>
+          <div class="verline">v0.1.0</div></div>
+      </nav>
+      <main class="content">
+        <div class="hero"><div class="scrim"></div>
+          <div class="switcher"><div class="sw on"><span class="d" style="background:#0a66c2"></span>Java 版</div>
+            <div class="sw"><span class="d" style="background:#1a7f37"></span>基岩版</div></div>
+          <div class="artnote">封面图为占位 · 真实产品需自绘或用户自有</div>
+          <div class="txt"><h3>1.20.1 · Fabric 已就绪</h3>
+            <p>上次运行 2 小时前 · 4096 MB · 38 个模组 · 依赖已校验</p>
+            <div style="display:flex;gap:7px">
+              <button class="btn btn--primary" style="height:34px;font-size:13.5px;padding:0 22px">▶&nbsp; 启动</button>
+              <button class="btn btn--onart">管理实例</button>
+              <button class="btn btn--onart">打开目录</button></div></div></div>
+
+        <!-- ★ 分段：最近运行 / 收藏 / 新闻 / 更新日志 -->
+        <div class="seg">
+          <div class="s on">最近运行</div>
+          <div class="s">⭐ 收藏 <span class="n">3</span></div>
+          <div class="s">新闻</div>
+          <div class="s">更新日志 <span class="n">2</span></div>
+          <div class="sp"></div>
+          <span style="font-size:11px;color:var(--text-secondary)">按最近运行排序 ▾</span></div>
+
+        <div class="cards" style="grid-template-rows:repeat(2,1fr)">
+          <div class="card"><div class="thumb" style="background:linear-gradient(135deg,#3b4a6b,#5b6d92)"></div>
+            <div class="cb"><div class="t">1.20.1 · Fabric</div><div class="d">2 小时前 · 38 个模组</div>
+              <div class="go">启动 →</div></div></div>
+          <div class="card"><div class="thumb" style="background:linear-gradient(135deg,#4a4a52,#7a7a86)"></div>
+            <div class="cb"><div class="t">1.21.4 · 原版</div><div class="d">昨天 · 无模组</div>
+              <div class="go">启动 →</div></div></div>
+          <div class="card"><div class="thumb" style="background:linear-gradient(135deg,#5a4632,#8a6a44)"></div>
+            <div class="cb"><div class="t">1.19.2 · Forge</div><div class="d">3 天前 · 84 个模组</div>
+              <div class="go">启动 →</div></div></div>
+          <div class="card"><div class="thumb" style="background:linear-gradient(135deg,#2f4a6b,#4a6b92)"></div>
+            <div class="cb"><div class="t">1.18.2 · Fabric</div><div class="d">上周 · 12 个模组</div>
+              <div class="go">启动 →</div></div></div>
+          <div class="card"><div class="thumb" style="background:linear-gradient(135deg,#4a3a5a,#7a5a8a)"></div>
+            <div class="cb"><div class="t">1.7.10 · Forge</div><div class="d">上个月 · 96 个模组</div>
+              <div class="go">启动 →</div></div></div>
+          <div class="card"><div class="thumb" style="background:linear-gradient(135deg,#3a5a4a,#5a8a6a)"></div>
+            <div class="cb"><div class="t">基岩版 · 1.21.120</div><div class="d">上周 · 38 分</div>
+              <div class="go">启动 →</div></div></div>
+          <div class="card"><div class="thumb" style="background:linear-gradient(135deg,#5a4a3a,#8a6a4a)"></div>
+            <div class="cb"><div class="t">1.16.5 · Forge</div><div class="d">两个月前 · 64 个模组</div>
+              <div class="go">启动 →</div></div></div>
+          <div class="card" style="display:grid;place-items:center;background:linear-gradient(var(--surface-active),var(--surface-active)) padding-box, var(--edge) border-box">
+            <div style="text-align:center;color:var(--text-secondary);font-size:11.5px">
+              <div style="font-size:18px;margin-bottom:3px">＋</div>新建实例</div></div>
+        </div>
+      </main>
+    </div>
+    <div class="statusbar"><span>v0.1.0</span><span class="pill">当前产品：Java 版</span><span>官方源</span>
+      <span class="grow"></span><span>Java 21 · 118 MB</span></div>
+  </div>
+</div>
+
+<!-- ============ 主页 · 切到「更新日志」 ============ -->
+<div class="sheet">
+  <h2>屏 2 · 主页 —— 切到「更新日志」（<b>右侧换了内容，左侧完全没动</b>）</h2>
+  <p class="cap">这就是把那些东西放右侧的好处：<b>左侧的空态是稳定的</b>，不会因为切内容而变来变去。</p>
+  <div class="win">
+    <div class="tb"><div class="brand"><span class="mk">QUL</span><span class="nm">QUL</span></div>
+      <div class="tb-spacer"></div><div class="wc"><div>─</div><div>▢</div><div>✕</div></div></div>
+    <div class="body2">
+      <nav class="side">
+        <div class="acct"><div class="top"><div class="av">R</div>
+          <div><div class="nm">reqinme</div><div class="src">微软账户 · 已登录</div></div></div>
+          <div class="auth">
+            <div class="authrow"><span class="dot ok"></span><span>Java 版</span><span class="s">已授权</span></div>
+            <div class="authrow"><span class="dot no"></span><span>基岩版</span><span class="s">未授权</span></div>
+          </div></div>
+        <div class="nav"><a class="on"><span>⌂</span>主页</a>
+          <a><span>▤</span>实例<span class="n">8</span></a>
+          <a><span>↓</span>下载<span class="badge">3</span></a></div>
+        <div class="lv2zone"><div class="empty">
+          <div><span class="big">—</span>主页没有下级分类</div></div></div>
+        <div class="side-btm">
+          <a><span>◉</span>账号管理</a><a><span>▦</span>百宝箱</a>
+          <a><span>⚒</span>设置</a><a><span>ⓘ</span>关于</a>
+          <div class="verline">v0.1.0</div></div>
+      </nav>
+      <main class="content">
+        <div class="hero" style="height:150px"><div class="scrim"></div>
+          <div class="switcher"><div class="sw on"><span class="d" style="background:#0a66c2"></span>Java 版</div>
+            <div class="sw"><span class="d" style="background:#1a7f37"></span>基岩版</div></div>
+          <div class="txt" style="bottom:12px"><h3 style="font-size:17px">1.20.1 · Fabric 已就绪</h3>
+            <div style="display:flex;gap:7px">
+              <button class="btn btn--primary" style="height:32px;font-size:13px;padding:0 20px">▶&nbsp; 启动</button>
+              <button class="btn btn--onart">管理实例</button></div></div></div>
+
+        <div class="seg">
+          <div class="s">最近运行</div>
+          <div class="s">⭐ 收藏 <span class="n">3</span></div>
+          <div class="s">新闻</div>
+          <div class="s on">更新日志 <span class="n">2</span></div>
+          <div class="sp"></div>
+          <span style="font-size:11px;color:var(--text-secondary)">全部标记已读</span></div>
+
+        <div class="panel" style="padding:4px 14px">
+          <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--divider)">
+            <div style="width:6px;height:6px;border-radius:50%;background:var(--accent);margin-top:7px;flex:0 0 auto"></div>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:600">v0.1.1 · 修了下载重试的边界情况</div>
+              <div style="font-size:11.5px;color:var(--text-secondary);margin-top:2px">
+                分片重试在上游 4xx 时会无限循环；现在改为立即失败并给出原因。同时修了基岩版实例的图标不显示。</div>
+              <div class="mono" style="font-size:10.5px;color:var(--text-disabled);margin-top:4px">2026-10-02 · 未读</div>
+            </div></div>
+          <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--divider)">
+            <div style="width:6px;height:6px;border-radius:50%;background:var(--accent);margin-top:7px;flex:0 0 auto"></div>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:600">v0.1.0 · 第一个可用版本</div>
+              <div style="font-size:11.5px;color:var(--text-secondary);margin-top:2px">
+                主页 / 实例 / 下载 / 账号管理 / 宝箱 / 设置 / 关于；三级信息架构；实例分组。</div>
+              <div class="mono" style="font-size:10.5px;color:var(--text-disabled);margin-top:4px">2026-09-30 · 未读</div>
+            </div></div>
+          <div style="display:flex;gap:10px;padding:10px 0">
+            <div style="width:6px;height:6px;border-radius:50%;background:transparent;margin-top:7px;flex:0 0 auto"></div>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:600;color:var(--text-secondary)">v0.0.9 · 内测</div>
+              <div style="font-size:11.5px;color:var(--text-disabled);margin-top:2px">
+                预发布，未公开发布。</div>
+              <div class="mono" style="font-size:10.5px;color:var(--text-disabled);margin-top:4px">2026-09-21</div>
+            </div></div>
+        </div>
+        <div style="font-size:11px;color:var(--text-disabled)">
+          页内分段只管"看哪一类"；<b>左侧一级、二级栏完全没变</b>。
+        </div>
+      </main>
+    </div>
+    <div class="statusbar"><span>v0.1.0</span><span class="pill">当前产品：Java 版</span><span>官方源</span>
+      <span class="grow"></span><span>Java 21 · 118 MB</span></div>
+  </div>
+</div>
+
+</body>
+</html>

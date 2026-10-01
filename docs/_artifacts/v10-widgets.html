@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>秦墨 · 主页小部件（可配置 / 三档形态）</title>
+<style>
+:root{
+  --surface-card:rgb(255 255 255 / 66%);
+  --surface-panel:rgb(255 255 255 / 46%);
+  --surface-active:rgb(0 0 0 / 8%);
+  --surface-selected:rgb(0 0 0 / 9%);
+  --stroke-subtle:rgb(0 0 0 / 12%);
+  --divider:rgb(0 0 0 / 8%);
+  --text-primary:#1a1a1c; --text-secondary:#4a4a4f; --text-disabled:#8e8e93;
+  --accent:#0a66c2; --text-on-accent:#fff; --pink:#d6336c;
+  --hairline:1px;
+  --font-ui:"Microsoft YaHei UI","Noto Sans SC",system-ui,sans-serif;
+  --font-mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+  --edge:linear-gradient(135deg, rgb(255 255 255 / 88%), rgb(255 255 255 / 38%));
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{ font:14px/1.6 var(--font-ui); color:var(--text-primary); background:#cfccc8; padding:20px 22px 6px; }
+.mica{ position:fixed; inset:0; z-index:-2;
+  background:radial-gradient(1200px 800px at 22% 12%, #b9b4ae 0%, #cbc7c2 45%, #dcd9d5 100%), #cfccc8; }
+.mica-tint{ position:fixed; inset:0; z-index:-1;
+  background:linear-gradient(180deg, rgb(240 238 235 / 80%), rgb(233 230 227 / 86%)); }
+.mono{ font-family:var(--font-mono) }
+.sheet{ max-width:1440px; margin:0 auto 16px }
+.sheet h2{ font-size:15px; font-weight:600; margin:0 0 2px }
+.sheet .cap{ font-size:12px; color:var(--text-disabled); margin:0 0 8px }
+.win{ width:1400px; height:788px; border-radius:10px; overflow:hidden;
+  border:var(--hairline) solid var(--stroke-subtle); display:grid; grid-template-rows:38px 1fr 26px }
+.tb{ display:flex; align-items:center; gap:12px; padding-left:12px }
+.brand{ display:flex; align-items:center; gap:8px; white-space:nowrap }
+.brand .mk{ width:20px;height:20px;border-radius:5px;background:linear-gradient(140deg,#0a66c2,#6d4aff);
+  display:grid;place-items:center;font-size:9.5px;font-weight:800;color:#fff }
+.brand .nm{ font-weight:700; font-size:15px; letter-spacing:.6px }
+.tb-spacer{ flex:1 } .wc{ display:flex }
+.wc div{ width:46px;height:38px;display:grid;place-items:center;color:var(--text-secondary);font-size:11px }
+
+/* 三栏：一级 218 / 主内容 / 小部件栏 314 */
+.body{ display:grid; grid-template-columns:218px 1fr 314px; min-height:0 }
+.bodyWide{ display:grid; grid-template-columns:218px 1fr; min-height:0 }
+.side{ border-right:var(--hairline) solid var(--divider); display:flex; flex-direction:column; min-height:0 }
+.acct{ padding:10px 12px; border-bottom:var(--hairline) solid var(--divider) }
+.acct .top{ display:flex; align-items:center; gap:9px }
+.acct .av{ width:32px;height:32px;border-radius:50%;flex:0 0 auto;
+  background:linear-gradient(150deg,#0a66c2,#6d4aff); display:grid;place-items:center;
+  font-size:13px;font-weight:700;color:#fff }
+.acct .nm{ font-size:12.5px;font-weight:600; line-height:1.3 }
+.acct .src{ font-size:10.5px;color:var(--text-secondary) }
+.auth{ margin-top:6px; display:grid; gap:2px }
+.authrow{ display:flex; align-items:center; gap:6px; font-size:11px }
+.dot{ width:6px;height:6px;border-radius:50%;flex:0 0 auto }
+.dot.ok{ background:#1a7f37 } .dot.no{ background:#cf222e }
+.authrow .s{ margin-left:auto; font-size:10.5px; color:var(--text-disabled) }
+.nav{ padding:6px 9px; display:grid; gap:1px }
+.nav a{ display:flex;align-items:center;gap:9px;height:31px;padding:0 10px;border-radius:8px;
+  color:var(--text-secondary);text-decoration:none;font-size:13px;position:relative }
+.nav a.on{ background:var(--surface-selected); color:var(--text-primary) }
+.nav a.on::before{ content:"";position:absolute;left:0;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--accent) }
+.nav a .n{ margin-left:auto;font-size:10.5px;color:var(--text-disabled) }
+.nav a .badge{ margin-left:auto; min-width:15px;height:15px;padding:0 5px;border-radius:999px;
+  background:var(--accent);color:#fff;font-size:9.5px;font-weight:700;display:grid;place-items:center }
+.lv2zone{ flex:1; min-height:0; display:flex; flex-direction:column;
+  border-top:var(--hairline) solid var(--divider); background:rgb(0 0 0 / 2%) }
+.empty{ height:100%; display:grid; place-items:center; text-align:center;
+  color:var(--text-disabled); font-size:11.5px; line-height:1.7; padding:0 16px }
+.empty .big{ font-size:19px; display:block; margin-bottom:5px; opacity:.6 }
+.side-btm{ flex:0 0 auto; padding:6px 9px 9px; display:grid; gap:1px;
+  border-top:var(--hairline) solid var(--divider) }
+.side-btm a{ display:flex;align-items:center;gap:9px;height:30px;padding:0 10px;border-radius:8px;
+  color:var(--text-secondary);text-decoration:none;font-size:12.5px }
+.side-btm a.on{ background:var(--surface-selected); color:var(--text-primary) }
+.verline{ padding:1px 11px 5px; font:10px/1.4 var(--font-mono); color:var(--text-disabled) }
+
+/* 主内容区 */
+.main{ padding:16px 18px; overflow:hidden; display:flex; flex-direction:column; gap:12px; min-width:0 }
+.greet{ flex:0 0 auto }
+.greet .d{ font-size:11.5px; color:var(--text-disabled) }
+.greet .h{ font-size:22px; font-weight:600; margin-top:1px }
+/* 主内容里的两块卡 */
+.bigcard{ border:var(--hairline) solid transparent; border-radius:12px; display:flex; flex-direction:column;
+  background:linear-gradient(var(--surface-panel),var(--surface-panel)) padding-box, var(--edge) border-box;
+  overflow:hidden }
+.bigcard .ch{ padding:12px 16px 8px; font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:8px; flex:0 0 auto }
+.bigcard .ch .r{ margin-left:auto; font-size:11px; color:var(--text-disabled); font-weight:400 }
+.bigcard .cb{ padding:0 16px 14px; flex:1; min-height:0; display:flex; flex-direction:column }
+.emptybox{ flex:1; display:grid; place-items:center; text-align:center;
+  color:var(--text-disabled); font-size:12px }
+.emptybox .ic{ font-size:22px; display:block; margin-bottom:6px; opacity:.5 }
+.rowlist{ display:flex; flex-direction:column; gap:2px }
+.row{ display:flex; align-items:center; gap:11px; height:44px; padding:0 10px; border-radius:9px }
+.row .thumb{ width:30px;height:30px;border-radius:7px;flex:0 0 auto }
+.row .tx{ min-width:0; flex:1 }
+.row .tx b{ font-size:12.5px; display:block; line-height:1.3 }
+.row .tx span{ font-size:10.5px; color:var(--text-secondary) }
+.btn{ height:27px;padding:0 13px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;
+  font-size:12px;font-weight:600;border:var(--hairline) solid transparent }
+.btn--primary{ background:var(--accent);color:var(--text-on-accent) }
+.btn--ghost{ background:rgb(255 255 255 / 58%);color:var(--text-primary);border-color:var(--stroke-subtle);font-weight:500 }
+.btn--sm{ height:24px;font-size:11.5px;padding:0 9px }
+.badge-p{ font-size:10px; padding:1px 6px; border-radius:999px; border:var(--hairline) solid var(--stroke-subtle);
+  background:rgb(255 255 255 / 55%); color:var(--text-secondary) }
+.pill{ border:var(--hairline) solid var(--stroke-subtle); border-radius:999px; padding:1px 8px; font-size:10px;
+  color:var(--text-secondary) }
+
+/* ★ 右侧小部件栏 */
+.rail{ border-left:var(--hairline) solid var(--divider); padding:14px 12px; display:flex; flex-direction:column; gap:10px;
+  overflow:hidden; background:rgb(0 0 0 / 2%) }
+.rail .rh{ display:flex; align-items:center; gap:7px; font-size:10.5px; color:var(--text-disabled);
+  letter-spacing:.5px; padding:0 3px }
+.rail .rh .sp{ margin-left:auto; font-size:10px }
+.wid{ border:var(--hairline) solid transparent; border-radius:12px; overflow:hidden; flex:0 0 auto;
+  background:linear-gradient(var(--surface-card),var(--surface-card)) padding-box, var(--edge) border-box }
+.wid .wh{ display:flex; align-items:center; gap:8px; padding:10px 13px 6px; font-size:13px; font-weight:600 }
+.wid .wh .ic{ font-size:13px; color:var(--pink) }
+.wid .wh .sp{ margin-left:auto; display:flex; gap:4px; color:var(--text-disabled); font-size:11px }
+.wid .wb{ padding:0 13px 12px; font-size:12px }
+.wid.grow{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column }
+.wid.grow .wb{ flex:1; min-height:0; display:flex; flex-direction:column }
+/* 日历小部件 */
+.cal{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; text-align:center }
+.cal .dw{ font-size:10px; color:var(--text-disabled); padding-bottom:2px }
+.cal .dy{ font-size:11px; height:23px; display:grid; place-items:center; border-radius:6px; color:var(--text-secondary) }
+.cal .dy.today{ border:1.5px solid var(--pink); color:var(--text-primary); font-weight:700 }
+.cal .dy.out{ color:rgb(0 0 0 / 22%) }
+.detail{ margin-top:9px; font-size:11.5px; color:var(--text-secondary) }
+.detail b{ color:var(--text-primary) }
+/* 极简小部件（只有一个启动按钮） */
+.wid.mini{ background:linear-gradient(var(--surface-card),var(--surface-card)) padding-box, var(--edge) border-box }
+.minibody{ display:flex; align-items:center; gap:11px; padding:11px 13px }
+.minibody .thumb{ width:34px;height:34px;border-radius:8px;flex:0 0 auto }
+.minibody .tx{ flex:1; min-width:0 }
+.minibody .tx b{ font-size:12.5px; display:block }
+.minibody .tx span{ font-size:10.5px; color:var(--text-secondary) }
+.confirm{ display:flex; align-items:center; justify-content:flex-end; gap:8px; padding:9px 11px;
+  border-top:var(--hairline) solid var(--divider) }
+.confirm .x{ width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;
+  border:var(--hairline) solid var(--stroke-subtle); color:var(--text-secondary); background:var(--surface-card) }
+.confirm .v{ width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:12px;
+  background:var(--pink); color:#fff }
+.statusbar{ display:flex;align-items:center;gap:10px;padding:0 13px;border-top:var(--hairline) solid var(--divider);
+  color:var(--text-secondary);font-size:11px;font-family:var(--font-mono) }
+.statusbar .grow{flex:1}
+.statusbar .pill2{border:var(--hairline) solid var(--stroke-subtle);border-radius:999px;padding:1px 7px}
+/* 设置页开关行 */
+.secrow{ display:flex;align-items:center;gap:12px;padding:10px 14px;
+  border:var(--hairline) solid transparent; border-radius:11px; margin-bottom:7px;
+  background:linear-gradient(var(--surface-card),var(--surface-card)) padding-box, var(--edge) border-box }
+.secrow .t{ flex:1 } .secrow .t b{ font-size:13px; display:block } .secrow .t span{ font-size:11px; color:var(--text-secondary) }
+.sw2{ width:38px;height:21px;border-radius:999px;background:var(--accent);position:relative;flex:0 0 auto }
+.sw2::after{ content:"";position:absolute;right:2px;top:2px;width:17px;height:17px;border-radius:50%;background:#fff }
+.sw2.off{ background:rgb(0 0 0 / 18%) } .sw2.off::after{ right:auto;left:2px }
+.seg{ display:inline-flex; border:var(--hairline) solid var(--stroke-subtle); border-radius:9px; overflow:hidden;
+  background:var(--surface-card) }
+.seg div{ padding:5px 13px; font-size:12px; color:var(--text-secondary) }
+.seg div.on{ background:var(--accent); color:#fff; font-weight:600 }
+.note{ max-width:1440px; margin:0 auto 14px; font-size:12.5px; line-height:1.72; padding:11px 14px;
+  border-radius:10px; border:1px solid var(--stroke-subtle); background:var(--surface-card) }
+.note b{ color:#c2410c }
+</style>
+</head>
+<body>
+<div class="mica"></div><div class="mica-tint"></div>
+
+<div class="note" style="margin-top:0">
+  <b>按你说的改</b>：主页右侧改成<b>独立的小部件卡片</b>（像你给的那张图）——
+  <b>卡片各自独立、可在设置里开关、每个还能切"丰富 / 极简"两种形态</b>。
+  <br><span style="color:var(--text-disabled)">下面三屏：① 丰富（日历 + 固定世界 + 固定服务器）② 极简（只剩一个启动按钮）③ 设置页里的开关。</span>
+</div>
+
+<!-- ================= 屏 1 · 丰富 ================= -->
+<div class="sheet">
+  <h2>屏 1 · 主页 · <b>丰富形态</b> —— 右侧三个小部件卡片</h2>
+  <div class="win" style="margin-top:6px">
+    <div class="tb"><div class="brand"><span class="mk">QUL</span><span class="nm">QUL</span></div>
+      <div class="tb-spacer"></div><div class="wc"><div>─</div><div>▢</div><div>✕</div></div></div>
+    <div class="body">
+      <nav class="side">
+        <div class="acct"><div class="top"><div class="av">R</div>
+          <div><div class="nm">reqinme</div><div class="src">微软账户 · 已登录</div></div></div>
+          <div class="auth">
+            <div class="authrow"><span class="dot ok"></span><span>Java 版</span><span class="s">已授权</span></div>
+            <div class="authrow"><span class="dot no"></span><span>基岩版</span><span class="s">未授权</span></div>
+          </div></div>
+        <div class="nav"><a class="on"><span>⌂</span>主页</a>
+          <a><span>▤</span>实例<span class="n">8</span></a>
+          <a><span>↓</span>下载<span class="badge">3</span></a></div>
+        <div class="lv2zone"><div class="empty">
+          <div><span class="big">—</span>主页没有下级分类</div></div></div>
+        <div class="side-btm"><a><span>◉</span>账号管理</a><a><span>▦</span>百宝箱</a>
+          <a><span>⚒</span>设置</a><a><span>ⓘ</span>关于</a><div class="verline">v0.1.0</div></div>
+      </nav>
+
+      <main class="main">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <div class="greet"><div class="d">10月1日星期四</div>
+            <div class="h">reqinme 的实例</div></div>
+          <span style="flex:1"></span>
+          <!-- ⚠ 产品切换必须有地方放：大横幅去掉后，挪到这里 -->
+          <div class="seg" style="border-radius:999px">
+            <div class="on">Java 版</div><div>基岩版</div>
+          </div>
+        </div>
+
+        <div class="bigcard" style="flex:1 1 58%">
+          <div class="ch">从最近的项目开始 <span class="r">按最近运行</span></div>
+          <div class="cb"><div class="rowlist">
+            <div class="row" style="background:var(--surface-card)">
+              <div class="thumb" style="background:linear-gradient(150deg,#3b4a6b,#5b6d92)"></div>
+              <div class="tx"><b>1.20.1 · Fabric</b><span>2 小时前 · 38 个模组 · 依赖已校验</span></div>
+              <span class="badge-p">当前</span>
+              <button class="btn btn--primary btn--sm">▶ 启动</button></div>
+            <div class="row"><div class="thumb" style="background:linear-gradient(150deg,#4a4a52,#7a7a86)"></div>
+              <div class="tx"><b>1.21.4 · 原版</b><span>昨天 · 无模组</span></div>
+              <button class="btn btn--ghost btn--sm">启动</button></div>
+            <div class="row"><div class="thumb" style="background:linear-gradient(150deg,#5a4632,#8a6a44)"></div>
+              <div class="tx"><b>1.19.2 · Forge</b><span>3 天前 · 84 个模组</span></div>
+              <button class="btn btn--ghost btn--sm">启动</button></div>
+            <div class="row"><div class="thumb" style="background:linear-gradient(150deg,#3a5a4a,#5a8a6a)"></div>
+              <div class="tx"><b>基岩版 · 1.21.120</b><span>上周 · 38 分 · 沙箱形态</span></div>
+              <button class="btn btn--ghost btn--sm">启动</button></div>
+          </div></div>
+        </div>
+
+        <div class="bigcard" style="flex:1 1 30%">
+          <div class="ch">固定的服务器 <span class="r">右键可取消固定</span></div>
+          <div class="cb"><div class="emptybox">
+            <div><span class="ic">▭</span>还没有固定的服务器。<br>
+              <span style="font-size:11px">在「实例」里对服务器点"固定"就会出现在这里。</span></div></div></div>
+        </div>
+      </main>
+
+      <!-- ★ 右侧小部件栏 -->
+      <aside class="rail">
+        <div class="rh">小部件 <span class="sp">设置里可开关</span></div>
+
+        <!-- 日历 -->
+        <div class="wid">
+          <div class="wh"><span class="ic">▦</span>日历
+            <span class="sp"><span>‹</span><span style="color:var(--text-primary)">2026年10月</span><span>›</span></span></div>
+          <div class="wb">
+            <div class="cal">
+              <div class="dw">一</div><div class="dw">二</div><div class="dw">三</div><div class="dw">四</div>
+              <div class="dw">五</div><div class="dw">六</div><div class="dw">日</div>
+              <div class="dy out">29</div><div class="dy out">30</div><div class="dy">1</div><div class="dy today">1</div>
+              <div class="dy">2</div><div class="dy">3</div><div class="dy">4</div>
+              <div class="dy">5</div><div class="dy">6</div><div class="dy">7</div><div class="dy">8</div>
+              <div class="dy">9</div><div class="dy">10</div><div class="dy">11</div>
+              <div class="dy">12</div><div class="dy">13</div><div class="dy">14</div><div class="dy">15</div>
+              <div class="dy">16</div><div class="dy">17</div><div class="dy">18</div>
+              <div class="dy">19</div><div class="dy">20</div><div class="dy">21</div><div class="dy">22</div>
+              <div class="dy">23</div><div class="dy">24</div><div class="dy">25</div>
+            </div>
+            <div class="detail"><b>10月1日你游玩了：</b><br>这一天没有游玩记录。</div>
+          </div>
+        </div>
+
+        <!-- 固定的世界 -->
+        <div class="wid grow">
+          <div class="wh"><span class="ic">▤</span>固定的世界</div>
+          <div class="wb"><div class="emptybox">
+            <div><span class="ic">▣</span>将世界标记为收藏后，就会固定在这里。</div></div></div>
+        </div>
+
+        <!-- 极简小部件示例 -->
+        <div class="wid mini">
+          <div class="minibody">
+            <div class="thumb" style="background:linear-gradient(150deg,#3b4a6b,#5b6d92)"></div>
+            <div class="tx"><b>1.20.1 · Fabric</b><span>就绪 · 预计 8 秒</span></div>
+          </div>
+          <div class="confirm">
+            <div class="x">✕</div><div class="v">▶</div>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="statusbar"><span>v0.1.0</span><span class="pill2">当前产品：Java 版</span><span>官方源</span>
+      <span class="grow"></span><span>Java 21 · 118 MB</span></div>
+  </div>
+</div>
+
+<!-- ================= 屏 2 · 极简 ================= -->
+<div class="sheet">
+  <h2>屏 2 · 主页 · <b>极简形态</b> —— 全部小部件关掉，只留一个启动按钮</h2>
+  <p class="cap">这就是你说的"非常简洁，只有一个启动的"。<b>大横幅 + 一行启动</b>，其余全部关掉。</p>
+  <div class="win">
+    <div class="tb"><div class="brand"><span class="mk">QUL</span><span class="nm">QUL</span></div>
+      <div class="tb-spacer"></div><div class="wc"><div>─</div><div>▢</div><div>✕</div></div></div>
+    <div class="bodyWide">
+      <nav class="side">
+        <div class="acct"><div class="top"><div class="av">R</div>
+          <div><div class="nm">reqinme</div><div class="src">微软账户 · 已登录</div></div></div>
+          <div class="auth">
+            <div class="authrow"><span class="dot ok"></span><span>Java 版</span><span class="s">已授权</span></div>
+            <div class="authrow"><span class="dot no"></span><span>基岩版</span><span class="s">未授权</span></div>
+          </div></div>
+        <div class="nav"><a class="on"><span>⌂</span>主页</a>
+          <a><span>▤</span>实例<span class="n">8</span></a>
+          <a><span>↓</span>下载<span class="badge">3</span></a></div>
+        <div class="lv2zone"><div class="empty">
+          <div><span class="big">—</span>主页没有下级分类</div></div></div>
+        <div class="side-btm"><a><span>◉</span>账号管理</a><a><span>▦</span>百宝箱</a>
+          <a><span>⚒</span>设置</a><a><span>ⓘ</span>关于</a><div class="verline">v0.1.0</div></div>
+      </nav>
+      <main class="main" style="align-items:center; justify-content:center; gap:18px">
+        <div style="width:640px; text-align:center">
+          <div class="greet" style="margin-bottom:16px"><div class="d">10月1日星期四</div>
+            <div class="h" style="font-size:22px">没有正在运行的实例</div></div>
+          <div class="bigcard">
+            <div class="ch" style="justify-content:center; font-size:15px">1.20.1 · Fabric</div>
+            <div style="text-align:center; font-size:12px; color:var(--text-secondary); margin-top:-2px">
+              内存 4096 MB · 38 个模组 · 依赖已校验 · 预计 8 秒</div>
+            <div style="display:flex; justify-content:center; gap:10px; padding:18px 0 20px">
+              <button class="btn btn--primary" style="height:44px; font-size:16px; padding:0 44px; border-radius:11px">▶&nbsp; 启动</button>
+              <button class="btn btn--ghost" style="height:44px; font-size:14px; padding:0 22px; border-radius:11px">选择实例 ▾</button>
+            </div>
+          </div>
+          <div style="margin-top:14px; font-size:11px; color:var(--text-disabled)">
+            小部件全部关闭 —— 在「设置 → 外观 → 主页小部件」里可以再打开
+          </div>
+        </div>
+      </main>
+    </div>
+    <div class="statusbar"><span>v0.1.0</span><span class="pill2">当前产品：Java 版</span><span>官方源</span>
+      <span class="grow"></span><span>Java 21 · 118 MB</span></div>
+  </div>
+</div>
+
+<!-- ================= 屏 3 · 设置里的开关 ================= -->
+<div class="sheet">
+  <h2>屏 3 · 设置 → 外观 → <b>主页小部件</b>（开哪个、每个什么形态）</h2>
+  <div class="win">
+    <div class="tb"><div class="brand"><span class="mk">QUL</span><span class="nm">QUL</span></div>
+      <div class="tb-spacer"></div><div class="wc"><div>─</div><div>▢</div><div>✕</div></div></div>
+    <div class="bodyWide">
+      <nav class="side">
+        <div class="acct"><div class="top"><div class="av">R</div>
+          <div><div class="nm">reqinme</div><div class="src">微软账户 · 已登录</div></div></div>
+          <div class="auth">
+            <div class="authrow"><span class="dot ok"></span><span>Java 版</span><span class="s">已授权</span></div>
+            <div class="authrow"><span class="dot no"></span><span>基岩版</span><span class="s">未授权</span></div>
+          </div></div>
+        <div class="nav"><a><span>⌂</span>主页</a>
+          <a><span>▤</span>实例<span class="n">8</span></a>
+          <a><span>↓</span>下载<span class="badge">3</span></a></div>
+        <div class="lv2zone"><div class="empty">
+          <div><span class="big">—</span>设置页的二级分类<br>
+            <span style="font-size:10.5px">（示意位置；按 v1.9 规则这里是"设置类别 + 按产品"）</span></div></div></div>
+        <div class="side-btm"><a><span>◉</span>账号管理</a><a><span>▦</span>百宝箱</a>
+          <a class="on"><span>⚒</span>设置</a><a><span>ⓘ</span>关于</a><div class="verline">v0.1.0</div></div>
+      </nav>
+      <main class="main" style="overflow:auto">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="greet"><div class="h" style="font-size:18px">主页小部件</div>
+            <div class="d">决定主页右侧显示哪些卡片。每个部件还能单独选形态。</div></div>
+          <span style="flex:1"></span>
+          <div class="seg"><div class="on">丰富</div><div>精简</div><div>极简</div></div>
+        </div>
+
+        <div class="secrow"><div class="t"><b>日历</b><span>显示本月与"今天玩了多少"</span></div>
+          <div class="seg"><div class="on">丰富</div><div>极简</div></div><div class="sw2"></div></div>
+        <div class="secrow"><div class="t"><b>固定的世界</b><span>把世界收藏后固定在这里</span></div>
+          <div class="seg"><div class="on">丰富</div><div>极简</div></div><div class="sw2"></div></div>
+        <div class="secrow"><div class="t"><b>固定的服务器</b><span>把服务器固定后在这里快速进入</span></div>
+          <div class="seg"><div class="on">丰富</div><div>极简</div></div><div class="sw2"></div></div>
+        <div class="secrow"><div class="t"><b>最近运行</b><span>主页主内容区里的实例列表</span></div>
+          <div class="seg"><div class="on">丰富</div><div>极简</div></div><div class="sw2"></div></div>
+        <div class="secrow"><div class="t"><b>快速启动按钮</b><span>极简小部件：只有一个启动键</span></div>
+          <div class="seg"><div>丰富</div><div class="on">极简</div></div><div class="sw2"></div></div>
+        <div class="secrow" style="margin-bottom:0"><div class="t"><b>新闻</b><span>来自官方与社区的更新动态</span></div>
+          <div class="seg"><div>丰富</div><div class="on">极简</div></div><div class="sw2 off"></div></div>
+
+        <div style="font-size:11px;color:var(--text-disabled); margin-top:2px">
+          「丰富 / 精简 / 极简」是<b>一键预设</b>：切换后各个部件的开关与形态一起变，省得逐项调。
+        </div>
+      </main>
+    </div>
+    <div class="statusbar"><span>v0.1.0</span><span class="pill2">设置 · 外观</span><span>官方源</span>
+      <span class="grow"></span><span>Java 21 · 118 MB</span></div>
+  </div>
+</div>
+
+</body>
+</html>
