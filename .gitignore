@@ -5,7 +5,7 @@
 
 # ── Node / 前端 ───────────────────────────────────────────────
 node_modules/
-dist/
+web/dist/
 dist-ssr/
 .vite/
 *.tsbuildinfo

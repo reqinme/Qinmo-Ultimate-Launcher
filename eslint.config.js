@@ -25,7 +25,7 @@ const PRODUCT_NAME = "/^(java|bedrock|forge|fabric|neoforge|quilt|optifine|mojan
 export default tseslint.config(
   {
     ignores: [
-      "dist/**",
+      "web/dist/**",
       "node_modules/**",
       "coverage/**",
       "src-tauri/**",
@@ -38,7 +38,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["web/src/**/*.{ts,tsx}"],
     languageOptions: {
       globals: { ...globals.browser },
       parserOptions: { ecmaFeatures: { jsx: true } },
@@ -75,7 +75,7 @@ export default tseslint.config(
   },
   {
     // 测试文件：允许字面量样本（测试就是要用具体值验证规则）
-    files: ["src/**/*.test.{ts,tsx}", "src/**/__tests__/**"],
+    files: ["web/src/**/*.test.{ts,tsx}", "web/src/**/__tests__/**"],
     rules: {
       "no-restricted-syntax": "off",
     },

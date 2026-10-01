@@ -66,6 +66,12 @@ jobs:
       - name: 测试
         run: pnpm test
 
+      # 构建也进 CI。理由：U0 期间 build 一直没被验证过——
+      # typecheck/lint/test 全绿并不能推出"能构建"（构建还涉及 Vite 的
+      # 依赖解析、资源路径、target 兼容性）。**没被验证过的步骤等于没有。**
+      - name: 构建
+        run: pnpm build
+
   # 方案 §8.2 的"内核不许出现游戏词汇"——CI 侧的廉价版本。
   # **权威版本是 crates/qul-core/tests/architecture.rs**（它只看代码、忽略注释）；
   # 这一步的存在理由是：万一那条测试被误删，CI 仍然会拦。

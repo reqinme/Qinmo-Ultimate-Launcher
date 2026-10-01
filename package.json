@@ -5,13 +5,13 @@
   "type": "module",
   "description": "秦墨 · 通用启动器（前端外壳；业务逻辑一律在 Rust 侧）",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
+    "dev": "vite --config web/vite.config.ts",
+    "build": "tsc --noEmit && vite build --config web/vite.config.ts",
+    "preview": "vite preview --config web/vite.config.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --config web/vite.config.ts",
+    "test:watch": "vitest --config web/vite.config.ts"
   },
   "dependencies": {
     "react": "^19.0.0",
