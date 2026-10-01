@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
 members = ["crates/qul-core"]
+# `spikes/` 是一次性实验代码，**不属于产品**：
+#   - 它的结论会写进文档，代码本身完成使命后即可丢弃
+#   - 若留在 workspace 里，每次 `cargo test` 都会连带构建它（CI 变慢、且引入它自己的依赖）
+# 排除之后它仍是**合法可构建**的独立包（`cargo build --manifest-path spikes/.../Cargo.toml`）。
+exclude = ["spikes"]
 
 # ── 工作区统一依赖版本（成员 crate 用 `dep.workspace = true` 引用）──
 [workspace.dependencies]
