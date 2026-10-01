@@ -92,6 +92,157 @@ struct Rect {
     h: f64,
 }
 
+/// S3 第 5 项：滚动帧率测试页。
+///
+/// **为什么页面自己滚、自己量**：若由外部脚本注入滚动事件，
+/// 输入注入的抖动会混进帧时间读数里，而**"噪声源就是测量工具"**
+/// 正是本项目反复踩到的那类事故（S2 的轮询计时、S4 的金丝雀行）。
+///
+/// **为什么含图片**：预算是"含图片的长列表"。
+/// 图片用**内联 SVG data URI**，不依赖网络——尖刺不该因为网络慢而测出假的低帧率。
+///
+/// 结果通过 **窗口标题**里的 `SCROLL_RESULT {...}` 给出，由 harness 读取。
+///
+/// **为什么不是 stdout**：WebView2 的 `console.log` 不会到达父进程的 stdout
+/// （除非额外加日志开关，而**加开关就改变了被测对象**）。
+/// 标题是本尖刺既有的数据通路（其它格子带 `S1 | run_id`），无需新依赖、无需开关。
+/// 刻意不写文件：这一项要的是"窗口里的滚动是否流畅"，
+/// 多一条文件 I/O 路径就多一处可能与"卡顿"混淆的失败点。
+fn build_scroll_page(scroll_ms: u64, items: usize) -> String {
+    format!(
+        r#"<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<title>S3 scroll</title>
+<style>
+  html,body {{ margin:0; background:#f2f2f4; font:13px/1.5 "Microsoft YaHei UI",system-ui,sans-serif; }}
+  #list {{ padding:8px; }}
+  .row {{ display:flex; gap:10px; align-items:center; height:72px; margin-bottom:8px;
+          background:#fff; border-radius:8px; padding:8px 12px;
+          box-shadow:0 1px 2px rgba(0,0,0,.08); }}
+  .thumb {{ width:56px; height:56px; border-radius:6px; flex:0 0 auto; }}
+  .tx {{ min-width:0; }}
+  .tx b {{ display:block; font-size:13.5px; }}
+  .tx span {{ color:#666; }}
+  #hud {{ position:fixed; right:10px; top:10px; background:#000c; color:#fff;
+          padding:6px 10px; border-radius:6px; font-family:Consolas,monospace; font-size:11px; }}
+</style></head><body>
+<div id="hud">running...</div>
+<div id="list"></div>
+<script>
+const ITEMS = {items};
+const COLORS = ['#3b4a6b','#5a4632','#2f5a3a','#4a3a5a','#3a5a8a','#7a4a3a'];
+function thumbSvg(i) {{
+  const c = COLORS[i % COLORS.length];
+  const d = (i % 3) + 1;
+  // Quotes are built from String.fromCharCode(34) instead of being written
+  // literally. Reason: this page is a Rust `format!` raw string, and a literal
+  // double quote inside it terminates the Rust string -- which is exactly the
+  // compile error this produced the first time.
+  const Q = String.fromCharCode(34);
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    '<svg xmlns=' + Q + 'http://www.w3.org/2000/svg' + Q +
+    ' width=' + Q + '56' + Q + ' height=' + Q + '56' + Q + '>' +
+    '<rect width=' + Q + '56' + Q + ' height=' + Q + '56' + Q + ' fill=' + Q + c + Q + '/>' +
+    '<circle cx=' + Q + (12 * d) + Q + ' cy=' + Q + '20' + Q + ' r=' + Q + '10' + Q + ' fill=' + Q + '#ffffff55' + Q + '/>' +
+    '<rect x=' + Q + '6' + Q + ' y=' + Q + '34' + Q + ' width=' + Q + '44' + Q + ' height=' + Q + '14' + Q + ' fill=' + Q + '#00000044' + Q + '/></svg>');
+}}
+const frag = document.createDocumentFragment();
+for (let i = 0; i < ITEMS; i++) {{
+  const row = document.createElement('div');
+  row.className = 'row';
+  const img = document.createElement('img');
+  img.className = 'thumb';
+  img.src = thumbSvg(i);
+  img.alt = '';
+  const tx = document.createElement('div');
+  tx.className = 'tx';
+  tx.innerHTML = '<b>Instance #' + (i + 1) + '</b><span>1.20.1 - Fabric - 38 mods</span>';
+  row.appendChild(img); row.appendChild(tx);
+  frag.appendChild(row);
+}}
+document.getElementById('list').appendChild(frag);
+
+// Gaps above 250 ms are treated as pauses, not dropped frames. The first rAF
+// after load, and any moment the window is not being composed, would otherwise
+// be counted as a catastrophic stall and would make the p95 meaningless.
+const frames = [];
+let last = 0;
+let start = 0;
+let stop = false;
+
+function tick(ts) {{
+  if (start === 0) {{ start = ts; last = ts; }}
+  else {{
+    const dt = ts - last;
+    last = ts;
+    if (dt > 0 && dt < 250) frames.push(dt);
+  }}
+  window.scrollBy(0, 14);
+  const elapsed = ts - start;
+  document.getElementById('hud').textContent =
+    frames.length + ' frames / ' + Math.round(elapsed) + ' ms';
+  if (!stop && elapsed < {scroll_ms}) {{
+    requestAnimationFrame(tick);
+  }} else if (!stop) {{
+    stop = true;
+    finish();
+  }}
+}}
+
+function pct(sorted, p) {{
+  if (sorted.length === 0) return 0;
+  const idx = Math.min(sorted.length - 1, Math.ceil(sorted.length * p) - 1);
+  return sorted[idx];
+}}
+
+function finish() {{
+  const sorted = frames.slice().sort((a, b) => a - b);
+  const sum = frames.reduce((a, b) => a + b, 0);
+  const mean = frames.length ? sum / frames.length : 0;
+  const r = {{
+    items: ITEMS,
+    frames: frames.length,
+    mean_ms: +mean.toFixed(2),
+    p50_ms: +pct(sorted, 0.50).toFixed(2),
+    p95_ms: +pct(sorted, 0.95).toFixed(2),
+    worst_ms: +(sorted.length ? sorted[sorted.length - 1] : 0).toFixed(2),
+    fps_from_mean: +(mean > 0 ? 1000 / mean : 0).toFixed(1),
+    fps_from_p95: +(pct(sorted, 0.95) > 0 ? 1000 / pct(sorted, 0.95) : 0).toFixed(1)
+  }};
+  // Publish the result on THREE channels, deliberately:
+  //   1. a global on `window`  -- read back by Rust via eval (the channel that
+  //      actually works under WebView2; see the note below)
+  //   2. document.title        -- readable by any external tool
+  //   3. console.log           -- works in a normal browser
+  //
+  // Why three: this result was first published ONLY to console.log, which does
+  // not reach the parent process under WebView2; then ONLY to the title, which
+  // either the page never got to set or WebView2 did not reflect. Both times the
+  // symptom was identical -- "no result" -- and both times the cause was the
+  // channel, not the measurement. Publishing on several cheap channels removes
+  // that whole class of dead end.
+  // Post the result to the host. This is the channel that actually reaches Rust
+  // under WebView2; console.log does not reach the parent's stdout without an
+  // extra logging switch, and the window title did not reflect the change.
+  window.__SCROLL_RESULT__ = r;
+  const out = 'SCROLL_RESULT ' + JSON.stringify(r);
+  document.title = out;
+  console.log(out);
+  try {{
+    fetch('http://qulspike.local/scroll-result', {{ method: 'POST', body: JSON.stringify(r) }});
+  }} catch (e) {{
+    // Keep the page alive and the HUD meaningful even if posting fails; the
+    // host also still has the title and the console channels.
+    document.getElementById('hud').textContent = 'post failed: ' + e;
+  }}
+  document.getElementById('hud').textContent = r.fps_from_mean + ' fps (mean)';
+}}
+
+requestAnimationFrame(tick);
+</script>
+</body></html>"#
+    )
+}
+
 /// 一次调用的结果，含**成功与失败两种情形**——
 /// 失败也是一种结论（"无边框下 Mica 调用报错"本身就是矩阵里的一格）。
 #[derive(Debug, Serialize)]
@@ -203,6 +354,35 @@ fn main() {
     // beyond a title, so the harness passes --no-page to load a minimal page.
     let no_page = has_flag(&args, "--no-page");
 
+    // ── S3 item 5: scrolling frame rate ───────────────────────────────────
+    //
+    // The budget line is "scrolling a long list with images must not drop below
+    // 60 fps on integrated graphics". That needs a real long list, so it gets
+    // its own page rather than being bolted onto the bare one.
+    //
+    // The page measures itself with requestAnimationFrame and scrolls itself:
+    // driving the scroll from the harness would add input-injection noise to
+    // the number, and a measurement whose noise source is the measurement tool
+    // is the exact failure this project keeps hitting.
+    let scroll_test = has_flag(&args, "--scroll-test");
+    let scroll_ms: u64 = arg_value(&args, "--scroll-ms")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(6000);
+    let scroll_items: usize = arg_value(&args, "--scroll-items")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(240);
+
+    // Every other spike deliberately stays open so an external tool can
+    // screenshot it. A timed run must instead END by itself, otherwise the
+    // harness waits out a timeout it cannot distinguish from a hang.
+    //
+    // WHY THIS IS "app.exit", NOT "window.close": closing the last window does
+    // NOT end a Tauri app by default, so the process stayed alive and every run
+    // reported a timeout. (Cost: one wasted measurement round.) Exiting the app
+    // is also independent of the page -- a page-side script error can no longer
+    // leave a process behind.
+    let exit_after_ms: Option<u64> = arg_value(&args, "--exit-after-ms").and_then(|v| v.parse().ok());
+
     let transparent = has_flag(&args, "--transparent");
 
     // ── S2: does the page exercise `backdrop-filter`? ──────────────────────
@@ -233,7 +413,9 @@ fn main() {
     // paint) rather than the cost of our own first screen. Measuring our real
     // first screen here would conflate the platform with the app, which is the
     // same mistake S3's two-phase design exists to avoid.
-    let html = if no_page {
+    let html = if scroll_test {
+        build_scroll_page(scroll_ms, scroll_items)
+    } else if no_page {
         "<!doctype html><html><head><meta charset=\"utf-8\"><title>S3 bare</title>\
          <style>html,body{margin:0;height:100%;background:#ffffff}</style></head>\
          <body></body></html>"
@@ -274,6 +456,18 @@ fn main() {
         },
     };
 
+    // Where the page's posted result lands. Reuses --result's path with a suffix
+    // so the harness has exactly one file to look for.
+    let result_sink_path = {
+        let mut p = result_path.clone();
+        let name = p
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "result.json".to_string());
+        p.set_file_name(format!("{name}.scroll"));
+        p
+    };
+
     let title = format!("S1 | {run_id}");
     let result_path_setup = result_path.clone();
     let html_path_display = html_url.clone();
@@ -282,7 +476,49 @@ fn main() {
     let ready_path_for_load = ready_path.clone();
 
     tauri::Builder::default()
+        // The page posts its scroll result here. Chosen over the two channels
+        // that failed (console.log does not reach our stdout under WebView2; the
+        // window title did not reflect the change) and over having Rust `eval`
+        // into the window (WebviewWindow is not Sync, so it cannot be moved to
+        // the reader thread).
+        //
+        // No extra dependency: Tauri 2 has register_uri_scheme_protocol built in.
+        .register_uri_scheme_protocol("qulspike", move |_ctx, request| {
+            let body = String::from_utf8_lossy(request.body()).to_string();
+            let line = if body.trim_start().starts_with('{') {
+                format!("SCROLL_RESULT {}", body.trim())
+            } else {
+                body.clone()
+            };
+            println!("{line}");
+            if let Err(e) = fs::write(&result_sink_path, &line) {
+                // Loud on purpose: a silent failure here is what made two earlier
+                // rounds look like "the measurement never ran".
+                eprintln!("写滚动结果失败 —— {e}");
+            }
+            tauri::http::Response::builder()
+                .status(200)
+                .header("Access-Control-Allow-Origin", "*")
+                .body(Vec::new())
+                .unwrap()
+        })
         .setup(move |app| {
+            // NOTE ON THREADING
+            //
+            // The scroll result has to be read from the page, and the first
+            // design for that (a reader thread holding a shared handle) does not
+            // work: WebviewWindow is not Sync, so it cannot be handed to another
+            // thread. It is also unnecessary -- the reader can run on the SAME
+            // thread as the existing timer below, which already owns a clone of
+            // the window.
+            let scroll_result_path = result_path.clone();
+            if let Some(ms) = exit_after_ms {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(ms));
+                    handle.exit(0);
+                });
+            }
             let window = tauri::WebviewWindowBuilder::new(
                 app,
                 "main",
@@ -313,7 +549,11 @@ fn main() {
             // (reported below as wall_ms / perf_ms), which gives a cold-start
             // number that does not depend on how often the harness polls.
             .on_page_load(move |window, _payload| {
-                let Some(path) = ready_path_for_load.clone() else { return };
+                // NOTE: no early return when --ready-json is absent. The scroll
+                // test does not need a ready file but DOES need the exit timer
+                // below; returning early here would silently break it.
+                let path = ready_path_for_load.clone();
+                let Some(path) = path else { return };
                 let wall_ms = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .map(|d| d.as_millis() as u64)
