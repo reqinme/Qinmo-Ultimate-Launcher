@@ -1,0 +1,58 @@
+[
+    {
+        "id":  "1.12.2",
+        "type":  "release",
+        "released":  "2017-09-18T08:39:46+00:00",
+        "manifest_sha1":  "832d95b9f40699d4961394dcf6cf549e65f15dc5",
+        "local_sha1":  "832d95b9f40699d4961394dcf6cf549e65f15dc5",
+        "matches":  true
+    },
+    {
+        "id":  "1.13.2",
+        "type":  "release",
+        "released":  "2018-10-22T11:41:07+00:00",
+        "manifest_sha1":  "fa3ddc22146c46bfeb0e9d322c6f83b937e25005",
+        "local_sha1":  "fa3ddc22146c46bfeb0e9d322c6f83b937e25005",
+        "matches":  true
+    },
+    {
+        "id":  "1.16.5",
+        "type":  "release",
+        "released":  "2021-01-14T16:05:32+00:00",
+        "manifest_sha1":  "fba9f7833e858a1257d810d21a3a9e3c967f9077",
+        "local_sha1":  "fba9f7833e858a1257d810d21a3a9e3c967f9077",
+        "matches":  true
+    },
+    {
+        "id":  "1.19.3",
+        "type":  "release",
+        "released":  "2022-12-07T08:17:18+00:00",
+        "manifest_sha1":  "c3130557321381c9063c259d012fa5d27ae33f68",
+        "local_sha1":  "c3130557321381c9063c259d012fa5d27ae33f68",
+        "matches":  true
+    },
+    {
+        "id":  "1.6.4",
+        "type":  "release",
+        "released":  "2013-09-19T15:52:37+00:00",
+        "manifest_sha1":  "b71bae449192fbbe1582ff32fb3765edf0b9b0a8",
+        "local_sha1":  "b71bae449192fbbe1582ff32fb3765edf0b9b0a8",
+        "matches":  true
+    },
+    {
+        "id":  "26.3",
+        "type":  "release",
+        "released":  "2026-09-15T11:23:02+00:00",
+        "manifest_sha1":  "4fe1aa1ef8da1cb95c5bad1fb98890ca56dd8ca3",
+        "local_sha1":  "4fe1aa1ef8da1cb95c5bad1fb98890ca56dd8ca3",
+        "matches":  true
+    },
+    {
+        "id":  "b1.7.3",
+        "type":  "old_beta",
+        "released":  "2011-07-07T22:00:00+00:00",
+        "manifest_sha1":  "44f6969326bd45aa00dcd3c4ca3a7c05ebb24c04",
+        "local_sha1":  "44f6969326bd45aa00dcd3c4ca3a7c05ebb24c04",
+        "matches":  true
+    }
+]

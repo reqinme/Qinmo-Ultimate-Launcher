@@ -57,6 +57,10 @@ $probes = @(
        body = "`n/// x`npub const QUILTED: u8 = 1;`n" }
     @{ n = 'G scheme prefix is not an endpoint (MUST stay silent)'; require = @()
        body = "`n/// x`npub fn strip(url: &str) -> &str { url.strip_prefix(${Q}https://${Q}).unwrap_or(url) }`n" }
+    @{ n = 'H a JSON key in an attribute is spelling, not naming (MUST stay silent)'; require = @()
+       body = "`n/// x`n#[serde(rename = ${Q}someProductNameKey${Q})]`npub struct S { #[serde(default)] pub v: u8 }`n" }
+    @{ n = 'H2 but the SAME word as an identifier IS caught'; require = @('mojang')
+       body = "`n/// x`npub struct MojangThing { pub v: u8 }`n" }
 )
 
 $pass = 0

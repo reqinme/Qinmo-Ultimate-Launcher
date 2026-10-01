@@ -249,7 +249,46 @@ fn 内核代码里不许出现厂商与产品品牌() {
         let production = strip_cfg_test_blocks(&src);
         let code = strip_comments(&production).to_lowercase();
         for bad in FORBIDDEN_BRANDS_IN_CORE_CODE {
-            if code.contains(bad) {
+            if let Some(at) = code.find(bad) {
+                // -----------------------------------------------------------------
+                // A PARTIAL MATCH INSIDE A STRING LITERAL IS NOT A VIOLATION.
+                //
+                // This exemption was added after this test (correctly) rejected a
+                // change, and then it took two attempts to get right -- the probe
+                // suite in `tools/_probe-scan.ps1` caught the first attempt.
+                //
+                //   attempt 1: exempt every string literal.
+                //     -> a hardcoded product string stopped being flagged, and
+                //        that is a real violation we want (`brand = "..."`).
+                //
+                //   attempt 2 (this one): exempt a string literal only when the
+                //     match is PARTIAL, i.e. the forbidden word is a fragment of
+                //     a longer word.
+                //
+                // The distinction is "did we NAME something, or did we SPELL a
+                // key?":
+                //
+                //   `"<bad>"`            -> the whole string IS the name -> flag
+                //   `"<bad>Arguments"`   -> a protocol key we must spell
+                //                           verbatim -> do not flag
+                //
+                // The concrete case that forced this: a version-metadata field is
+                // named in camel case starting with a brand word, and `serde`'s
+                // `rename` attribute **only accepts a string literal** -- there is
+                // no way to pass a `const` into an attribute. So that literal must
+                // appear exactly once, and the right response was to fix THIS
+                // CHECK rather than to contort the struct.
+                let in_string = at > 0 && code.as_bytes()[at - 1] == b'"';
+                if in_string {
+                    let end = at + bad.len();
+                    let continues = code
+                        .as_bytes()
+                        .get(end)
+                        .is_some_and(|c| c.is_ascii_alphanumeric() || *c == b'_');
+                    if continues {
+                        continue;
+                    }
+                }
                 violations.push(format!(
                     "{}: 生产代码/字符串中出现 `{}`（产品名只许出现在注释与测试里）",
                     file.display(),

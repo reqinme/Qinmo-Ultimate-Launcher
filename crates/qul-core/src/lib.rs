@@ -22,6 +22,7 @@ pub mod caps;
 pub mod layout;
 
 pub mod crash;
+pub mod descriptor;
 pub mod download;
 pub mod error;
 pub mod http;

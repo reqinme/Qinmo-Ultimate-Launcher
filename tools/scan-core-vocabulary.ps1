@@ -239,7 +239,29 @@ foreach ($f in $files) {
         # cannot see the case boundary, so "starts with the word AND the next
         # char continues a word" is accepted. That is deliberate -- a product
         # name glued to another word in camel case is still the product name.
+        #
+        # ---------------------------------------------------------------------
+        # STRING LITERALS ARE EXEMPT FROM THE *PARTIAL* MATCH, BUT NOT FROM THE
+        # *EXACT* MATCH. Getting this line right took two attempts, and the
+        # probe suite caught the first one:
+        #
+        #   attempt 1: exempt string literals entirely.
+        #     -> probe B ("a product name in a string literal") stopped firing.
+        #        That probe exists because a hardcoded product STRING is a real
+        #        violation (`launcher_brand = "minecraft"`), so exempting all
+        #        strings removed a check that was doing work.
+        #
+        #   attempt 2 (this one): exempt strings only from the PARTIAL match.
+        #     -> `"minecraft"` alone is still flagged (it is the product name),
+        #        while `rename = "minecraftArguments"` is not (it is a protocol
+        #        key we are required to spell verbatim, and serde's rename
+        #        attribute cannot take a `const`).
+        #
+        # The distinction is "did we NAME something, or did we SPELL a key?".
+        # An exact-match string is a name we chose. A partial-match string is
+        # spelling inside a longer word that is not ours.
         foreach ($m in [regex]::Matches($code, '[A-Za-z_][A-Za-z0-9_]*')) {
+            $inString = ($m.Index -gt 0 -and ($code[$m.Index - 1] -eq '"' -or $code[$m.Index - 1] -eq "'"))
             $orig = $m.Value
             $low = $orig.ToLowerInvariant()
             foreach ($fb in $forbidden) {
@@ -247,6 +269,10 @@ foreach ($f in $files) {
                 $hit = $false
                 if ($low -eq $w) {
                     $hit = $true
+                } elseif ($inString) {
+                    # Partial match inside a string literal: that is spelling a
+                    # protocol key, not naming a product. See the long note above.
+                    $hit = $false
                 } elseif ($low.StartsWith($w + '_') -or $low.EndsWith('_' + $w)) {
                     $hit = $true
                 } elseif ($low.StartsWith($w) -and $low.Length -gt $w.Length) {
