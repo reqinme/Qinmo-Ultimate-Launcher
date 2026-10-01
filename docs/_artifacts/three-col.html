@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>秦墨 · 三栏布局（二级在中间、三级在右）</title>
+<style>
+/* ==========================================================================
+   三栏：① 启动器栏（窄，图标）② 分组栏（二级分类）③ 列表（三级）
+   中间那栏正是此前侧边栏的空白区 —— 现在它被用作**二级分类**。
+   文字自写、图形自绘（封面为中性占位）。
+   ========================================================================== */
+:root{
+  --surface-card:rgb(255 255 255 / 66%);
+  --surface-active:rgb(0 0 0 / 8%);
+  --surface-selected:rgb(0 0 0 / 9%);
+  --stroke-subtle:rgb(0 0 0 / 12%);
+  --divider:rgb(0 0 0 / 8%);
+  --text-primary:#1a1a1c; --text-secondary:#4a4a4f; --text-disabled:#8e8e93;
+  --accent:#0a66c2; --text-on-accent:#fff;
+  --radius-md:8px; --radius-lg:12px;
+  --hairline:1px;
+  --font-ui:"Microsoft YaHei UI","Noto Sans SC",system-ui,sans-serif;
+  --font-mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+  --edge:linear-gradient(135deg, rgb(255 255 255 / 88%), rgb(255 255 255 / 38%));
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{ font:14px/1.6 var(--font-ui); color:var(--text-primary); background:#cfccc8; padding:20px 22px 6px; }
+.mica{ position:fixed; inset:0; z-index:-2;
+  background:radial-gradient(1200px 800px at 22% 12%, #b9b4ae 0%, #cbc7c2 45%, #dcd9d5 100%), #cfccc8; }
+.mica-tint{ position:fixed; inset:0; z-index:-1;
+  background:linear-gradient(180deg, rgb(240 238 235 / 80%), rgb(233 230 227 / 86%)); }
+
+.sheet{ max-width:1420px; margin:0 auto 16px; }
+.sheet h2{ font-size:15px; font-weight:600; margin:0 0 2px; }
+.sheet .cap{ font-size:12px; color:var(--text-disabled); margin:0 0 8px; }
+
+.win{ width:1380px; height:772px; border-radius:10px; overflow:hidden;
+  border:var(--hairline) solid var(--stroke-subtle);
+  display:grid; grid-template-rows:38px 1fr 26px; }
+
+.tb{ display:flex; align-items:center; gap:12px; padding-left:12px; }
+.brand{ display:flex; align-items:center; gap:8px; white-space:nowrap; }
+.brand .mk{ width:20px;height:20px;border-radius:5px;background:linear-gradient(140deg,#0a66c2,#6d4aff);
+  display:grid;place-items:center;font-size:9.5px;font-weight:800;color:#fff }
+.brand .nm{ font-weight:700; font-size:15px; letter-spacing:.6px }
+.tb-spacer{ flex:1; }
+.wc{ display:flex; }
+.wc div{ width:46px;height:38px;display:grid;place-items:center;color:var(--text-secondary);font-size:11px; }
+
+/* ===== 三栏 ===== */
+.body{ display:grid; grid-template-columns:64px 250px 1fr; min-height:0; }
+
+/* ① 启动器栏（窄，图标）*/
+.rail{ border-right:var(--hairline) solid var(--divider); display:flex; flex-direction:column;
+  align-items:center; padding:8px 0; gap:3px }
+.rail .av{ width:38px;height:38px;border-radius:50%;background:linear-gradient(150deg,#0a66c2,#6d4aff);
+  display:grid;place-items:center;font-size:15px;font-weight:700;color:#fff;margin-bottom:5px }
+.rail .ric{ width:44px;height:40px;border-radius:9px;display:grid;place-items:center;
+  color:var(--text-secondary);font-size:16px;position:relative }
+.rail .ric.on{ background:var(--surface-selected); color:var(--text-primary) }
+.rail .ric.on::before{ content:"";position:absolute;left:-10px;top:10px;bottom:10px;width:3px;
+  border-radius:0 3px 3px 0;background:var(--accent) }
+.rail .badge{ position:absolute; top:4px; right:4px; min-width:15px;height:15px;padding:0 4px;
+  border-radius:999px;background:var(--accent);color:#fff;font-size:9.5px;font-weight:700;
+  display:grid;place-items:center }
+.rail .rsep{ width:26px;height:var(--hairline);background:var(--divider);margin:5px 0 }
+.rail .spacer{ flex:1 }
+
+/* ② 二级栏：**产品 + 分组** */
+.lv2{ border-right:var(--hairline) solid var(--divider); display:flex; flex-direction:column; min-height:0 }
+.lv2 .head{ padding:12px 14px 8px; display:flex; align-items:center; gap:9px }
+.lv2 .head .t{ font-size:15px; font-weight:600 }
+.lv2 .head .c{ font-size:11.5px; color:var(--text-disabled) }
+
+/* 产品切换（下辖在这里，也等于"按产品筛选"） */
+.prods{ padding:0 10px 8px; display:grid; gap:2px }
+.prod{ display:flex; align-items:center; gap:10px; height:32px; padding:0 10px; border-radius:8px;
+  color:var(--text-secondary); font-size:13px; position:relative }
+.prod.on{ background:var(--surface-selected); color:var(--text-primary) }
+.prod.on::before{ content:"";position:absolute;left:0;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--accent) }
+.prod .d{ width:8px;height:8px;border-radius:2px;flex:0 0 auto }
+.prod .n{ margin-left:auto; font-size:11px; color:var(--text-disabled) }
+
+.lv2 .sep{ height:var(--hairline); background:var(--divider); margin:2px 14px 6px }
+.lv2 .sect{ padding:0 14px 4px; font-size:11px; color:var(--text-disabled); letter-spacing:.4px }
+
+/* 分组 */
+.groups{ padding:0 8px; display:flex; flex-direction:column; gap:1px; min-height:0; overflow:hidden }
+.grp{ height:34px; display:flex; align-items:center; gap:10px; padding:0 10px; border-radius:8px;
+  color:var(--text-secondary); font-size:13.5px; position:relative }
+.grp.on{ background:var(--surface-selected); color:var(--text-primary) }
+.grp.on::before{ content:"";position:absolute;left:0;top:8px;bottom:8px;width:2px;border-radius:2px;background:var(--accent) }
+.grp .c{ margin-left:auto; font-size:11px; color:var(--text-disabled) }
+.grp .tools{ margin-left:auto; display:flex; gap:7px; font-size:11px; color:var(--text-disabled) }
+.grp .sys{ margin-left:auto; font-size:10px; color:var(--text-disabled); border:var(--hairline) solid var(--stroke-subtle);
+  border-radius:999px; padding:0 6px }
+
+/* ③ 三级：列表 */
+.content{ padding:14px 16px; overflow:hidden; display:flex; flex-direction:column; gap:10px; min-width:0 }
+.bar{ display:flex; align-items:center; gap:10px; flex:0 0 auto }
+.crumb{ font-size:11.5px; color:var(--text-disabled) }
+.panel{ border:var(--hairline) solid transparent; border-radius:var(--radius-lg);
+  background:linear-gradient(var(--surface-card),var(--surface-card)) padding-box, var(--edge) border-box }
+table.grid{ width:100%; border-collapse:collapse }
+table.grid th{ text-align:left; font-size:11.5px; font-weight:500; color:var(--text-disabled);
+  padding:5px 8px; border-bottom:var(--hairline) solid var(--divider) }
+table.grid td{ padding:8px 8px; font-size:12.5px; border-bottom:var(--hairline) solid var(--divider) }
+table.grid tr:last-child td{ border-bottom:none }
+.badge-p{ font-size:10.5px; padding:1px 6px; border-radius:999px; border:var(--hairline) solid var(--stroke-subtle);
+  background:rgb(255 255 255 / 55%); color:var(--text-secondary) }
+.btn{ height:28px;padding:0 12px;border-radius:8px;display:inline-flex;align-items:center;gap:7px;
+  font-size:12.5px;font-weight:600;border:var(--hairline) solid transparent }
+.btn--primary{ background:var(--accent);color:var(--text-on-accent) }
+.btn--ghost{ background:rgb(255 255 255 / 58%);color:var(--text-primary);border-color:var(--stroke-subtle);font-weight:500 }
+
+/* 歧义标注 */
+.flag{ position:absolute; border:1.5px dashed #c2410c; border-radius:10px; pointer-events:none }
+.flag .lab{ position:absolute; background:#c2410c; color:#fff; font-size:10.5px; font-weight:600;
+  padding:2px 8px; border-radius:999px; white-space:nowrap }
+.statusbar{ display:flex;align-items:center;gap:12px;padding:0 14px;border-top:var(--hairline) solid var(--divider);
+  color:var(--text-secondary);font-size:11.5px;font-family:var(--font-mono) }
+.statusbar .grow{flex:1}
+.statusbar .pill{border:var(--hairline) solid var(--stroke-subtle);border-radius:999px;padding:1px 8px}
+</style>
+</head>
+<body>
+<div class="mica"></div><div class="mica-tint"></div>
+
+<!-- ============ 方案甲：分组栏只放分组，实例列表在第三栏 ============ -->
+<div class="sheet">
+  <h2>方案甲 · <b>① 启动器栏（图标）→ ② 分组栏 → ③ 实例列表</b></h2>
+  <p class="cap">
+    中间那块空白现在归<b>二级分类</b>（产品 + 分组）。第三栏是<b>该分组下的实例列表</b>。
+    这就是你描述的"二级在中间、三级在右"。
+  </p>
+  <div class="win" style="position:relative">
+    <div class="tb">
+      <div class="brand"><span class="mk">QUL</span><span class="nm">QUL</span></div>
+      <div class="tb-spacer"></div>
+      <div class="wc"><div>─</div><div>▢</div><div>✕</div></div>
+    </div>
+
+    <div class="body">
+      <!-- ① 启动器栏 -->
+      <nav class="rail">
+        <div class="av">R</div>
+        <div class="ric on"><span>⌂</span></div>
+        <div class="ric"><span>▤</span></div>
+        <div class="ric"><span>↓</span><span class="badge">3</span></div>
+        <div class="rsep"></div>
+        <div class="ric"><span>◉</span></div>
+        <div class="ric"><span>▦</span></div>
+        <div class="ric"><span>⚒</span></div>
+        <div class="ric"><span>ⓘ</span></div>
+        <div class="spacer"></div>
+        <div class="ric" style="font-size:11px;color:var(--text-disabled)">v0.1</div>
+      </nav>
+
+      <!-- ② 二级：产品 + 分组 -->
+      <nav class="lv2">
+        <div class="head"><div class="t">实例</div><div class="c">共 8 个</div></div>
+        <div class="prods">
+          <div class="prod on"><span class="d" style="background:#0a66c2"></span>Java 版<span class="n">6</span></div>
+          <div class="prod"><span class="d" style="background:#1a7f37"></span>基岩版<span class="n">2</span></div>
+        </div>
+        <div class="sep"></div>
+        <div class="sect">分组</div>
+        <div class="groups">
+          <div class="grp"><span>⭐</span>特别关注<span class="c">3</span></div>
+          <div class="grp on"><span>▤</span>全部<span class="c">6</span></div>
+          <div class="grp"><span>📁</span>模组开发<span class="tools">✎ ✕</span></div>
+          <div class="grp"><span>📁</span>怀旧服<span class="tools">✎ ✕</span></div>
+          <div class="grp" style="color:var(--text-disabled)"><span>＋</span>新建分组</div>
+        </div>
+        <div class="spacer" style="flex:1"></div>
+        <div class="sep" style="margin:6px 14px"></div>
+        <div class="groups" style="padding-bottom:10px">
+          <div class="grp"><span>◉</span>账号管理</div>
+          <div class="grp"><span>▦</span>百宝箱</div>
+          <div class="grp"><span>⚒</span>设置</div>
+          <div class="grp"><span>ⓘ</span>关于</div>
+        </div>
+      </nav>
+
+      <!-- ③ 三级：实例列表 -->
+      <main class="content">
+        <div class="bar">
+          <div class="crumb">实例 / Java 版 / <b style="color:var(--text-primary)">全部</b></div>
+          <span style="flex:1"></span>
+          <span style="font-size:12px;color:var(--text-secondary)">按最近运行排序 ▾</span>
+          <button class="btn btn--primary">新建实例</button>
+        </div>
+        <div class="panel" style="padding:2px 10px">
+          <table class="grid">
+            <tr><th style="width:28%">名称</th><th>版本</th><th>加载器</th><th>分组</th><th>上次运行</th><th style="width:96px"></th></tr>
+            <tr><td><b>1.20.1 · Fabric</b> <span class="badge-p">当前</span> <span style="color:#9a6700">⭐</span></td>
+              <td class="mono">1.20.1</td><td>Fabric 0.16.5</td><td><span class="badge-p">模组开发</span></td>
+              <td style="color:var(--text-secondary)">2 小时前</td><td><button class="btn btn--ghost">管理</button></td></tr>
+            <tr><td><b>1.21.4 · 原版</b></td><td class="mono">1.21.4</td>
+              <td style="color:var(--text-disabled)">—</td><td style="color:var(--text-disabled)">—</td>
+              <td style="color:var(--text-secondary)">昨天</td><td><button class="btn btn--ghost">管理</button></td></tr>
+            <tr><td><b>1.19.2 · Forge</b> <span style="color:#9a6700">⭐</span></td><td class="mono">1.19.2</td>
+              <td>Forge 43.3.0</td><td><span class="badge-p">怀旧服</span></td>
+              <td style="color:var(--text-secondary)">3 天前</td><td><button class="btn btn--ghost">管理</button></td></tr>
+            <tr><td><b>1.18.2 · Fabric</b></td><td class="mono">1.18.2</td><td>Fabric 0.14.24</td>
+              <td style="color:var(--text-disabled)">—</td><td style="color:var(--text-secondary)">上周</td>
+              <td><button class="btn btn--ghost">管理</button></td></tr>
+            <tr><td><b>1.7.10 · Forge</b></td><td class="mono">1.7.10</td><td>Forge 10.13.4</td>
+              <td style="color:var(--text-disabled)">—</td><td style="color:var(--text-secondary)">上个月</td>
+              <td><button class="btn btn--ghost">管理</button></td></tr>
+          </table>
+        </div>
+        <div style="font-size:11.5px;color:var(--text-disabled)">
+          二级栏 = 产品 + 分组；三级 = 该分组下的实例。产品切换与分组在此栏内，左右栏都跟随。
+        </div>
+      </main>
+    </div>
+    <div class="statusbar"><span>v0.1.0</span><span class="pill">Java 版 · 全部</span><span>官方源</span><span>↓ 12.4 MB/s</span>
+      <span class="grow"></span><span>Java 21 · 内存 118 MB</span></div>
+  </div>
+</div>
+
+<!-- ============ 方案乙：二级栏里展开分组，实例直接列在组下 ============ -->
+<div class="sheet">
+  <h2>方案乙 · <b>① 启动器栏 → ② 分组栏（组内直接列实例）→ ③ 详情/操作</b></h2>
+  <p class="cap">
+    实例<b>直接挂在分组下</b>（可展开），第三栏不再是列表，而是<b>当前选中实例的详情与操作</b>。
+    这更像"邮箱/文件管理器"：左树右详情。
+  </p>
+  <div class="win" style="position:relative">
+    <div class="tb">
+      <div class="brand"><span class="mk">QUL</span><span class="nm">QUL</span></div>
+      <div class="tb-spacer"></div>
+      <div class="wc"><div>─</div><div>▢</div><div>✕</div></div>
+    </div>
+    <div class="body">
+      <nav class="rail">
+        <div class="av">R</div>
+        <div class="ric"><span>⌂</span></div>
+        <div class="ric on"><span>▤</span></div>
+        <div class="ric"><span>↓</span><span class="badge">3</span></div>
+        <div class="rsep"></div>
+        <div class="ric"><span>◉</span></div>
+        <div class="ric"><span>▦</span></div>
+        <div class="ric"><span>⚒</span></div>
+        <div class="ric"><span>ⓘ</span></div>
+        <div class="spacer"></div>
+        <div class="ric" style="font-size:11px;color:var(--text-disabled)">v0.1</div>
+      </nav>
+
+      <nav class="lv2">
+        <div class="head"><div class="t">实例</div><div class="c">共 8 个</div></div>
+        <div class="prods">
+          <div class="prod on"><span class="d" style="background:#0a66c2"></span>Java 版<span class="n">6</span></div>
+          <div class="prod"><span class="d" style="background:#1a7f37"></span>基岩版<span class="n">2</span></div>
+        </div>
+        <div class="sep"></div>
+        <div class="sect">分组（点组展开实例）</div>
+        <div class="groups">
+          <div class="grp"><span>⭐</span>特别关注<span class="c">3</span></div>
+          <div class="grp" style="background:var(--surface-active)"><span>▾</span><span>📁</span>模组开发<span class="c">2</span></div>
+          <div class="grp on" style="padding-left:30px"><span>1.20.1 · Fabric</span></div>
+          <div class="grp" style="padding-left:30px"><span>1.19.2 · Forge</span></div>
+          <div class="grp"><span>▸</span><span>📁</span>怀旧服<span class="c">1</span></div>
+          <div class="grp"><span>▸</span><span>▤</span>未分组<span class="c">3</span></div>
+          <div class="grp" style="color:var(--text-disabled)"><span>＋</span>新建分组</div>
+        </div>
+        <div class="spacer" style="flex:1"></div>
+        <div class="sep" style="margin:6px 14px"></div>
+        <div class="groups" style="padding-bottom:10px">
+          <div class="grp"><span>◉</span>账号管理</div>
+          <div class="grp"><span>▦</span>百宝箱</div>
+          <div class="grp"><span>⚒</span>设置</div>
+          <div class="grp"><span>ⓘ</span>关于</div>
+        </div>
+      </nav>
+
+      <main class="content">
+        <div class="crumb">实例 / Java 版 / 模组开发 / <b style="color:var(--text-primary)">1.20.1 · Fabric</b></div>
+        <div class="panel" style="padding:16px 18px">
+          <div style="display:flex;gap:16px;align-items:center">
+            <div style="width:56px;height:56px;border-radius:12px;flex:0 0 auto;
+                        background:linear-gradient(150deg,#3b4a6b,#5b6d92)"></div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:baseline;gap:9px">
+                <div style="font-size:21px;font-weight:600">1.20.1 · Fabric</div>
+                <span class="badge-p">Java 版</span><span class="badge-p">模组开发</span>
+              </div>
+              <div class="mono" style="font-size:12px;color:var(--text-secondary);margin-top:4px">
+                Fabric 0.16.5 · Java 21 · 内存 4096 MB · 38 个模组
+              </div>
+            </div>
+            <button class="btn btn--primary" style="height:38px;font-size:14px;padding:0 26px">▶&nbsp; 启动</button>
+          </div>
+          <div style="display:flex;gap:9px;margin-top:14px">
+            <button class="btn btn--ghost">管理实例</button>
+            <button class="btn btn--ghost">打开目录</button>
+            <button class="btn btn--ghost">移到分组 ▾</button>
+            <button class="btn btn--ghost">⭐ 特别关注</button>
+          </div>
+        </div>
+        <div class="panel" style="padding:2px 10px">
+          <table class="grid">
+            <tr><th style="width:34%">项目</th><th>值</th></tr>
+            <tr><td>上次运行</td><td class="mono">2 小时前 · 1 小时 12 分</td></tr>
+            <tr><td>磁盘占用</td><td class="mono">1.9 GB</td></tr>
+            <tr><td>依赖校验</td><td><span style="color:#1a7f37">● 通过</span> · 3 个模组有更新</td></tr>
+            <tr><td>快照</td><td class="mono">最近 3 个 · 2 天前</td></tr>
+          </table>
+        </div>
+      </main>
+    </div>
+    <div class="statusbar"><span>v0.1.0</span><span class="pill">1.20.1 · Fabric</span><span>官方源</span><span>↓ 12.4 MB/s</span>
+      <span class="grow"></span><span>Java 21 · 内存 118 MB</span></div>
+  </div>
+</div>
+
+</body>
+</html>

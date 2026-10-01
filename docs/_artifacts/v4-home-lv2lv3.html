@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>秦墨 · v4（二级在侧边栏空白、三级在右侧）</title>
+<style>
+/* ==========================================================================
+   v4：**在 v3-1-home 基础上**把侧边栏那块空白用作二级分类，右侧内容区是三级分类。
+   侧边栏顺序：账户卡 → 产品 → **分组（二级）** → 下段工具
+   右侧内容区：大横幅（启动）+ **所选分组下的实例卡（三级）**
+   ========================================================================== */
+:root{
+  --surface-card:rgb(255 255 255 / 66%);
+  --surface-active:rgb(0 0 0 / 8%);
+  --surface-selected:rgb(0 0 0 / 9%);
+  --stroke-subtle:rgb(0 0 0 / 12%);
+  --divider:rgb(0 0 0 / 8%);
+  --text-primary:#1a1a1c; --text-secondary:#4a4a4f; --text-disabled:#8e8e93;
+  --accent:#0a66c2; --text-on-accent:#fff;
+  --radius-md:8px; --radius-lg:12px;
+  --hairline:1px;
+  --font-ui:"Microsoft YaHei UI","Noto Sans SC",system-ui,sans-serif;
+  --font-mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+  --edge:linear-gradient(135deg, rgb(255 255 255 / 88%), rgb(255 255 255 / 38%));
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{ font:14px/1.6 var(--font-ui); color:var(--text-primary); background:#cfccc8; padding:20px 22px 6px; }
+.mica{ position:fixed; inset:0; z-index:-2;
+  background:radial-gradient(1200px 800px at 22% 12%, #b9b4ae 0%, #cbc7c2 45%, #dcd9d5 100%), #cfccc8; }
+.mica-tint{ position:fixed; inset:0; z-index:-1;
+  background:linear-gradient(180deg, rgb(240 238 235 / 80%), rgb(233 230 227 / 86%)); }
+
+.sheet{ max-width:1420px; margin:0 auto 16px; }
+.sheet h2{ font-size:15px; font-weight:600; margin:0 0 2px; }
+.sheet .cap{ font-size:12px; color:var(--text-disabled); margin:0 0 8px; }
+
+.win{ width:1380px; height:784px; border-radius:10px; overflow:hidden;
+  border:var(--hairline) solid var(--stroke-subtle);
+  display:grid; grid-template-rows:38px 1fr 26px; }
+
+.tb{ display:flex; align-items:center; gap:12px; padding-left:12px; }
+.brand{ display:flex; align-items:center; gap:8px; white-space:nowrap; }
+.brand .mk{ width:20px;height:20px;border-radius:5px;background:linear-gradient(140deg,#0a66c2,#6d4aff);
+  display:grid;place-items:center;font-size:9.5px;font-weight:800;color:#fff }
+.brand .nm{ font-weight:700; font-size:15px; letter-spacing:.6px }
+.tb-spacer{ flex:1; }
+.wc{ display:flex; }
+.wc div{ width:46px;height:38px;display:grid;place-items:center;color:var(--text-secondary);font-size:11px; }
+
+.body{ display:grid; grid-template-columns:236px 1fr; min-height:0; }
+
+/* ===== 侧边栏：账户 → 产品 → **分组（二级）** → 工具 ===== */
+.side{ border-right:var(--hairline) solid var(--divider); display:flex; flex-direction:column; min-height:0 }
+
+.acct{ padding:11px 14px; border-bottom:var(--hairline) solid var(--divider) }
+.acct .top{ display:flex; align-items:center; gap:10px }
+.acct .av{ width:34px;height:34px;border-radius:50%;flex:0 0 auto;
+  background:linear-gradient(150deg,#0a66c2,#6d4aff); display:grid;place-items:center;
+  font-size:14px;font-weight:700;color:#fff }
+.acct .nm{ font-size:13px;font-weight:600; line-height:1.3 }
+.acct .src{ font-size:11px;color:var(--text-secondary) }
+.auth{ margin-top:8px; display:grid; gap:3px }
+.authrow{ display:flex; align-items:center; gap:7px; font-size:11.5px }
+.dot{ width:6px;height:6px;border-radius:50%;flex:0 0 auto }
+.dot.ok{ background:#1a7f37 } .dot.no{ background:#cf222e }
+.authrow .l{ color:var(--text-secondary) } .authrow .s{ margin-left:auto; font-size:11px; color:var(--text-disabled) }
+
+.nav{ padding:7px 10px; display:grid; gap:1px }
+.nav a{ display:flex;align-items:center;gap:10px;height:32px;padding:0 10px;border-radius:8px;
+  color:var(--text-secondary);text-decoration:none;font-size:13.5px;position:relative }
+.nav a.on{ background:var(--surface-selected); color:var(--text-primary) }
+.nav a.on::before{ content:"";position:absolute;left:0;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--accent) }
+.nav a .n{ margin-left:auto;font-size:11px;color:var(--text-disabled) }
+.nav a .badge{ margin-left:auto; min-width:16px;height:16px;padding:0 5px;border-radius:999px;
+  background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center }
+
+/* 产品（紧凑两行） */
+.prods{ padding:4px 10px 8px; display:grid; gap:1px; border-bottom:var(--hairline) solid var(--divider) }
+.prod{ display:flex; align-items:center; gap:10px; height:30px; padding:0 10px; border-radius:8px;
+  color:var(--text-secondary); font-size:12.5px; position:relative }
+.prod.on{ background:var(--surface-selected); color:var(--text-primary) }
+.prod.on::before{ content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;border-radius:2px;background:var(--accent) }
+.prod .d{ width:8px;height:8px;border-radius:2px;flex:0 0 auto }
+.prod .n{ margin-left:auto; font-size:11px; color:var(--text-disabled) }
+
+/* ★ 二级分类：放在原来那块空白处 */
+.lv2{ padding:9px 10px 6px; display:flex; flex-direction:column; gap:1px; min-height:0 }
+.lv2 .sect{ padding:2px 10px 5px; font-size:10.5px; color:var(--text-disabled); letter-spacing:.5px }
+.grp{ height:31px; display:flex; align-items:center; gap:9px; padding:0 10px; border-radius:8px;
+  color:var(--text-secondary); font-size:13px; position:relative }
+.grp.on{ background:var(--surface-selected); color:var(--text-primary) }
+.grp.on::before{ content:"";position:absolute;left:0;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--accent) }
+.grp .c{ margin-left:auto; font-size:10.5px; color:var(--text-disabled) }
+.grp .tools{ margin-left:auto; display:flex; gap:6px; font-size:10.5px; color:var(--text-disabled) }
+.grp .sys{ margin-left:auto; font-size:10px; color:var(--text-disabled);
+  border:var(--hairline) solid var(--stroke-subtle); border-radius:999px; padding:0 6px }
+
+.side-btm{ margin-top:auto; padding:7px 10px 9px; display:grid; gap:1px; border-top:var(--hairline) solid var(--divider) }
+.side-btm a{ display:flex;align-items:center;gap:10px;height:31px;padding:0 10px;border-radius:8px;
+  color:var(--text-secondary);text-decoration:none;font-size:13px }
+.verline{ padding:1px 12px 6px; font:10.5px/1.4 var(--font-mono); color:var(--text-disabled) }
+
+/* ===== 内容区 ===== */
+.content{ padding:14px 16px; overflow:hidden; display:flex; flex-direction:column; gap:11px; min-width:0 }
+
+.hero{ position:relative; border-radius:var(--radius-lg); overflow:hidden; height:224px; flex:0 0 auto;
+  border:var(--hairline) solid var(--stroke-subtle);
+  background:
+    radial-gradient(560px 250px at 18% 22%, #6d4aff55, transparent 70%),
+    radial-gradient(620px 330px at 76% 70%, #0a66c255, transparent 72%),
+    linear-gradient(135deg,#2b2f3a,#3a3f4d 55%,#40382e); }
+.hero .scrim{ position:absolute; inset:0;
+  background:linear-gradient(90deg, rgb(0 0 0 / 60%) 0%, rgb(0 0 0 / 30%) 46%, transparent 74%) }
+.hero .artnote{ position:absolute; right:12px; top:9px; font-size:10.5px; color:#ffffffa8 }
+.hero .switcher{ position:absolute; left:20px; top:15px; display:flex; gap:6px }
+.sw{ display:flex; align-items:center; gap:7px; height:28px; padding:0 12px; border-radius:999px;
+  border:var(--hairline) solid #ffffff38; background:rgb(0 0 0 / 34%); color:#ffffffc8; font-size:12px }
+.sw.on{ background:rgb(255 255 255 / 92%); color:#1a1a1c; border-color:transparent; font-weight:600 }
+.sw .d{ width:7px;height:7px;border-radius:2px }
+.hero .txt{ position:absolute; left:20px; bottom:16px; right:44%; color:#fff }
+.hero .txt h3{ margin:0 0 5px; font-size:22px; font-weight:600 }
+.hero .txt p{ margin:0 0 11px; font-size:12.5px; line-height:1.55; color:#ffffffd2 }
+.hero .note{ position:absolute; left:20px; bottom:4px; font-size:10.5px; color:#ffffff8c }
+
+.btn{ height:31px;padding:0 17px;border-radius:8px;display:inline-flex;align-items:center;gap:7px;
+  font-size:13px;font-weight:600;border:var(--hairline) solid transparent }
+.btn--primary{ background:var(--accent);color:var(--text-on-accent) }
+.btn--ghost{ background:rgb(255 255 255 / 58%);color:var(--text-primary);border-color:var(--stroke-subtle);font-weight:500 }
+.btn--onart{ background:rgb(255 255 255 / 16%); color:#fff; border-color:#ffffff45; font-weight:500 }
+.btn--sm{ height:26px;font-size:12px;padding:0 10px }
+
+/* ★ 三级分类：所选分组下的实例卡 */
+.lv3{ display:flex; align-items:center; gap:10px; flex:0 0 auto }
+.lv3 .t{ font-size:14px; font-weight:600 }
+.badge-p{ font-size:10.5px; padding:1px 6px; border-radius:999px; border:var(--hairline) solid var(--stroke-subtle);
+  background:rgb(255 255 255 / 55%); color:var(--text-secondary) }
+.cards{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; min-height:0 }
+.card{ border:var(--hairline) solid transparent; border-radius:var(--radius-lg); overflow:hidden;
+  background:linear-gradient(var(--surface-card),var(--surface-card)) padding-box, var(--edge) border-box;
+  display:flex; flex-direction:column }
+.card .thumb{ height:82px; flex:0 0 auto }
+.card .cb{ padding:9px 11px 11px; display:flex; flex-direction:column; gap:3px }
+.card .t{ font-size:13px; font-weight:600; display:flex; align-items:center; gap:6px }
+.card .d{ font-size:11px; color:var(--text-secondary) }
+.card .m{ font-size:10.5px; color:var(--text-disabled); margin-top:2px; display:flex; align-items:center; gap:7px }
+.card .go{ margin-left:auto; color:var(--accent); font-weight:600 }
+
+.statusbar{ display:flex;align-items:center;gap:12px;padding:0 14px;border-top:var(--hairline) solid var(--divider);
+  color:var(--text-secondary);font-size:11.5px;font-family:var(--font-mono) }
+.statusbar .grow{flex:1}
+.statusbar .pill{border:var(--hairline) solid var(--stroke-subtle);border-radius:999px;padding:1px 8px}
+</style>
+</head>
+<body>
+<div class="mica"></div><div class="mica-tint"></div>
+
+<div class="sheet">
+  <h2>v4 · 侧边栏空白 = <b>二级分类（实例分组）</b>；右侧 = <b>三级分类（该分组下的实例）</b></h2>
+  <p class="cap">
+    侧边栏顺序：<b>账户卡 → 产品 → ★分组（二级）→ 下段工具</b>。
+    右侧内容区：上方是启动横幅，下方是<b>所选分组下的实例卡</b>。
+  </p>
+
+  <div class="win">
+    <div class="tb">
+      <div class="brand"><span class="mk">QUL</span><span class="nm">QUL</span></div>
+      <div class="tb-spacer"></div>
+      <div class="wc"><div>─</div><div>▢</div><div>✕</div></div>
+    </div>
+
+    <div class="body">
+      <!-- ============ 侧边栏 ============ -->
+      <nav class="side">
+        <!-- 账户卡 -->
+        <div class="acct">
+          <div class="top"><div class="av">R</div>
+            <div><div class="nm">reqinme</div><div class="src">微软账户 · 已登录</div></div></div>
+          <div class="auth">
+            <div class="authrow"><span class="dot ok"></span><span class="l">Java 版</span><span class="s">已授权</span></div>
+            <div class="authrow"><span class="dot no"></span><span class="l">基岩版</span><span class="s">未授权</span></div>
+          </div>
+        </div>
+
+        <!-- 一级导航 -->
+        <div class="nav">
+          <a class="on"><span>⌂</span>主页</a>
+          <a><span>▤</span>实例<span class="n">8</span></a>
+          <a><span>↓</span>下载<span class="badge">3</span></a>
+        </div>
+
+        <!-- 产品 -->
+        <div class="prods">
+          <div class="prod on"><span class="d" style="background:#0a66c2"></span>Java 版<span class="n">6</span></div>
+          <div class="prod"><span class="d" style="background:#1a7f37"></span>基岩版<span class="n">2</span></div>
+        </div>
+
+        <!-- ★ 二级分类（原来那块空白在这里） -->
+        <div class="lv2">
+          <div class="sect">分组</div>
+          <div class="grp"><span>⭐</span>特别关注<span class="c">3</span></div>
+          <div class="grp on"><span>▤</span>全部<span class="c">6</span></div>
+          <div class="grp"><span>📁</span>模组开发<span class="c">2</span></div>
+          <div class="grp"><span>📁</span>怀旧服<span class="c">1</span></div>
+          <div class="grp"><span>▤</span>未分组<span class="c">3</span></div>
+          <div class="grp" style="color:var(--text-disabled)"><span>＋</span>新建分组</div>
+        </div>
+
+        <!-- 下段工具 -->
+        <div class="side-btm">
+          <a><span>◉</span>账号管理</a>
+          <a><span>▦</span>百宝箱</a>
+          <a><span>⚒</span>设置</a>
+          <a><span>ⓘ</span>关于</a>
+          <div class="verline">v0.1.0</div>
+        </div>
+      </nav>
+
+      <!-- ============ 内容区 ============ -->
+      <main class="content">
+        <!-- 启动横幅 -->
+        <div class="hero">
+          <div class="scrim"></div>
+          <div class="switcher">
+            <div class="sw on"><span class="d" style="background:#0a66c2"></span>Java 版</div>
+            <div class="sw"><span class="d" style="background:#1a7f37"></span>基岩版</div>
+          </div>
+          <div class="artnote">封面图为占位 · 真实产品需自绘或用户自有</div>
+          <div class="txt">
+            <h3>1.20.1 · Fabric 已就绪</h3>
+            <p>上次运行 2 小时前 · 内存 4096 MB · 38 个模组 · 依赖已校验<br>本次启动预计 8 秒</p>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn--primary" style="height:36px;font-size:14px;padding:0 26px">▶&nbsp; 启动</button>
+              <button class="btn btn--onart">管理实例</button>
+              <button class="btn btn--onart">打开目录</button>
+            </div>
+          </div>
+          <div class="note">横幅里的产品切换与侧边栏"产品"是同一个状态（两处联动）</div>
+        </div>
+
+        <!-- ★ 三级分类：所选分组下的实例 -->
+        <div class="lv3">
+          <div class="t">全部</div>
+          <span class="badge-p">Java 版 · 6 个实例</span>
+          <span style="flex:1"></span>
+          <span style="font-size:11.5px;color:var(--text-secondary)">按最近运行排序 ▾</span>
+          <button class="btn btn--ghost btn--sm">新建实例</button>
+          <button class="btn btn--ghost btn--sm">管理分组</button>
+        </div>
+
+        <div class="cards" style="grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr)">
+          <div class="card">
+            <div class="thumb" style="background:linear-gradient(135deg,#3b4a6b,#5b6d92)"></div>
+            <div class="cb">
+              <div class="t">1.20.1 · Fabric <span class="badge-p">当前</span> <span style="color:#9a6700">⭐</span></div>
+              <div class="d">Fabric 0.16.5 · 38 个模组</div>
+              <div class="m">2 小时前 <span class="go">启动 →</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="thumb" style="background:linear-gradient(135deg,#4a4a52,#7a7a86)"></div>
+            <div class="cb">
+              <div class="t">1.21.4 · 原版</div>
+              <div class="d">无加载器 · 未分组</div>
+              <div class="m">昨天 <span class="go">启动 →</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="thumb" style="background:linear-gradient(135deg,#5a4632,#8a6a44)"></div>
+            <div class="cb">
+              <div class="t">1.19.2 · Forge <span style="color:#9a6700">⭐</span></div>
+              <div class="d">Forge 43.3.0 · 84 个模组</div>
+              <div class="m">3 天前 <span class="go">启动 →</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="thumb" style="background:linear-gradient(135deg,#2f4a6b,#4a6b92)"></div>
+            <div class="cb">
+              <div class="t">1.18.2 · Fabric</div>
+              <div class="d">Fabric 0.14.24 · 未分组</div>
+              <div class="m">上周 <span class="go">启动 →</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="thumb" style="background:linear-gradient(135deg,#4a3a5a,#7a5a8a)"></div>
+            <div class="cb">
+              <div class="t">1.7.10 · Forge</div>
+              <div class="d">Forge 10.13.4 · 怀旧服</div>
+              <div class="m">上个月 <span class="go">启动 →</span></div>
+            </div>
+          </div>
+          <div class="card" style="display:grid;place-items:center;background:linear-gradient(var(--surface-active),var(--surface-active)) padding-box, var(--edge) border-box">
+            <div style="text-align:center;color:var(--text-secondary);font-size:12.5px">
+              <div style="font-size:20px;margin-bottom:4px">＋</div>新建实例
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div class="statusbar"><span>v0.1.0</span><span class="pill">Java 版 · 全部</span><span>官方源</span><span>↓ 12.4 MB/s</span>
+      <span class="grow"></span><span>Java 21 · 内存 118 MB</span></div>
+  </div>
+</div>
+
+</body>
+</html>
