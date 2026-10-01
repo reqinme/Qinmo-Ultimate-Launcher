@@ -90,3 +90,14 @@ $RECYCLE.BIN/
 /diag.exe
 /src.rs
 /diag.rs
+# ── 尖刺目录里的编译产物（**踩过一次**）────────────────────────────
+#
+# ⚠️ 我在 spikes/winhttp-probe 里用 `rustc` 直接编了探针，产物落在同目录。
+# 那次没被 `git add -A` 提交是因为我先删了它 —— 而**那是运气，不是纪律**。
+#
+# 规则要覆盖**任何深度**的尖刺目录，而不只是第一层：
+# `/spikes/*.exe` 会漏掉 `/spikes/winhttp-probe/probe.exe`。
+/spikes/**/*.exe
+/spikes/**/*.pdb
+/spikes/**/*.lib
+/spikes/**/*.exp
