@@ -1,0 +1,285 @@
+﻿{
+    "generated_at":  "2026-10-01T23:29:05",
+    "source":  "%APPDATA%\\.minecraft（官方启动器自己写下的文件）",
+    "evidence_level":  "A：配置/状态/日志/接口方法名 —— 不含界面截图（截图须人工操作）",
+    "log_lines":  2099,
+    "ui_events":  [
+                      {
+                          "count":  1,
+                          "name":  "configurationData"
+                      },
+                      {
+                          "count":  1,
+                          "name":  "connectionStatus"
+                      },
+                      {
+                          "count":  1,
+                          "name":  "constants"
+                      },
+                      {
+                          "count":  1,
+                          "name":  "credits"
+                      },
+                      {
+                          "count":  1,
+                          "name":  "downloads"
+                      },
+                      {
+                          "count":  63,
+                          "name":  "gameInstances"
+                      },
+                      {
+                          "count":  2,
+                          "name":  "gameVersions"
+                      },
+                      {
+                          "count":  1,
+                          "name":  "latentTelemetryData"
+                      },
+                      {
+                          "count":  1,
+                          "name":  "launcherSettings"
+                      },
+                      {
+                          "count":  1,
+                          "name":  "modelInfo"
+                      },
+                      {
+                          "count":  1,
+                          "name":  "msiPatch"
+                      },
+                      {
+                          "count":  1,
+                          "name":  "preferencesData"
+                      },
+                      {
+                          "count":  78,
+                          "name":  "productInfo"
+                      },
+                      {
+                          "count":  2,
+                          "name":  "quickPlayData"
+                      },
+                      {
+                          "count":  21,
+                          "name":  "realmsData"
+                      },
+                      {
+                          "count":  1,
+                          "name":  "skins"
+                      },
+                      {
+                          "count":  1,
+                          "name":  "systemInfo"
+                      },
+                      {
+                          "count":  1,
+                          "name":  "treatmentTags"
+                      },
+                      {
+                          "count":  1,
+                          "name":  "users"
+                      },
+                      {
+                          "count":  1,
+                          "name":  "versions"
+                      },
+                      {
+                          "count":  1,
+                          "name":  "volumes"
+                      }
+                  ],
+    "controller_methods":  [
+                               {
+                                   "count":  3,
+                                   "name":  "checkForUpdates"
+                               },
+                               {
+                                   "count":  1,
+                                   "name":  "gamecoreLauncherInstallState"
+                               },
+                               {
+                                   "count":  3,
+                                   "name":  "getAccountData"
+                               },
+                               {
+                                   "count":  1,
+                                   "name":  "getActiveSkin"
+                               },
+                               {
+                                   "count":  1,
+                                   "name":  "getAvailableVolumeSpace"
+                               },
+                               {
+                                   "count":  1,
+                                   "name":  "getCapes"
+                               },
+                               {
+                                   "count":  45,
+                                   "name":  "getDynamicResourceEnvironment"
+                               },
+                               {
+                                   "count":  1,
+                                   "name":  "getMCToken"
+                               },
+                               {
+                                   "count":  1,
+                                   "name":  "getOneDsInstrumentationKey"
+                               },
+                               {
+                                   "count":  1,
+                                   "name":  "getRealmsActivePlayerCounts"
+                               },
+                               {
+                                   "count":  5,
+                                   "name":  "getRealmsInvites"
+                               },
+                               {
+                                   "count":  5,
+                                   "name":  "getRealmsTrialEligibility"
+                               },
+                               {
+                                   "count":  1,
+                                   "name":  "getRealmsWorlds"
+                               },
+                               {
+                                   "count":  3,
+                                   "name":  "getStore"
+                               },
+                               {
+                                   "count":  1,
+                                   "name":  "getXboxXBLXToken"
+                               },
+                               {
+                                   "count":  1,
+                                   "name":  "loginWithXbox"
+                               },
+                               {
+                                   "count":  9,
+                                   "name":  "refreshCurrencyBalance"
+                               },
+                               {
+                                   "count":  2,
+                                   "name":  "refreshStorePrices"
+                               },
+                               {
+                                   "count":  33,
+                                   "name":  "reportLatency"
+                               },
+                               {
+                                   "count":  3,
+                                   "name":  "setInputMethod"
+                               },
+                               {
+                                   "count":  13,
+                                   "name":  "setStore"
+                               },
+                               {
+                                   "count":  26,
+                                   "name":  "telemetryEventUiAction"
+                               }
+                           ],
+    "hosts":  [
+                  {
+                      "host":  "launchercontent.mojang.com",
+                      "count":  423
+                  },
+                  {
+                      "host":  "redstone-launcher.mojang.com",
+                      "count":  308
+                  },
+                  {
+                      "host":  "api.minecraftservices.com",
+                      "count":  41
+                  },
+                  {
+                      "host":  "launchermeta.mojang.com",
+                      "count":  15
+                  },
+                  {
+                      "host":  "java.frontendlegacy.realms.minecraft-services.net",
+                      "count":  12
+                  },
+                  {
+                      "host":  "authorization.franchise.minecraft-services.net",
+                      "count":  9
+                  },
+                  {
+                      "host":  "piston-meta.mojang.com",
+                      "count":  8
+                  },
+                  {
+                      "host":  "exp.franchise.minecraft-services.net",
+                      "count":  8
+                  },
+                  {
+                      "host":  "payments.realms.minecraft-services.net",
+                      "count":  3
+                  },
+                  {
+                      "host":  "client.discovery.minecraft-services.net",
+                      "count":  3
+                  },
+                  {
+                      "host":  "bedrock.frontendlegacy.realms.minecraft-services.net",
+                      "count":  3
+                  },
+                  {
+                      "host":  "mojang",
+                      "count":  1
+                  }
+              ],
+    "absence_probe":  {
+                          "localWorld":  0,
+                          "behaviorPack":  0,
+                          "resourcePack":  0,
+                          "saves":  0,
+                          "export":  0,
+                          "backup":  0,
+                          "import":  0,
+                          "modpack":  0
+                      },
+    "credential_scan":  {
+                            "邮箱形":  0,
+                            "eyJ":  0,
+                            "bearer":  0,
+                            "refresh_token":  0,
+                            "access_token":  0
+                        },
+    "config_files":  {
+                         "launcher_settings":  {
+                                                   "useArm64JreIfSupported":  false,
+                                                   "version":  17,
+                                                   "quickPlayEnabled":  true,
+                                                   "channel":  "release",
+                                                   "productLibraryDir":  "%LOCALAPPDATA%\\Mojang\\products（目录不存在，说明该路径未被使用）",
+                                                   "formatVersion":  0,
+                                                   "locale":  "zh-CN"
+                                               },
+                         "launcher_profiles_switches":  {
+                                                            "enableSnapshots":  false,
+                                                            "enableReleases":  true,
+                                                            "showMenu":  false,
+                                                            "profileSorting":  "ByLastPlayed",
+                                                            "enableHistorical":  false,
+                                                            "enableAdvanced":  false,
+                                                            "crashAssistance":  false,
+                                                            "keepLauncherOpen":  true,
+                                                            "showGameLog":  false
+                                                        },
+                         "launcher_product_state":  {
+                                                        "java-retail-Piston":  "有 lastEpochTimeUpdateCheck",
+                                                        "bedrock-retail-Uwp":  "有 lastEpochTimeUpdateCheck"
+                                                    }
+                     },
+    "quickplay_dir_exists":  true,
+    "quickplay_subdirs":  [
+                              "java"
+                          ],
+    "notes":  [
+                  "quickPlay 按产品分子目录，印证多产品架构",
+                  "launcher_product_state 分产品记状态，官方自己就是\"一个启动器 + 多产品\"",
+                  "absence_probe 全部为 0 → 官方没有任何本地世界管理",
+                  "redstone-launcher.mojang.com 是此前未记录的官方更新通道"
+              ]
+}

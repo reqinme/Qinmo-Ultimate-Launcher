@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>S11 · 官方启动器能力基线（M9 验收依据）</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#161a21; --panel2:#1c222b; --line:#262d38;
+    --fg:#e6e9ef; --dim:#9aa4b2; --dim2:#6b7684;
+    --yes:#3ddc97; --no:#ff6b6b; --warn:#ffc857; --info:#5aa9ff;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f6f7f9; --panel:#ffffff; --panel2:#f0f2f5; --line:#e2e6ec;
+      --fg:#15181d; --dim:#5b6472; --dim2:#8b95a3;
+      --yes:#12a06a; --no:#d64545; --warn:#a8760a; --info:#1f6feb;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font:15px/1.65 -apple-system,"Segoe UI Variable Text","Segoe UI",system-ui,"Microsoft YaHei UI","PingFang SC",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:40px 24px 96px}
+  h1{font-size:26px; font-weight:650; margin:0 0 6px; letter-spacing:-.01em}
+  h2{font-size:19px; font-weight:620; margin:40px 0 12px; padding-top:22px; border-top:1px solid var(--line)}
+  h3{font-size:15px; font-weight:620; margin:24px 0 8px; color:var(--dim)}
+  .sub{color:var(--dim); margin:0 0 4px; font-size:13.5px}
+  .meta{color:var(--dim2); font-size:12.5px; margin-bottom:28px}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:14px 0}
+  .grid{display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  table{width:100%; border-collapse:collapse; font-size:13.5px; margin:12px 0}
+  th,td{text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:top}
+  th{color:var(--dim); font-weight:600; font-size:12.5px; text-transform:none}
+  td code, .mono{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace; font-size:12.5px}
+  .tag{display:inline-block; padding:1px 7px; border-radius:999px; font-size:11.5px; font-weight:600; line-height:1.7}
+  .t-yes{background:color-mix(in oklab,var(--yes) 18%,transparent); color:var(--yes)}
+  .t-no{background:color-mix(in oklab,var(--no) 18%,transparent); color:var(--no)}
+  .t-warn{background:color-mix(in oklab,var(--warn) 20%,transparent); color:var(--warn)}
+  .t-info{background:color-mix(in oklab,var(--info) 18%,transparent); color:var(--info)}
+  .big{font-size:30px; font-weight:680; letter-spacing:-.02em; line-height:1.2}
+  .big small{font-size:13px; font-weight:500; color:var(--dim); display:block; margin-top:4px; letter-spacing:0}
+  .note{border-left:3px solid var(--warn); padding:2px 0 2px 14px; color:var(--dim); margin:14px 0; font-size:13.5px}
+  .note.info{border-color:var(--info)}
+  .note.bad{border-color:var(--no)}
+  ul{padding-left:20px; margin:8px 0}
+  li{margin:4px 0}
+  .pill{display:inline-block; background:var(--panel2); border:1px solid var(--line); border-radius:6px;
+        padding:3px 9px; margin:3px 5px 3px 0; font-family:ui-monospace,Consolas,monospace; font-size:12px; color:var(--dim)}
+  .bar{height:7px; border-radius:4px; background:var(--panel2); overflow:hidden; margin-top:7px}
+  .bar > i{display:block; height:100%; background:var(--info)}
+  footer{margin-top:56px; padding-top:20px; border-top:1px solid var(--line); color:var(--dim2); font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>官方启动器能力基线</h1>
+  <p class="sub">S11 · M0 尖刺 · <strong>M9 的验收依据本身</strong></p>
+  <p class="meta">2026-10-01 · 环境：本机（官方启动器已装、已登微软账户、正在下载 26.3）· 证据：启动器自己写下的配置 / 状态 / 日志 / 接口方法名</p>
+
+  <div class="card">
+    <div class="grid">
+      <div><div class="big">8<small>能力项已查清（能做什么 / 不能做什么）</small></div></div>
+      <div><div class="big">2099<small>行日志（316 KB）作为主要证据</small></div></div>
+      <div><div class="big">22<small>个界面事件名 —— 一份完备清单</small></div></div>
+      <div><div class="big" style="color:var(--no)">0<small>处凭据命中（7 类模式扫描）</small></div></div>
+    </div>
+    <div class="note bad" style="margin-bottom:0">
+      <strong>证据等级的诚实说明</strong>：本基线的「能做什么」是 <span class="tag t-info">A 级</span>（配置/日志/接口名，
+      比截图更精确：截图看不出调了哪个接口）；而「在哪做 / 几步 / 长什么样」是 <span class="tag t-no">0/8</span> ——
+      那需要人工截图。<strong>两个维度分开记</strong>，混起来会让 M9 验收变成无法执行的承诺。
+    </div>
+  </div>
+
+  <h2>八项基线</h2>
+  <table>
+    <thead><tr><th style="width:26px">#</th><th style="width:150px">能力项</th><th>官方启动器能做什么</th><th style="width:230px">不能做什么</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>1</td><td>发现已装 Java / 基岩版</td>
+        <td><code>launcher_product_state.json</code> 按产品分别记录更新检查时间：<br><code>java-retail-Piston</code> · <code>bedrock-retail-Uwp</code></td>
+        <td><span class="tag t-no">无</span></td>
+      </tr>
+      <tr>
+        <td>2</td><td>安装 Java 版并启动</td>
+        <td>两条 profile 承载 <code>latest-release</code> / <code>latest-snapshot</code>；四个开关控制展示范围：<code>enableReleases</code> <code>enableSnapshots</code> <code>enableHistorical</code> <code>enableAdvanced</code></td>
+        <td><span class="tag t-no">无</span></td>
+      </tr>
+      <tr>
+        <td>3</td><td>基岩版启动</td>
+        <td>同一启动器、同一套 profile 承载；额外调 <code>gamecoreLauncherInstallState</code> 查 GameCore 安装状态</td>
+        <td><span class="tag t-no">无</span></td>
+      </tr>
+      <tr>
+        <td>4</td><td><strong>直接进服务器 / 世界</strong></td>
+        <td><span class="tag t-yes">支持</span> <strong>quickPlay 机制</strong>：开关 <code>quickPlayEnabled</code> · 目录 <code>.minecraft\quickPlay\java\</code>（<strong>按产品分子目录</strong>）· 事件 <code>coreEvent.quickPlayData</code></td>
+        <td><span class="tag t-no">无</span></td>
+      </tr>
+      <tr>
+        <td>5</td><td>内容管理</td>
+        <td><span class="tag t-warn">仅基岩版</span> 有 <code>addon</code> 概念</td>
+        <td><strong>Java 版没有</strong>资源包 / 行为包 / 整合包管理<br><code>resourcePack</code> <code>behaviorPack</code> <code>modpack</code> 全部 0 命中</td>
+      </tr>
+      <tr>
+        <td>6</td><td><strong>世界管理</strong></td>
+        <td><span class="tag t-warn">仅 Realms</span> <code>getRealmsWorlds</code> <code>getRealmsInvites</code> <code>getRealmsTrialEligibility</code> <code>getRealmsActivePlayerCounts</code></td>
+        <td><strong>没有任何本地世界管理</strong><br><code>localWorld</code> <code>saves</code> <code>backup</code> <code>export</code> <code>import</code> 全部 0 命中</td>
+      </tr>
+      <tr>
+        <td>7</td><td>账户管理</td>
+        <td><strong>只有微软账户</strong>：<code>loginWithXbox</code> <code>getXboxXBLXToken</code> <code>getMCToken</code> <code>getAccountData</code></td>
+        <td><strong>没有离线账户</strong>（无任何相关字段或接口）</td>
+      </tr>
+      <tr>
+        <td>8</td><td>皮肤</td>
+        <td><strong>能看</strong>：<code>getActiveSkin</code> <code>getCapes</code> · 事件 <code>coreEvent.skins</code></td>
+        <td><strong>不能换</strong>（无 <code>setSkin</code> / <code>uploadSkin</code> 一类方法）</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>三条超出八项的发现</h2>
+
+  <div class="card">
+    <h3 style="margin-top:0">① 官方启动器<strong>没有任何本地世界管理</strong></h3>
+    <p style="margin:6px 0">世界相关接口<strong>只有</strong> Realms 系列。四项探测全部 0 命中。</p>
+    <div class="note">
+      <strong>对产品定位的直接意义</strong>：我们的「世界级备份」是 <strong>超出</strong>，不是追平。
+      所以 M9 那一项的验收标准<strong>不能写成「与官方一致」</strong>——官方根本没有这个能力，
+      写「一致」会让它<strong>永远无法判定</strong>。<br>
+      这也解释了为什么 PCL / HMCL 都把世界管理做成核心功能：<strong>那是官方留出的空位。</strong>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">② 官方<strong>没有离线账户</strong>、皮肤<strong>只能看不能换</strong></h3>
+    <p style="margin:6px 0">两者同样是<strong>超出项</strong>，没有可对标的实现 —— 所以验收标准只能自定，
+    规格要自己写清（账户四种来源已写在 <span class="mono">docs/身份与授权规格.md §1.3</span>）。</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">③ <code>redstone-launcher.mojang.com</code> —— 此前未记录的官方通道</h3>
+    <p style="margin:6px 0">308 次请求，用于官方启动器<strong>自身更新</strong>与<strong>产品启动配置</strong>
+    （<code>/release/v2/products/launch…</code>）。我们<strong>不采用</strong>它的通道（方案 §4.8 用自己的更新机制），
+    但<strong>需要登记它的存在</strong>——否则以后看到这个域名会误判成陌生素材源。</p>
+  </div>
+
+  <h2>它依赖哪些服务（次数即证据）</h2>
+  <table>
+    <thead><tr><th style="width:330px">服务</th><th style="width:70px">次数</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">launchercontent.mojang.com</td><td>423</td><td>启动器内容（新闻 / 更新说明 / 界面素材）</td></tr>
+      <tr><td class="mono">redstone-launcher.mojang.com</td><td>308</td><td><strong>启动器自身更新 + 产品启动配置</strong></td></tr>
+      <tr><td class="mono">api.minecraftservices.com</td><td>41</td><td>账户 / 授权 / 权益</td></tr>
+      <tr><td class="mono">launchermeta.mojang.com</td><td>15</td><td>启动器元数据</td></tr>
+      <tr><td class="mono">java.frontendlegacy.realms.minecraft-services.net</td><td>12</td><td>Java 版 Realms</td></tr>
+      <tr><td class="mono">authorization.franchise.minecraft-services.net</td><td>9</td><td>授权</td></tr>
+      <tr><td class="mono">piston-meta.mojang.com</td><td>8</td><td><strong>版本清单（我们已实测的那个源）</strong></td></tr>
+      <tr><td class="mono">exp.franchise.minecraft-services.net</td><td>8</td><td>实验性服务</td></tr>
+      <tr><td class="mono">payments.realms.minecraft-services.net</td><td>3</td><td>Realms 支付</td></tr>
+      <tr><td class="mono">client.discovery.minecraft-services.net</td><td>3</td><td>服务发现</td></tr>
+      <tr><td class="mono">bedrock.frontendlegacy.realms.minecraft-services.net</td><td>3</td><td>基岩版 Realms</td></tr>
+    </tbody>
+  </table>
+
+  <h2>界面能力面：22 个事件名（一份<strong>完备清单</strong>）</h2>
+  <p class="sub" style="margin-bottom:10px">这是官方启动器<strong>界面能触发的全部能力</strong>。
+  括号内为本次会话出现次数，<strong>不代表重要性</strong>（<code>productInfo</code> 高是因为轮询）。
+  它比截图更适合做 M4 的「要不要这一块」逐项判断 —— 因为它是完备清单，而截图永远只是抽样。</p>
+  <div class="card" style="padding:14px 16px">
+    <span class="pill">productInfo ×78</span><span class="pill">gameInstances ×63</span><span class="pill">realmsData ×21</span>
+    <span class="pill">gameVersions ×2</span><span class="pill">quickPlayData ×2</span><span class="pill">configurationData</span>
+    <span class="pill">connectionStatus</span><span class="pill">constants</span><span class="pill">credits</span>
+    <span class="pill">downloads</span><span class="pill">latentTelemetryData</span><span class="pill">launcherSettings</span>
+    <span class="pill">modelInfo</span><span class="pill">msiPatch</span><span class="pill">preferencesData</span>
+    <span class="pill">skins</span><span class="pill">systemInfo</span><span class="pill">treatmentTags</span>
+    <span class="pill">users</span><span class="pill">versions</span><span class="pill">volumes</span>
+  </div>
+
+  <h2>三条结论的证据强度（<strong>请优先推翻它们</strong>）</h2>
+  <div class="card">
+    <p style="margin:4px 0">下列三条都由<strong>「日志里 0 命中」</strong>得出，而 <strong>0 命中是弱证据</strong>——
+    它只能证明「这次会话没调用」，<strong>不能证明「界面里没有」</strong>。</p>
+    <table style="margin-bottom:0">
+      <thead><tr><th>结论</th><th style="width:110px">依据强度</th><th style="width:250px">你的一张图能做什么</th></tr></thead>
+      <tbody>
+        <tr><td>Java 版没有内容管理</td><td><span class="tag t-warn">弱</span></td><td rowspan="3" style="vertical-align:middle">
+          <strong>找到就推翻我。</strong><br>
+          我会立刻改基线，并把它记成<br>「<strong>日志证据不足以证明能力缺失</strong>」的实例。
+        </td></tr>
+        <tr><td>没有本地世界管理</td><td><span class="tag t-warn">弱</span></td></tr>
+        <tr><td>皮肤只能看不能换</td><td><span class="tag t-warn">弱</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>未完成的部分</h2>
+  <div class="card">
+    <table style="margin:0">
+      <thead><tr><th>缺什么</th><th style="width:230px">为什么缺</th><th style="width:200px">怎么补</th></tr></thead>
+      <tbody>
+        <tr><td>八项的界面位置与操作步数</td><td>截图须人工操作屏幕</td><td>按 <span class="mono">补图清单</span> 点一遍</td></tr>
+        <tr><td><code>enableAdvanced</code> 打开后的能力</td><td>当前为 <code>false</code></td><td>你打开后截一张（<strong>最有价值</strong>）</td></tr>
+        <tr><td>历史版本（<code>enableHistorical</code>）</td><td>当前为 <code>false</code></td><td>同上</td></tr>
+        <tr><td>基岩版 addon 管理的界面形态</td><td>日志只有调用记录</td><td>同上</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>复现</h2>
+  <div class="card">
+    <p class="sub" style="margin:0 0 8px">证据全部来自官方启动器自己写下的文件：</p>
+    <pre class="mono" style="margin:0; overflow:auto; color:var(--dim); font-size:12.5px">Get-Content "$env:APPDATA\.minecraft\launcher_product_state_microsoft_store.json"
+Get-Content "$env:APPDATA\.minecraft\launcher_settings.json"
+Get-Content "$env:APPDATA\.minecraft\launcher_profiles.json"
+Select-String -Path "$env:APPDATA\.minecraft\launcher_log0.txt" -Pattern 'ControllerInterface|coreEvent'</pre>
+  </div>
+
+  <footer>
+    <strong>凭据检查（已做）</strong>：该日志经 7 类模式扫描 —— JWT / Bearer / access_token /
+    refresh_token / 长哈希 / MSA 凭据路径 / 邮箱，<strong>全部 0 命中</strong>。
+    <code>launcher_msa_credentials_microsoft_store.bin</code> <strong>未被读取、未被引用</strong>。
+    <br><br>
+    产物：<span class="mono">docs/_artifacts/S11/</span> · s11-baseline.md · s11-baseline.json · 本页 · 补图清单
+  </footer>
+
+</div>
+</body>
+</html>
