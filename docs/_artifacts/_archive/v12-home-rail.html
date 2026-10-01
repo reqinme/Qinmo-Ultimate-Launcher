@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>秦墨 · 主页（横幅在顶 + 右侧可滚动插件栏）</title>
+<style>
+:root{
+  --surface-card:rgb(255 255 255 / 66%);
+  --surface-panel:rgb(255 255 255 / 46%);
+  --surface-active:rgb(0 0 0 / 8%);
+  --surface-selected:rgb(0 0 0 / 9%);
+  --stroke-subtle:rgb(0 0 0 / 12%);
+  --stroke-strong:rgb(0 0 0 / 22%);
+  --divider:rgb(0 0 0 / 8%);
+  --text-primary:#1a1a1c; --text-secondary:#4a4a4f; --text-disabled:#8e8e93;
+  --accent:#0a66c2; --text-on-accent:#fff;
+  --bedrock:#1a7f37; --warn:#9a6700; --bad:#cf222e;
+  --hairline:1px;
+  --font-ui:"Microsoft YaHei UI","Noto Sans SC",system-ui,sans-serif;
+  --font-mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+  --edge:linear-gradient(135deg, rgb(255 255 255 / 88%), rgb(255 255 255 / 38%));
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{ font:14px/1.6 var(--font-ui); color:var(--text-primary); background:#cfccc8; padding:20px 22px 6px }
+.mica{ position:fixed; inset:0; z-index:-2;
+  background:radial-gradient(1200px 800px at 22% 12%, #b9b4ae 0%, #cbc7c2 45%, #dcd9d5 100%), #cfccc8 }
+.mica-tint{ position:fixed; inset:0; z-index:-1;
+  background:linear-gradient(180deg, rgb(240 238 235 / 80%), rgb(233 230 227 / 86%)) }
+.mono{ font-family:var(--font-mono) }
+.sheet{ max-width:1460px; margin:0 auto 16px }
+.sheet h2{ font-size:15px; font-weight:600; margin:0 0 2px }
+.sheet .cap{ font-size:12px; color:var(--text-disabled); margin:0 0 8px }
+.win{ width:1420px; height:800px; border-radius:10px; overflow:hidden;
+  border:var(--hairline) solid var(--stroke-subtle); display:grid; grid-template-rows:38px 1fr 26px }
+.tb{ display:flex; align-items:center; gap:12px; padding-left:12px }
+.brand{ display:flex; align-items:center; gap:8px; white-space:nowrap }
+.brand .mk{ width:20px;height:20px;border-radius:5px;background:linear-gradient(140deg,#0a66c2,#6d4aff);
+  display:grid;place-items:center;font-size:9.5px;font-weight:800;color:#fff }
+.brand .nm{ font-weight:700; font-size:15px; letter-spacing:.6px }
+.tb-spacer{ flex:1 } .wc{ display:flex }
+.wc div{ width:46px;height:38px;display:grid;place-items:center;color:var(--text-secondary);font-size:11px }
+.body{ display:grid; grid-template-columns:218px 1fr 318px; min-height:0 }
+.side{ border-right:var(--hairline) solid var(--divider); display:flex; flex-direction:column; min-height:0 }
+.acct{ padding:10px 12px; border-bottom:var(--hairline) solid var(--divider) }
+.acct .top{ display:flex; align-items:center; gap:9px }
+.acct .av{ width:32px;height:32px;border-radius:50%;flex:0 0 auto;
+  background:linear-gradient(150deg,#0a66c2,#6d4aff); display:grid;place-items:center;
+  font-size:13px;font-weight:700;color:#fff }
+.acct .nm{ font-size:12.5px;font-weight:600; line-height:1.3 }
+.acct .src{ font-size:10.5px;color:var(--text-secondary) }
+.auth{ margin-top:6px; display:grid; gap:2px }
+.authrow{ display:flex; align-items:center; gap:6px; font-size:11px }
+.dot{ width:6px;height:6px;border-radius:50%;flex:0 0 auto }
+.dot.ok{ background:#1a7f37 } .dot.no{ background:#cf222e }
+.authrow .s{ margin-left:auto; font-size:10.5px; color:var(--text-disabled) }
+.nav{ padding:6px 9px; display:grid; gap:1px }
+.nav a{ display:flex;align-items:center;gap:9px;height:31px;padding:0 10px;border-radius:8px;
+  color:var(--text-secondary);text-decoration:none;font-size:13px;position:relative }
+.nav a.on{ background:var(--surface-selected); color:var(--text-primary) }
+.nav a.on::before{ content:"";position:absolute;left:0;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--accent) }
+.nav a .n{ margin-left:auto;font-size:10.5px;color:var(--text-disabled) }
+.nav a .badge{ margin-left:auto; min-width:15px;height:15px;padding:0 5px;border-radius:999px;
+  background:var(--accent);color:#fff;font-size:9.5px;font-weight:700;display:grid;place-items:center }
+.lv2zone{ flex:1; min-height:0; display:flex; flex-direction:column;
+  border-top:var(--hairline) solid var(--divider); background:rgb(0 0 0 / 2%) }
+.empty{ height:100%; display:grid; place-items:center; text-align:center;
+  color:var(--text-disabled); font-size:11.5px; line-height:1.7; padding:0 16px }
+.empty .big{ font-size:19px; display:block; margin-bottom:5px; opacity:.6 }
+.side-btm{ flex:0 0 auto; padding:6px 9px 9px; display:grid; gap:1px;
+  border-top:var(--hairline) solid var(--divider) }
+.side-btm a{ display:flex;align-items:center;gap:9px;height:30px;padding:0 10px;border-radius:8px;
+  color:var(--text-secondary);text-decoration:none;font-size:12.5px }
+.verline{ padding:1px 11px 5px; font:10px/1.4 var(--font-mono); color:var(--text-disabled) }
+
+/* 主内容区 */
+.main{ padding:14px 16px; overflow:hidden; display:flex; flex-direction:column; gap:11px; min-width:0 }
+/* ★ 大横幅回到顶部 */
+.hero{ position:relative; border-radius:12px; overflow:hidden; height:212px; flex:0 0 auto;
+  border:var(--hairline) solid var(--stroke-subtle);
+  background:
+    radial-gradient(520px 240px at 18% 22%, #6d4aff55, transparent 70%),
+    radial-gradient(580px 300px at 76% 70%, #0a66c255, transparent 72%),
+    linear-gradient(135deg,#2b2f3a,#3a3f4d 55%,#40382e) }
+.hero .scrim{ position:absolute; inset:0; background:linear-gradient(90deg, rgb(0 0 0 / 58%) 0%, rgb(0 0 0 / 28%) 48%, transparent 76%) }
+.hero .artnote{ position:absolute; right:11px; top:9px; font-size:10px; color:#ffffffa8 }
+.hero .switcher{ position:absolute; left:17px; top:14px; display:flex; gap:6px }
+.sw{ display:flex; align-items:center; gap:7px; height:28px; padding:0 12px; border-radius:999px;
+  border:var(--hairline) solid #ffffff38; background:rgb(0 0 0 / 34%); color:#ffffffc8; font-size:12px }
+.sw.on{ background:rgb(255 255 255 / 92%); color:#1a1a1c; border-color:transparent; font-weight:600 }
+.sw .d{ width:7px;height:7px;border-radius:2px }
+.hero .txt{ position:absolute; left:17px; bottom:15px; right:38%; color:#fff }
+.hero .txt h3{ margin:0 0 5px; font-size:21px; font-weight:600 }
+.hero .txt p{ margin:0 0 11px; font-size:12px; color:#ffffffd2 }
+.btn{ height:30px;padding:0 15px;border-radius:8px;display:inline-flex;align-items:center;gap:7px;
+  font-size:12.5px;font-weight:600;border:var(--hairline) solid transparent }
+.btn--primary{ background:var(--accent);color:var(--text-on-accent) }
+.btn--ghost{ background:rgb(255 255 255 / 58%);color:var(--text-primary);border-color:var(--stroke-subtle);font-weight:500 }
+.btn--onart{ background:rgb(255 255 255 / 16%); color:#fff; border-color:#ffffff45; font-weight:500 }
+.btn--sm{ height:24px;font-size:11px;padding:0 9px }
+.badge-p{ font-size:10px; padding:1px 6px; border-radius:999px; border:var(--hairline) solid var(--stroke-subtle);
+  background:rgb(255 255 255 / 55%); color:var(--text-secondary) }
+.bigcard{ border:var(--hairline) solid transparent; border-radius:12px; display:flex; flex-direction:column;
+  background:linear-gradient(var(--surface-panel),var(--surface-panel)) padding-box, var(--edge) border-box; overflow:hidden }
+.bigcard .ch{ padding:10px 14px 6px; font-size:13px; font-weight:600; display:flex; align-items:center; gap:8px; flex:0 0 auto }
+.bigcard .ch .r{ margin-left:auto; font-size:10.5px; color:var(--text-disabled); font-weight:400 }
+.bigcard .cb{ padding:0 14px 12px; flex:1; min-height:0; display:flex; flex-direction:column }
+.rowlist{ display:flex; flex-direction:column; gap:2px }
+.row{ display:flex; align-items:center; gap:10px; height:41px; padding:0 10px; border-radius:9px }
+.row .thumb{ width:28px;height:28px;border-radius:7px;flex:0 0 auto }
+.row .tx{ min-width:0; flex:1 }
+.row .tx b{ font-size:12.5px; display:block; line-height:1.3 }
+.row .tx span{ font-size:10.5px; color:var(--text-secondary) }
+
+/* ★ 右侧插件栏：整栏可上下滚动 */
+.railwrap{ border-left:var(--hairline) solid var(--divider); display:flex; flex-direction:column; min-height:0;
+  background:rgb(0 0 0 / 2%) }
+.railhead{ flex:0 0 auto; padding:11px 12px 6px; display:flex; align-items:center; gap:8px;
+  border-bottom:var(--hairline) solid var(--divider) }
+.railhead .t{ font-size:12.5px; font-weight:600 }
+.railhead .sp{ margin-left:auto; font-size:10.5px; color:var(--text-disabled) }
+.railhead .gear{ width:24px;height:24px;border-radius:7px;display:grid;place-items:center;
+  border:var(--hairline) solid var(--stroke-subtle); background:var(--surface-card);
+  color:var(--text-secondary); font-size:11px }
+/* 滚动容器 */
+.rail{ flex:1; min-height:0; overflow-y:auto; padding:10px 11px 14px;
+  display:flex; flex-direction:column; gap:9px;
+  scrollbar-width:thin; scrollbar-color:rgb(0 0 0 / 26%) transparent }
+.rail::-webkit-scrollbar{ width:8px }
+.rail::-webkit-scrollbar-thumb{ background:rgb(0 0 0 / 22%); border-radius:4px;
+  border:2px solid transparent; background-clip:content-box }
+.rail::-webkit-scrollbar-track{ background:transparent }
+/* 底部渐隐：提示下面还有 */
+.railfade{ flex:0 0 auto; height:18px; margin-top:-18px; pointer-events:none;
+  background:linear-gradient(transparent, rgb(233 230 227 / 94%)) }
+
+.wid{ border:var(--hairline) solid transparent; border-radius:12px; overflow:hidden; flex:0 0 auto;
+  background:linear-gradient(var(--surface-card),var(--surface-card)) padding-box, var(--edge) border-box }
+/* 拖拽手柄：hover 才明显 */
+.wid .wh{ display:flex; align-items:center; gap:7px; padding:9px 11px 5px; font-size:12.5px; font-weight:600 }
+.wid .wh .grip{ color:rgb(0 0 0 / 22%); font-size:11px; letter-spacing:1px; cursor:grab }
+.wid .wh .ic{ font-size:12px; color:var(--accent) }
+.wid .wh .sp{ margin-left:auto; font-size:10.5px; color:var(--text-disabled); font-weight:400 }
+.wid .wh .dots{ color:var(--text-disabled); font-size:12px }
+.wid .wb{ padding:0 11px 11px; font-size:12px }
+.pbar{ height:5px; border-radius:3px; background:var(--surface-active); overflow:hidden; margin-top:6px }
+.pbar i{ display:block; height:100%; background:var(--accent) }
+.krow{ display:flex; align-items:center; gap:8px; padding:4px 0; font-size:11.5px }
+.krow .k{ color:var(--text-secondary) } .krow .v{ margin-left:auto; font-weight:600 }
+.warnrow{ display:flex; align-items:flex-start; gap:8px; padding:5px 0; font-size:11.5px }
+.warnrow .b{ width:5px;height:5px;border-radius:50%;margin-top:6px;flex:0 0 auto }
+.warnrow .tx b{ display:block; font-size:11.5px } .warnrow .tx span{ font-size:10.5px; color:var(--text-secondary) }
+.statusbar{ display:flex;align-items:center;gap:10px;padding:0 13px;border-top:var(--hairline) solid var(--divider);
+  color:var(--text-secondary);font-size:11px;font-family:var(--font-mono) }
+.statusbar .grow{flex:1}
+.statusbar .p2{border:var(--hairline) solid var(--stroke-subtle);border-radius:999px;padding:1px 7px}
+.note{ max-width:1460px; margin:0 auto 14px; font-size:12.5px; line-height:1.72; padding:11px 14px;
+  border-radius:10px; border:1px solid var(--stroke-subtle); background:var(--surface-card) }
+.note b{ color:#c2410c }
+</style>
+</head>
+<body>
+<div class="mica"></div><div class="mica-tint"></div>
+
+<div class="note" style="margin-top:0">
+  <b>按你说的改</b>：<b>大横幅回到顶部</b>；右侧是<b>插件栏</b>——
+  <b>整栏可上下滚动</b>（插件多了不会撑破窗口），每个插件有<b>拖拽手柄</b>（调顺序）
+  与 <b>⋮ 菜单</b>（隐藏 / 切形态），右上还有<b>⚙ 进入插件设置</b>。
+</div>
+
+<div class="sheet">
+  <h2>主页 —— 横幅在顶 / 右侧插件栏可滚动（我放了 6 个插件来演示滚动）</h2>
+  <div class="win" style="margin-top:6px">
+    <div class="tb"><div class="brand"><span class="mk">QUL</span><span class="nm">QUL</span></div>
+      <div class="tb-spacer"></div><div class="wc"><div>─</div><div>▢</div><div>✕</div></div></div>
+    <div class="body">
+      <nav class="side">
+        <div class="acct"><div class="top"><div class="av">R</div>
+          <div><div class="nm">reqinme</div><div class="src">微软账户 · 已登录</div></div></div>
+          <div class="auth">
+            <div class="authrow"><span class="dot ok"></span><span>Java 版</span><span class="s">已授权</span></div>
+            <div class="authrow"><span class="dot no"></span><span>基岩版</span><span class="s">未授权</span></div>
+          </div></div>
+        <div class="nav"><a class="on"><span>⌂</span>主页</a>
+          <a><span>▤</span>实例<span class="n">8</span></a>
+          <a><span>↓</span>下载<span class="badge">3</span></a></div>
+        <div class="lv2zone"><div class="empty"><div><span class="big">—</span>主页没有下级分类</div></div></div>
+        <div class="side-btm"><a><span>◉</span>账号管理</a><a><span>▦</span>百宝箱</a>
+          <a><span>⚒</span>设置</a><a><span>ⓘ</span>关于</a><div class="verline">v0.1.0</div></div>
+      </nav>
+
+      <main class="main">
+        <!-- 大横幅（回到顶部） -->
+        <div class="hero"><div class="scrim"></div>
+          <div class="switcher"><div class="sw on"><span class="d" style="background:#0a66c2"></span>Java 版</div>
+            <div class="sw"><span class="d" style="background:#1a7f37"></span>基岩版</div></div>
+          <div class="artnote">封面图为占位 · 真实产品需自绘或用户自有</div>
+          <div class="txt"><h3>1.20.1 · Fabric 已就绪</h3>
+            <p>上次运行 2 小时前 · 4096 MB · 38 个模组 · 依赖已校验</p>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn--primary" style="height:35px;font-size:13.5px;padding:0 24px">▶&nbsp; 启动</button>
+              <button class="btn btn--onart">管理实例</button>
+              <button class="btn btn--onart">打开目录</button></div></div></div>
+
+        <div class="bigcard" style="flex:1 1 auto">
+          <div class="ch">最近运行 <span class="r">按最近运行</span></div>
+          <div class="cb"><div class="rowlist">
+            <div class="row" style="background:var(--surface-card)">
+              <div class="thumb" style="background:linear-gradient(150deg,#3b4a6b,#5b6d92)"></div>
+              <div class="tx"><b>1.20.1 · Fabric</b><span>2 小时前 · 38 个模组 · 依赖已校验</span></div>
+              <span class="badge-p">当前</span>
+              <button class="btn btn--primary btn--sm">▶ 启动</button></div>
+            <div class="row"><div class="thumb" style="background:linear-gradient(150deg,#4a4a52,#7a7a86)"></div>
+              <div class="tx"><b>1.21.4 · 原版</b><span>昨天 · 无模组</span></div>
+              <button class="btn btn--ghost btn--sm">启动</button></div>
+            <div class="row"><div class="thumb" style="background:linear-gradient(150deg,#5a4632,#8a6a44)"></div>
+              <div class="tx"><b>1.19.2 · Forge</b><span>3 天前 · 84 个模组</span></div>
+              <button class="btn btn--ghost btn--sm">启动</button></div>
+            <div class="row"><div class="thumb" style="background:linear-gradient(150deg,#3a5a4a,#5a8a6a)"></div>
+              <div class="tx"><b>基岩版 · 1.21.120</b><span>上周 · 38 分 · 沙箱形态</span></div>
+              <button class="btn btn--ghost btn--sm">启动</button></div>
+          </div></div>
+        </div>
+      </main>
+
+      <!-- 右侧插件栏 -->
+      <div class="railwrap">
+        <div class="railhead"><span class="t">插件</span>
+          <span class="sp">拖拽调顺序</span>
+          <span class="gear">⚙</span></div>
+        <div class="rail">
+          <!-- 1 游玩统计 -->
+          <div class="wid">
+            <div class="wh"><span class="grip">⠿</span><span class="ic">▦</span>游玩统计
+              <span class="sp">近 7 天</span><span class="dots">⋮</span></div>
+            <div class="wb">
+              <div style="display:flex;align-items:flex-end;gap:4px;height:42px">
+                <div style="flex:1;height:22%;background:var(--surface-active);border-radius:3px"></div>
+                <div style="flex:1;height:58%;background:var(--accent);border-radius:3px;opacity:.5"></div>
+                <div style="flex:1;height:34%;background:var(--surface-active);border-radius:3px"></div>
+                <div style="flex:1;height:80%;background:var(--accent);border-radius:3px;opacity:.7"></div>
+                <div style="flex:1;height:46%;background:var(--surface-active);border-radius:3px"></div>
+                <div style="flex:1;height:100%;background:var(--accent);border-radius:3px"></div>
+                <div style="flex:1;height:12%;background:var(--surface-active);border-radius:3px"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--text-disabled);margin-top:3px">
+                <span>四</span><span>五</span><span>六</span><span>日</span><span>一</span><span>二</span><span>三</span></div>
+              <div class="krow" style="margin-top:5px"><span class="k">今天</span><span class="v">2 小时 14 分</span></div>
+              <div class="krow" style="padding-top:0"><span class="k">本周合计</span><span class="v">7 小时 32 分</span></div>
+            </div>
+          </div>
+          <!-- 2 我的分组 -->
+          <div class="wid">
+            <div class="wh"><span class="grip">⠿</span><span class="ic">▤</span>我的分组
+              <span class="sp">点一下筛实例</span><span class="dots">⋮</span></div>
+            <div class="wb" style="padding-bottom:7px">
+              <div class="krow" style="border-radius:7px;padding:4px 7px"><span>⭐ 特别关注</span><span class="v">3</span></div>
+              <div class="krow" style="border-radius:7px;padding:4px 7px"><span>📁 模组开发</span><span class="v">2</span></div>
+              <div class="krow" style="border-radius:7px;padding:4px 7px"><span>📁 怀旧服</span><span class="v">1</span></div>
+              <div class="krow" style="border-radius:7px;padding:4px 7px"><span>📁 服务器测试</span><span class="v">3</span></div>
+            </div>
+          </div>
+          <!-- 3 下载队列 -->
+          <div class="wid">
+            <div class="wh"><span class="grip">⠿</span><span class="ic">↓</span>下载队列
+              <span class="sp">3 个任务</span><span class="dots">⋮</span></div>
+            <div class="wb">
+              <div style="display:flex;align-items:center;gap:7px">
+                <b style="font-size:12px">1.21.4 客户端</b>
+                <span style="margin-left:auto;font-size:10.5px;color:var(--text-secondary)">62% · ↓12.4 MB/s</span></div>
+              <div class="pbar"><i style="width:62%"></i></div>
+              <div class="krow" style="padding:5px 0 0"><span class="k">Sodium 0.5.8</span>
+                <span class="v" style="font-weight:400;color:var(--text-secondary)">已校验 · 待写入</span></div>
+              <div class="krow" style="padding:2px 0 0"><span class="k">Fabric 加载器</span>
+                <span class="v" style="font-weight:400;color:var(--text-secondary)">排队中 · 第 3 位</span></div>
+            </div>
+          </div>
+          <!-- 4 实例体检 -->
+          <div class="wid">
+            <div class="wh"><span class="grip">⠿</span><span class="ic">◉</span>实例体检
+              <span class="sp">2 项要处理</span><span class="dots">⋮</span></div>
+            <div class="wb">
+              <div class="warnrow"><span class="b" style="background:var(--warn)"></span>
+                <div class="tx"><b>1.19.2 · Forge 有 3 个模组缺依赖</b><span>点开可看缺哪个、从哪补</span></div></div>
+              <div class="warnrow"><span class="b" style="background:var(--bad)"></span>
+                <div class="tx"><b>基岩版未授权，无法启动</b><span>打开商店完成授权</span></div></div>
+              <div class="warnrow"><span class="b" style="background:#1a7f37"></span>
+                <div class="tx"><b>其余 6 个实例正常</b><span>磁盘占用合计 12.4 GB</span></div></div>
+            </div>
+          </div>
+          <!-- 5 产品状态 -->
+          <div class="wid">
+            <div class="wh"><span class="grip">⠿</span><span class="ic">◆</span>产品状态
+              <span class="sp">授权相互独立</span><span class="dots">⋮</span></div>
+            <div class="wb">
+              <div class="krow"><span class="k">Java 版</span><span class="v" style="color:#1a7f37">已授权</span></div>
+              <div class="krow" style="padding-top:0"><span class="k">基岩版</span><span class="v" style="color:var(--bad)">未授权</span></div>
+              <div class="krow" style="padding-top:0"><span class="k">磁盘占用</span><span class="v" style="font-weight:500">12.4 GB</span></div>
+            </div>
+          </div>
+          <!-- 6 快速启动 -->
+          <div class="wid">
+            <div class="wh"><span class="grip">⠿</span><span class="ic">▶</span>快速启动
+              <span class="sp">最简</span><span class="dots">⋮</span></div>
+            <div class="wb">
+              <div style="display:flex;align-items:center;gap:9px">
+                <div style="width:30px;height:30px;border-radius:7px;flex:0 0 auto;
+                  background:linear-gradient(150deg,#3b4a6b,#5b6d92)"></div>
+                <div style="flex:1;min-width:0">
+                  <b style="font-size:12px">1.20.1 · Fabric</b>
+                  <div style="font-size:10.5px;color:var(--text-secondary)">就绪 · 预计 8 秒</div></div>
+                <button class="btn btn--primary btn--sm" style="height:28px;padding:0 12px">▶ 启动</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="railfade"></div>
+      </div>
+    </div>
+    <div class="statusbar"><span>v0.1.0</span><span class="p2">当前产品：Java 版</span><span>官方源</span>
+      <span class="grow"></span><span>Java 21 · 118 MB</span></div>
+  </div>
+</div>
+
+<!-- 局部放大：右侧插件栏的头与滚动 -->
+<div class="sheet">
+  <h2>局部放大 · 插件栏的头部（⚙ 进设置）与卡片操作（⠿ 拖拽 / ⋮ 菜单）</h2>
+  <p class="cap">这块是整栏滚动的：<b>头部固定</b>（标题 + ⚙），<b>下面那列滚</b>。</p>
+  <div style="display:flex; gap:20px; align-items:flex-start">
+    <div style="width:318px; height:560px; border-radius:12px; overflow:hidden;
+      border:1px solid var(--stroke-subtle); background:rgb(0 0 0 / 2%); display:flex; flex-direction:column">
+      <div class="railhead"><span class="t">插件</span><span class="sp">拖拽调顺序</span><span class="gear">⚙</span></div>
+      <div class="rail" style="padding-top:10px">
+        <div class="wid"><div class="wh"><span class="grip">⠿</span><span class="ic">▦</span>游玩统计
+          <span class="sp">近 7 天</span><span class="dots">⋮</span></div>
+          <div class="wb" style="color:var(--text-disabled);font-size:11px">（内容略）</div></div>
+        <div class="wid"><div class="wh"><span class="grip">⠿</span><span class="ic">▤</span>我的分组
+          <span class="sp">点一下筛实例</span><span class="dots">⋮</span></div>
+          <div class="wb" style="color:var(--text-disabled);font-size:11px">（内容略）</div></div>
+        <div class="wid"><div class="wh"><span class="grip">⠿</span><span class="ic">↓</span>下载队列
+          <span class="sp">3 个任务</span><span class="dots">⋮</span></div>
+          <div class="wb" style="color:var(--text-disabled);font-size:11px">（内容略）</div></div>
+        <div class="wid"><div class="wh"><span class="grip">⠿</span><span class="ic">◉</span>实例体检
+          <span class="sp">2 项要处理</span><span class="dots">⋮</span></div>
+          <div class="wb" style="color:var(--text-disabled);font-size:11px">（内容略）</div></div>
+      </div>
+      <div class="railfade"></div>
+    </div>
+    <div style="font-size:12.5px; line-height:1.85; max-width:640px">
+      <b>三个操作，都在这块里完成：</b><br>
+      <b>⠿ 拖拽手柄</b> —— 按住上下拖，改变插件顺序（鼠标移上去才明显，平时不抢视线）<br>
+      <b>⋮ 菜单</b> —— 隐藏这个插件 / 切"丰富·极简" / 移到最前<br>
+      <b>⚙ 齿轮</b> —— 打开插件设置（一次看到全部可用的，含未显示的）<br><br>
+      <b>滚动</b>：整列滚，头部固定。滚到底部有一条渐隐提示"下面还有"。<br>
+      <span style="color:var(--text-disabled)">注：这条渐隐只是截图上的提示；真实实现里滚动条本身就在，不需要额外提示。</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
