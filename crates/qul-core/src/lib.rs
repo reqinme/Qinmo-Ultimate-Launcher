@@ -27,6 +27,7 @@ pub mod java;
 pub mod plan;
 pub mod provider;
 pub mod retry;
+pub mod scrub;
 
 pub use caps::{
     Capabilities, Capability, CapabilityKey, CapabilityKind, DetailKey, DisabledItem,
