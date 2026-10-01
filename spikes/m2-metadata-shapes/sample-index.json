@@ -1,0 +1,138 @@
+[
+    {
+        "id":  "26.3",
+        "why":  "current latest release (2026)",
+        "type":  "release",
+        "compliance":  1,
+        "release_time":  "2026-09-15T11:23:02+00:00",
+        "bytes":  44992
+    },
+    {
+        "id":  "1.21.4",
+        "why":  "modern release; still the new natives form at 51 entries",
+        "type":  "release",
+        "compliance":  1,
+        "release_time":  "2024-12-03T10:12:57+00:00",
+        "bytes":  43714
+    },
+    {
+        "id":  "1.19.3",
+        "why":  "natives moved from downloads.classifiers to standalone entries (found by this analysis, not assumed)",
+        "type":  "release",
+        "compliance":  1,
+        "release_time":  "2022-12-07T08:17:18+00:00",
+        "bytes":  34704
+    },
+    {
+        "id":  "1.18.2",
+        "why":  "last release BEFORE the natives change (16 old-style entries)",
+        "type":  "release",
+        "compliance":  1,
+        "release_time":  "2022-02-28T10:42:45+00:00",
+        "bytes":  30469
+    },
+    {
+        "id":  "1.17.1",
+        "why":  "first release requiring Java 16+",
+        "type":  "release",
+        "compliance":  1,
+        "release_time":  "2021-07-06T12:01:34+00:00",
+        "bytes":  30313
+    },
+    {
+        "id":  "1.16.5",
+        "why":  "post-arguments-rewrite, pre-natives-change; old-style natives still 16 entries",
+        "type":  "release",
+        "compliance":  1,
+        "release_time":  "2021-01-14T16:05:32+00:00",
+        "bytes":  29287
+    },
+    {
+        "id":  "1.14.4",
+        "why":  "first release with client_mappings in downloads",
+        "type":  "release",
+        "compliance":  0,
+        "release_time":  "2019-07-19T09:25:47+00:00",
+        "bytes":  26942
+    },
+    {
+        "id":  "1.13.2",
+        "why":  "THE argument-format boundary: minecraftArguments -\u003e arguments.jvm/game",
+        "type":  "release",
+        "compliance":  0,
+        "release_time":  "2018-10-22T11:41:07+00:00",
+        "bytes":  22583
+    },
+    {
+        "id":  "1.12.2",
+        "why":  "the most-modded old version; classic layout",
+        "type":  "release",
+        "compliance":  0,
+        "release_time":  "2017-09-18T08:39:46+00:00",
+        "bytes":  18416
+    },
+    {
+        "id":  "1.11.2",
+        "why":  "mid-old",
+        "type":  "release",
+        "compliance":  0,
+        "release_time":  "2016-12-21T09:29:12+00:00",
+        "bytes":  16093
+    },
+    {
+        "id":  "1.8.9",
+        "why":  "last release before downloads dropped windows_server",
+        "type":  "release",
+        "compliance":  0,
+        "release_time":  "2015-12-03T09:24:39+00:00",
+        "bytes":  18244
+    },
+    {
+        "id":  "1.7.10",
+        "why":  "the classic modding baseline",
+        "type":  "release",
+        "compliance":  0,
+        "release_time":  "2014-05-14T17:29:23+00:00",
+        "bytes":  14777
+    },
+    {
+        "id":  "1.6.4",
+        "why":  "the ONLY sample with no javaVersion and no complianceLevel; 11 keys",
+        "type":  "release",
+        "compliance":  0,
+        "release_time":  "2013-09-19T15:52:37+00:00",
+        "bytes":  10239
+    },
+    {
+        "id":  "1.5.2",
+        "why":  "very old launcher-era layout",
+        "type":  "release",
+        "compliance":  0,
+        "release_time":  "2013-04-25T15:45:00+00:00",
+        "bytes":  8568
+    },
+    {
+        "id":  "b1.7.3",
+        "why":  "beta",
+        "type":  "old_beta",
+        "compliance":  0,
+        "release_time":  "2011-07-07T22:00:00+00:00",
+        "bytes":  8190
+    },
+    {
+        "id":  "a1.2.6",
+        "why":  "alpha",
+        "type":  "old_alpha",
+        "compliance":  0,
+        "release_time":  "2010-12-02T22:00:00+00:00",
+        "bytes":  8191
+    },
+    {
+        "id":  "rd-132211",
+        "why":  "the OLDEST entry in the manifest",
+        "type":  "old_alpha",
+        "compliance":  0,
+        "release_time":  "2009-05-13T20:11:00+00:00",
+        "bytes":  8131
+    }
+]
