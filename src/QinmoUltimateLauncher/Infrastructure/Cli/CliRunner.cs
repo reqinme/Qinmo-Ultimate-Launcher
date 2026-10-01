@@ -1,3 +1,4 @@
+using Qul.Infrastructure.Diagnostics;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -363,6 +364,31 @@ public static partial class CliRunner
         foreach (string line in Tail(result.LogFilePath, 40))
         {
             Report(boot, "  | " + line);
+        }
+
+        // **崩溃分析：游戏自己写的报告比我们tail出来的日志更直接。**
+        //
+        // 放在这里是因为**只有这里同时具备两个条件**：既知道"进程确实退出了"，
+        // 又拿得到**真实退出码**。接在别处（例如"进程未能拉起"）时游戏根本没运行过，
+        // 不可能有报告——那样接等于永远不触发。
+        string? crashPath = CrashReportLocator.FindNewest(boot.Layout.GameRoot, DateTimeOffset.UtcNow.AddMinutes(-30));
+        CrashFinding? finding = CrashAnalysis.Analyze(CrashReportLocator.Read(crashPath), result.ExitCode);
+
+        if (finding != null)
+        {
+            Report(boot, string.Empty);
+            Report(boot, "崩溃分析：" + finding.Summary);
+
+            if (crashPath != null)
+            {
+                Report(boot, "  报告：" + crashPath);
+            }
+
+            for (int i = 0; i < finding.Suggestions.Count; i++)
+            {
+                Report(boot, "  " + (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                             + ") " + finding.Suggestions[i]);
+            }
         }
 
         return ExitFailed;

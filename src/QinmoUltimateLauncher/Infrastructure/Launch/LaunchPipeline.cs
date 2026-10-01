@@ -419,6 +419,13 @@ public sealed class LaunchPipeline
                 GameDirectory = layout.GameRoot,
                 NativesDirectory = Path.Combine(layout.CacheDirectory, "natives", request.VersionId),
                 MaxMemoryMb = request.MaxMemoryMb,
+
+                // **把配置里的额外 JVM 参数接上。**
+                //
+                // 先前 `launch.extraJvmArgs` 只被读写进 config.json，构建器也支持它，
+                // 但**没有任何地方把它从配置传进来**——用户改了等于没改，而且不报错。
+                // 这是本项目第三次出现"配置项读写了却从不生效"（前两次是代理三态与 mirrorBaseUrl）。
+                ExtraJvmArgs = _boot.Config.Launch.ExtraJvmArgs,
                 AssetsDirectory = Path.Combine(layout.CacheDirectory, conventions.AssetsRoot),
                 LibraryDirectory = Path.Combine(layout.CacheDirectory, conventions.LibrariesPrefix),
             },
@@ -476,10 +483,31 @@ public sealed class LaunchPipeline
 
         if (!result.Launch.Started || result.Launch.Process == null)
         {
+            // **拉起失败时也看一眼崩溃报告**：虽然这条路游戏通常没跑起来，
+            // 但"进程对象建好、随即退出"也会走到这里，那时报告是存在的。
             return Fail(
                 result,
                 result.Launch.Error ?? ErrorCode.ProcStartFailed,
-                "进程未能拉起。" + DescribeCrash(layout, launchStartedAt, progress));
+                "进程未能拉起。" + DescribeCrash(result.Launch.Process, layout, launchStartedAt, progress, 1));
+        }
+
+        // **拉起后立刻看一眼它是不是已经死了。**
+        //
+        // 这一步**不等待**（只查一次 HasExited），所以不给正常启动增加任何延迟——
+        // 冷启动 341 ms 是预算，不能为了检测而花掉几十毫秒。
+        //
+        // 而它抓得到最常见的一类失败：JVM 参数不合理（例如最大内存超过物理内存）
+        // 时，java.exe 会在**毫秒级**退出。先前那种情况会被报成"启动成功"——
+        // 因为进程对象确实建起来了，只是它立刻就没了。
+        if (result.Launch.Process.HasExited)
+        {
+            int exitCode = result.Launch.Process.WaitForExit().ExitCode;
+
+            return Fail(
+                result,
+                ErrorCode.ProcNonZeroExit,
+                "游戏进程启动后立即退出（退出码 " + exitCode.ToString(System.Globalization.CultureInfo.InvariantCulture) + "）。"
+                + DescribeCrash(result.Launch.Process, layout, launchStartedAt, progress, exitCode));
         }
 
         result.Succeeded = true;
@@ -493,15 +521,15 @@ public sealed class LaunchPipeline
     /// **绝不让分析失败改变失败本身。** 找不到报告、读不出来、认不出原因，
     /// 都只是少一句解释——原来的错误码与提示照常返回。
     ///
-    /// 传给分析器的退出码恒为 0：走到这里时进程可能**还活着**（只是没起窗口），
-    /// 我们并不知道它最终会以什么码退出。传 0 让"仅凭退出码"那条分支不会误触发，
-    /// 而只要报告正文非空，结论就来自正文。
+    /// <paramref name="exitCode"/> 是**真实退出码**：拿得到就给真的，
+    /// 分析器在"连报告都没有"时会用它给出"进程异常退出但没有留下报告"的结论。
+    /// 拿不到时传 0，那条分支就不会误触发。
     /// </summary>
-    private string DescribeCrash(DataLayout layout, DateTimeOffset notBefore, IProgress<LaunchProgress>? progress)
+    private string DescribeCrash(GameProcess? process, DataLayout layout, DateTimeOffset notBefore, IProgress<LaunchProgress>? progress, int exitCode)
     {
         string? path = CrashReportLocator.FindNewest(layout.GameRoot, notBefore);
         string? text = CrashReportLocator.Read(path);
-        CrashFinding? finding = CrashAnalysis.Analyze(text, 0);
+        CrashFinding? finding = CrashAnalysis.Analyze(text, exitCode);
 
         if (finding == null)
         {
