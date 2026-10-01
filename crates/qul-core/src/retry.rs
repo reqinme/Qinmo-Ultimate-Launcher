@@ -83,15 +83,30 @@ pub struct RetryPolicy {
 }
 
 impl RetryPolicy {
-    /// 默认：4 次尝试 + 指数退避（0 / 500 / 1000 / 2000 ms，上限 30 s）。
+    /// 默认网络重试：**6 次尝试（= 5 次重试）+ 指数退避（0 / 2 / 4 / 8 / 16 / 30 s）**。
     ///
-    /// 4 次的选择理由：在 0.28 MB/s 下，**一次重试太脆，十次太久**。
-    /// 而总等待 3.5 秒——**短到用户不会以为卡死**。
+    /// ## ⚠️ 这两个值在 M1 下载引擎落地时被**更正过一次**
+    ///
+    /// 第一版写的是 **4 次尝试 / 500ms 起点**，而《下载引擎设计规格》§4 的表格写的是
+    /// **最大重试 5**（NexBox `:822`；HMCL 也用 5）与**退避基础 2s**（NexBox `:823`，
+    /// 明确优于 HMCL 的固定 `Thread.sleep(200)`）。
+    ///
+    /// **偏差是怎么被发现的**：写 `qul_core::timeout::TimeoutPolicy` 时
+    /// 把规格的取值抄成常量并加了断言，于是两处数字**并排出现**，
+    /// 差一个立刻可见。
+    ///
+    /// **教训**：同一个数字在两处定义时，**它们的差值不会自己浮现** ——
+    /// 必须有一个地方**把两个定义放在一起看**（这里是测试里的常量断言）。
+    ///
+    /// 总等待 = 0+2+4+8+16+30 = **60 秒**（有封顶；没有封顶的话是 62 秒，
+    /// 而那条差别不重要——重要的是**没有封顶时它会随重试次数无限增长**）。
     pub const fn default_for_network() -> Self {
         Self {
-            max_attempts: 4,
+            // 6 = 5 次重试 + 第一次。**`max_attempts` 含第一次**，
+            // 这一条很容易搞反，而搞反的后果是"少试一次"。
+            max_attempts: 6,
             backoff: Backoff::Exponential {
-                first_ms: 500,
+                first_ms: 2_000,
                 factor: 2,
                 cap_ms: 30_000,
             },
@@ -226,11 +241,14 @@ mod tests {
     fn 第一次重试之前不等待() {
         // 很多失败是瞬时的（连接被复用后失效），立刻重试就成功了。
         // 等一秒再试只是让用户多等一秒。
+        //
+        // ⚠️ 从第 2 次起的取值在 M1 被更正过（见 `default_for_network` 的文档）：
+        // 原来是 500/1000/2000，而规格 §4 写的是**退避基础 2s**。
         let p = RetryPolicy::default_for_network();
         assert_eq!(p.backoff.delay_ms(0), 0);
-        assert_eq!(p.backoff.delay_ms(1), 500);
-        assert_eq!(p.backoff.delay_ms(2), 1000);
-        assert_eq!(p.backoff.delay_ms(3), 2000);
+        assert_eq!(p.backoff.delay_ms(1), 2_000);
+        assert_eq!(p.backoff.delay_ms(2), 4_000);
+        assert_eq!(p.backoff.delay_ms(3), 8_000);
     }
 
     #[test]
@@ -248,11 +266,26 @@ mod tests {
     }
 
     #[test]
-    fn 默认策略的最坏等待是秒级而不是分钟级() {
+    fn 默认策略的总等待是一分钟且不会更长() {
+        // ⚠️ 这条测试原来叫「最坏等待是秒级而不是分钟级」，断言 `total < 5000`。
+        // 而规格 §4 给的是**退避基础 2s、最多 5 次重试** ——
+        // 也就是总等待**恰好是一分钟**。所以旧名字与旧断言都错了：
+        // **一分钟正是规格接受的那个数**，而"秒级"从来不是规格的目标。
+        //
+        // 这条测试现在的意义是：把"一分钟"这个已决策的数字钉住，
+        // 并保证**它不会因为重试次数或退避系数被改而悄悄变长**。
         let p = RetryPolicy::default_for_network();
         let total = p.total_wait_ms();
-        assert_eq!(total, 500 + 1000 + 2000);
-        assert!(total < 5_000, "总等待 {total} ms 太长，用户会以为卡死");
+        assert_eq!(
+            total,
+            2_000 + 4_000 + 8_000 + 16_000 + 30_000,
+            "= 60 秒，且最后一次被 cap 封顶（不封顶会是 32 秒）"
+        );
+        assert_eq!(total, 60_000);
+        assert!(
+            total <= 60_000,
+            "总等待 {total} ms 已经超过规格接受的一分钟"
+        );
     }
 
     #[test]
@@ -283,7 +316,7 @@ mod tests {
         // delay_before(n) 是"做第 n+1 次尝试之前"的等待。
         let p = RetryPolicy::default_for_network();
         assert_eq!(p.delay_before(0), 0, "第一次尝试立刻做");
-        assert_eq!(p.delay_before(1), 500, "第二次（=第一次重试）前等 500");
+        assert_eq!(p.delay_before(1), 2_000, "第二次（=第一次重试）前等 2 秒");
     }
 
     #[test]

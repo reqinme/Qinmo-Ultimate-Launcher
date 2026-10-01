@@ -134,7 +134,9 @@ impl Default for DownloadConfig {
             // 起点与 `Ramp::new()` 一致（4）——**两处必须是同一个数**，
             // 否则爬坡的输出与下载器的期望会不一致。
             want_segments: qul_core::download::RAMP_INITIAL,
-            retry: RetryPolicy::default_for_network(),
+            // **来自规格 §4**（5 次重试 / 退避基础 2s），而不是 `default_for_network` 的
+            // 早期取值。`TimeoutPolicy` 是规格取值的唯一落点 —— 见它的常量断言。
+            retry: qul_core::timeout::TimeoutPolicy::default().retry(),
             max_verify_retries: 3,
             throttle_ms: THROTTLE_ENGINE_MS,
         }
@@ -393,9 +395,14 @@ pub fn download_segmented(
     let tmp = temp_path(dest);
     // 预分配整份大小：这样"某一段没写"会留下一个**长度对但内容是空洞**的文件，
     // 而它**会被校验拦住** —— 比"长度不足"更容易被察觉（后者看起来像下载中断）。
-    if let Err(e) = std::fs::File::create(&tmp).and_then(|f| f.set_len(total)) {
+    //
+    // ⚠️ **不用 `set_len`**：规格 §6 明确点名它 ——
+    // *"`set_len` 产生稀疏文件，导致碎片与延迟 ENOSPC"*。
+    // 而"延迟 ENOSPC"尤其恶劣：**写到一半才发现磁盘满**，而那时已经下完了 90%。
+    // 见 `crate::store::preallocate_non_sparse` 的文档（含三条做法的对比）。
+    if let Err(e) = crate::store::preallocate_non_sparse(&tmp, total) {
         return DownloadOutcome::Failed {
-            reason: format!("预分配临时文件失败：{}", e.kind()),
+            reason: format!("预分配临时文件失败：{e}"),
             attempts: 0,
             verify_attempts: 0,
         };

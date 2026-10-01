@@ -33,6 +33,7 @@ pub mod provider;
 pub mod retry;
 pub mod scrub;
 pub mod source;
+pub mod timeout;
 
 pub use caps::{
     Capabilities, Capability, CapabilityKey, CapabilityKind, DetailKey, DisabledItem,
