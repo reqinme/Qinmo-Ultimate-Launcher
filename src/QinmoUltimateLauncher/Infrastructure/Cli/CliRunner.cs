@@ -486,6 +486,13 @@ public static partial class CliRunner
             Report(boot, "   " + detail);
         }
 
+        // **失败提示要含"诊断信息"，命令行上的对应物是"可提交的诊断物在哪"。**
+        //
+        // 界面那边是"人话 + 错误码 + 一个复制按钮"——诊断报告并不是直接印在横幅上的，
+        // 而是靠一个动作取走。命令行没有剪贴板，所以忠实的对应物是**指出那份东西的位置**：
+        // 会话日志本身就是脱敏过的（`msg` 与 `detail` 都过 Redactor），可以直接提交。
+        Report(boot, "   诊断信息：" + boot.Log.FilePath);
+
         return ExitFailed;
     }
 
@@ -500,6 +507,8 @@ public static partial class CliRunner
         Report(boot, "  launch    <版本 id> [--dry-run]          下载并启动（--dry-run 只准备不启动）");
         Report(boot, "            [--offline-name 名字] [--memory MB]");
         Report(boot, "            [--hold 秒] [--keep] [--server 地址]");
+        Report(boot, string.Empty);
+        Report(boot, "  会话日志（已脱敏，可直接提交）：" + boot.Log.FilePath);
         return ExitUsage;
     }
 
