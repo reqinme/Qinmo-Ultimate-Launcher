@@ -1,3 +1,4 @@
+using Qul.Domain.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -49,6 +50,27 @@ public static partial class CliRunner
     {
         DpapiTokenStore store = new DpapiTokenStore(boot.Layout.SecretsDirectory, boot.Log);
         IReadOnlyList<string> accounts = store.ListAccounts();
+
+        // **能力与限制必须查得到。**
+        //
+        // 界面里这条有专门的位置（身份来源能力与限制可查）；而命令行的 account status
+        // 先前只说"有没有账户会话"，对"这个身份能做什么、不能做什么"一个字都不说——
+        // 那恰恰是用户最需要知道的一件事（离线身份进不了正版验证服务器）。
+        if (boot.Config.Identity.Source == IdentitySource.Offline)
+        {
+            Report(boot, "当前身份来源：离线账户。");
+
+            for (int i = 0; i < OfflineIdentityFactory.CapabilityNotices.Count; i++)
+            {
+                Report(boot, "  " + OfflineIdentityFactory.CapabilityNotices[i]);
+            }
+        }
+        else
+        {
+            Report(boot, "当前身份来源：微软正版账户。能否进入正版验证服务器取决于会话是否仍然有效。");
+        }
+
+        Report(boot, string.Empty);
 
         if (accounts.Count == 0)
         {
