@@ -62,6 +62,25 @@ pub struct ExtractConfig {
     /// 默认 `true`。设成 `false` 只用于"解一条我们明知没有 CRC 的流"这种场景 ——
     /// 而那种场景在 Minecraft 里不存在。
     pub verify_crc: bool,
+    /// **要跳过的路径前缀**（来自元数据的 `extract.exclude`）。
+    ///
+    /// ## ⚠️ 这个字段是补上的，而补它的理由是一个真缺口
+    ///
+    /// M2 的实测确认：旧式 natives 条目带 `extract: {"exclude": ["META-INF/"]}`，
+    /// 而**新式（1.19.3 起）连这个字段都没有了**。
+    ///
+    /// 我在写 `install.rs` 时才发现在这里**从来没实现过排除** ——
+    /// 也就是说在它之前，`META-INF/` 会被原样解出来。
+    ///
+    /// **`META-INF/` 正是签名相关文件所在处。** 把它解进实例不是什么灾难，
+    /// 但它是"**我们照元数据说的做了**"与"我们忽略了元数据"的分界 ——
+    /// 而一条被忽略的元数据字段，是那种会在别的场景下变成真问题的东西。
+    ///
+    /// ## 为什么是前缀而不是通配
+    ///
+    /// 实测里的形态是目录前缀（`META-INF/`），而不是通配符。
+    /// 支持通配会引入一套自己的匹配语义，**而元数据里没有用到它**。
+    pub excluded_prefixes: Vec<String>,
 }
 
 impl Default for ExtractConfig {
@@ -71,6 +90,12 @@ impl Default for ExtractConfig {
             max_entry_bytes: 512 * 1024 * 1024,
             max_entries: 200_000,
             verify_crc: true,
+            // **默认排除 `META-INF/`。**
+            //
+            // 它同时是「旧式元数据会显式说的那一项」与「新式元数据不再说、
+            // 但我们仍然该排除的那一项」—— 因为 `META-INF/` 在**任何** jar 里
+            // 都是签名与清单的元数据，而不是 natives 的运行期内容。
+            excluded_prefixes: vec!["META-INF/".to_string()],
         }
     }
 }
@@ -343,6 +368,25 @@ pub fn extract(
         if let Some(rej) = check_entry(e) {
             out.skipped.push((display, rej.to_string()));
             continue;
+        }
+
+        // **元数据说的"不要解这些"** —— 见 `ExtractConfig::excluded_prefixes`。
+        //
+        // ⚠️ 它**记进 `skipped` 而不是静默丢掉**：跳过与"解不出来"是两件事，
+        // 而一份"少了个文件但没有记录"的日志会让排查变成猜。
+        {
+            let name_norm = normalize_name(&display);
+            if let Some(hit) = cfg
+                .excluded_prefixes
+                .iter()
+                .find(|p| name_norm.starts_with(p.as_str()))
+            {
+                out.skipped.push((
+                    display,
+                    format!("按元数据的 extract.exclude 跳过（前缀 `{hit}`）"),
+                ));
+                continue;
+            }
         }
 
         let name = match &e.name_utf8 {

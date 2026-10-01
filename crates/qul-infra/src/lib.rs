@@ -11,6 +11,8 @@ pub mod check;
 pub mod crash;
 pub mod download;
 pub mod fsx;
+pub mod http;
+pub mod install;
 pub mod instance;
 pub mod java;
 pub mod logging;
