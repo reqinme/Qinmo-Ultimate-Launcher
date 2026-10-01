@@ -37,6 +37,8 @@ version = "0.0.0"
 dependencies = [
  "qul-app",
  "qul-core",
+ "qul-infra",
+ "serde_json",
 ]
 
 [[package]]
@@ -46,6 +48,15 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+]
+
+[[package]]
+name = "qul-infra"
+version = "0.0.0"
+dependencies = [
+ "qul-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

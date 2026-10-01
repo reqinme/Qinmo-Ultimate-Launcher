@@ -1,0 +1,245 @@
+﻿{
+  "candidates": [
+    {
+      "bits": 64,
+      "major": 8,
+      "path": "C:\\Program Files\\Java\\jre1.8.0_503\\bin\\java.exe",
+      "vendor": "Oracle Corporation",
+      "version": "1.8.0_503"
+    },
+    {
+      "bits": 64,
+      "major": 7,
+      "path": "C:\\Program Files\\Java\\jdk1.7.0_80\\bin\\java.exe",
+      "vendor": "Oracle Corporation",
+      "version": "1.7.0_80"
+    },
+    {
+      "bits": 64,
+      "major": 11,
+      "path": "C:\\Program Files\\Java\\jdk-11.0.32\\bin\\java.exe",
+      "vendor": "Oracle Corporation",
+      "version": "11.0.32"
+    },
+    {
+      "bits": 64,
+      "major": 17,
+      "path": "C:\\Program Files\\Java\\jdk-17.0.20\\bin\\java.exe",
+      "vendor": "Oracle Corporation",
+      "version": "17.0.20"
+    },
+    {
+      "bits": 64,
+      "major": 21,
+      "path": "C:\\Program Files\\Java\\jdk-21.0.12.1\\bin\\java.exe",
+      "vendor": "Oracle Corporation",
+      "version": "21.0.12.1"
+    },
+    {
+      "bits": 64,
+      "major": 25,
+      "path": "C:\\Program Files\\Java\\jdk-25.0.4.1\\bin\\java.exe",
+      "vendor": "Oracle Corporation",
+      "version": "25.0.4.1"
+    },
+    {
+      "bits": 64,
+      "major": 25,
+      "path": "C:\\Program Files\\Zulu\\zulu-25\\bin\\java.exe",
+      "vendor": "Azul Systems, Inc.",
+      "version": "25.0.4.1"
+    },
+    {
+      "bits": 64,
+      "major": 21,
+      "path": "C:\\Program Files\\Zulu\\zulu-21\\bin\\java.exe",
+      "vendor": "Azul Systems, Inc.",
+      "version": "21.0.12.1"
+    },
+    {
+      "bits": 64,
+      "major": 17,
+      "path": "C:\\Program Files\\Zulu\\zulu-17\\bin\\java.exe",
+      "vendor": "Azul Systems, Inc.",
+      "version": "17.0.20.1"
+    },
+    {
+      "bits": 64,
+      "major": 8,
+      "path": "C:\\Program Files\\Zulu\\zulu-8\\bin\\java.exe",
+      "vendor": "Azul Systems, Inc.",
+      "version": "1.8.0_504"
+    },
+    {
+      "bits": 64,
+      "major": 25,
+      "path": "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath\\java.exe",
+      "vendor": "Oracle Corporation",
+      "version": "25.0.4.1"
+    },
+    {
+      "bits": 64,
+      "major": 8,
+      "path": "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path\\java.exe",
+      "vendor": "Oracle Corporation",
+      "version": "1.8.0_503"
+    }
+  ],
+  "probe_failures": [],
+  "skipped": [
+    {
+      "path": "1.8",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "11.503.2",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "C:\\Program Files\\Java\\jre1.8.0_503\\bin\\server\\jvm.dll",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "0",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "0",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "C:\\Program Files\\Java\\jre1.8.0_503\\bin\\server\\jvm.dll",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "yes",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "NA",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "8.0.5030.1",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "1",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "1",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "1.8.0_503-b01",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "yes",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "1.7",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "0",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "0",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "HKLM\\SOFTWARE\\JavaSoft\\JRE",
+      "why": "注册表键不存在或无权限"
+    },
+    {
+      "path": "25.0.4.1",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "0",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "0",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "0",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "0",
+      "why": "注册表登记的 JavaHome 下没有 bin\\java.exe"
+    },
+    {
+      "path": "HKLM\\SOFTWARE\\WOW6432Node\\JavaSoft\\Java Runtime Environment",
+      "why": "注册表键不存在或无权限"
+    },
+    {
+      "path": "HKLM\\SOFTWARE\\WOW6432Node\\JavaSoft\\Java Development Kit",
+      "why": "注册表键不存在或无权限"
+    },
+    {
+      "path": "HKLM\\SOFTWARE\\WOW6432Node\\JavaSoft\\JRE",
+      "why": "注册表键不存在或无权限"
+    },
+    {
+      "path": "HKLM\\SOFTWARE\\WOW6432Node\\JavaSoft\\JDK",
+      "why": "注册表键不存在或无权限"
+    }
+  ],
+  "sources": [
+    {
+      "kind": "registry:HKLM\\SOFTWARE\\JavaSoft\\Java Runtime Environment",
+      "path": "C:\\Program Files\\Java\\jre1.8.0_503\\bin\\java.exe"
+    },
+    {
+      "kind": "registry:HKLM\\SOFTWARE\\JavaSoft\\Java Development Kit",
+      "path": "C:\\Program Files\\Java\\jdk1.7.0_80\\bin\\java.exe"
+    },
+    {
+      "kind": "registry:HKLM\\SOFTWARE\\JavaSoft\\JDK",
+      "path": "C:\\Program Files\\Java\\jdk-11.0.32\\bin\\java.exe"
+    },
+    {
+      "kind": "registry:HKLM\\SOFTWARE\\JavaSoft\\JDK",
+      "path": "C:\\Program Files\\Java\\jdk-17.0.20\\bin\\java.exe"
+    },
+    {
+      "kind": "registry:HKLM\\SOFTWARE\\JavaSoft\\JDK",
+      "path": "C:\\Program Files\\Java\\jdk-21.0.12.1\\bin\\java.exe"
+    },
+    {
+      "kind": "registry:HKLM\\SOFTWARE\\JavaSoft\\JDK",
+      "path": "C:\\Program Files\\Java\\jdk-25.0.4.1\\bin\\java.exe"
+    },
+    {
+      "kind": "path",
+      "path": "C:\\Program Files\\Zulu\\zulu-25\\bin\\java.exe"
+    },
+    {
+      "kind": "path",
+      "path": "C:\\Program Files\\Zulu\\zulu-21\\bin\\java.exe"
+    },
+    {
+      "kind": "path",
+      "path": "C:\\Program Files\\Zulu\\zulu-17\\bin\\java.exe"
+    },
+    {
+      "kind": "path",
+      "path": "C:\\Program Files\\Zulu\\zulu-8\\bin\\java.exe"
+    },
+    {
+      "kind": "path",
+      "path": "C:\\Program Files\\Common Files\\Oracle\\Java\\javapath\\java.exe"
+    },
+    {
+      "kind": "path",
+      "path": "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path\\java.exe"
+    }
+  ]
+}

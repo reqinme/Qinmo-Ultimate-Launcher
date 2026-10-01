@@ -15,3 +15,5 @@ path = "src/main.rs"
 # 否则"界面能做的事命令行不能做"这类分叉就会从这里长出来。
 qul-app = { path = "../qul-app" }
 qul-core = { path = "../qul-core" }
+qul-infra = { path = "../qul-infra" }
+serde_json = { workspace = true }

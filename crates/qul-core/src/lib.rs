@@ -21,6 +21,8 @@
 pub mod caps;
 pub mod layout;
 
+pub mod java;
+
 pub use caps::{
     Capabilities, Capability, CapabilityKey, CapabilityKind, DetailKey, DisabledItem,
     InstanceDetail, Overview, Packaging, ReasonError,

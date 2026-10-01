@@ -55,6 +55,22 @@ impl AppService {
         self.capabilities.overview()
     }
 
+    /// **界面与 CLI 共用的第二件事**：给定游戏版本与候选，选出该用的 Java。
+    ///
+    /// 编排层只做一次转接，但这次转接是必要的：
+    /// 否则界面会去调 `qul_core::java::choose_java`，而 CLI 也去调它，
+    /// 两处各写一遍"先把版本号解析成要求"的顺序 —— 那种分叉正是 S4 要防的。
+    ///
+    /// 解析失败返回 `Err`，**不返回一个猜的选择**（见 `GameVersion::parse` 的注释）。
+    pub fn java_choice_for(
+        &self,
+        game_version: &str,
+        candidates: &[qul_core::java::JavaCandidate],
+    ) -> Result<qul_core::java::JavaChoice, String> {
+        let gv = qul_core::java::GameVersion::parse(game_version)
+            .ok_or_else(|| format!("无法解析游戏版本号：{game_version}"))?;
+        Ok(qul_core::java::choose_java(candidates, gv.requirement()))
+    }
     /// 概览的一行文字版（给 CLI 用；界面不用它）。
     ///
     /// **放在编排层而不是 CLI 里**：措辞属于产品行为，

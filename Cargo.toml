@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/qul-core", "crates/qul-app", "crates/qul-cli"]
+members = ["crates/qul-core", "crates/qul-infra", "crates/qul-app", "crates/qul-cli"]
 # `spikes/` 是一次性实验代码，**不属于产品**：
 #   - 它的结论会写进文档，代码本身完成使命后即可丢弃
 #   - 若留在 workspace 里，每次 `cargo test` 都会连带构建它（CI 变慢、且引入它自己的依赖）
