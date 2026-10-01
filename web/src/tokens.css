@@ -1,64 +1,249 @@
 /**
- * 设计令牌（**唯一真源的前端落点**）。
+ * ============================================================================
+ * 秦墨 · 设计令牌（**M4 门禁第 ① 项**）
+ * ============================================================================
  *
- * 规则见 `docs/UI设计规格.md` §5：
- *  - **两层结构**：调色板（成阶）→ 语义令牌（组件只准用这一层）。
- *  - **组件里禁止字面颜色值**（由 ESLint 拦截），只能 `var(--...)`。
- *  - 命名用 `gray.0–9`：**数字越大 = 离背景越远 / 对比越强**，
- *    不用"亮或暗"暗示（那是原 `gray.100` 在深浅主题下各指一端的混乱来源）。
+ * 单一真源：`docs/UI设计规格.md` §5（两层结构）+ §5.4（第三层：表现层）。
  *
- * **注意**：本文件是唯一允许出现字面颜色值的地方。
- * ESLint 的 `no-restricted-syntax` 会对 `src/**` 里的字面颜色报错，
- * 而 CSS 文件不受该规则约束——这就是"令牌层"与"组件层"的边界。
+ * **本文件是唯一允许出现字面颜色值的地方。** ESLint 的
+ * `no-restricted-syntax` 对 `web/src/**` 里的字面颜色报错，而 CSS 文件不受
+ * 它约束 —— **这就是"令牌层"与"组件层"的边界**。
+ *
+ * ---------------------------------------------------------------------------
+ * 三层结构（§5.1 + §5.4.4）
+ * ---------------------------------------------------------------------------
+ *
+ *   第一层 · 调色板   `--gray-*` `--accent-*` `--success-*` …
+ *                     **成阶**：数字越大 = 离背景越远 / 对比越强
+ *   第二层 · 语义     `--surface-*` `--text-*` `--stroke-*` `--space-*` …
+ *                     **组件只准用这一层**
+ *   第三层 · 表现     `--intensity-*`（§5.4.4）
+ *                     **只放不违反 §2 约束 6/7 的东西**（禁发光扩散、禁无限循环）
+ *
+ * ---------------------------------------------------------------------------
+ * 🔴 为什么 `gray` 用 `0…9` 而不是 `100…900`（§5.1 v1.3 的修正）
+ * ---------------------------------------------------------------------------
+ *
+ * 原来叫 `gray.100 … gray.900`，而**同一个 `gray.100` 在深色主题下是最亮的、
+ * 在浅色主题下是最暗的** —— "成阶"的直觉因此丧失。
+ *
+ * 现在 **N 越大 = 离背景越远 / 对比越强**，深浅两个主题各自映射到不同的
+ * 具体明度。于是"名字"不再暗示亮暗，而"语义"是稳定的。
+ *
+ * ---------------------------------------------------------------------------
+ * 🔴 两条使用纪律（§5.3）
+ * ---------------------------------------------------------------------------
+ *
+ * 1. **面板与卡片用「白/黑 + 低透明度」而不是固定灰色** —— 这样在 DWM
+ *    材质之上能自然透出材质，**换成纯色兜底时也不会脏**。
+ * 2. **浮层（`--surface-raised`）用不透明色** —— 它"浮在最高层"，必须与背景
+ *    明确分离；靠**描边 + 单层投影**实现，**不靠透出材质**。
+ *
+ * ---------------------------------------------------------------------------
+ * 🔴 四个平行的视觉偏好，以及它们的**优先级**（§5.4.1）
+ * ---------------------------------------------------------------------------
+ *
+ * | 层 | 来源 | 谁能改 |
+ * |---|---|---|
+ * | 1. 系统能力 | `prefers-contrast` / `prefers-reduced-motion` / 省电 / 远程桌面 | **操作系统，不可协商** |
+ * | 2. 材质档位 | `Full` / `Reduced` / `None` | 系统自动降级；**用户可手动降低** |
+ * | 3. 视觉强度 | `Standard` / `Enhanced` | 用户 |
+ * | 4. 实例强调色 | 每个实例一个 | 用户（按实例，作用域最窄） |
+ *
+ * **纪律 ①：向下只累加收紧，不叠加放开。** 第 1 层说不行，第 2/3/4 层都不得
+ * 放开 —— 高对比度模式下 `Enhanced` **不生效，且不报错**，它只是被上层收紧了。
+ *
+ * **纪律 ②：绝不新增一个与这四层平行的视觉开关。**
+ *
+ * **纪律 ③：`Enhanced` 不是"更炫"的同义词，是"允许动用装饰性表现"。**
+ * 它**不放开**约束 6（禁发光扩散）与约束 7（禁无限循环动画）。**增强 ≠ 豁免。**
+ *
+ * 本文件用一个**书写顺序**来落实纪律 ①：所有 `data-intensity` 与
+ * `data-material` 的规则都写在**系统能力媒体查询之前**，于是
+ * **系统那一段永远最后生效**（同优先级下后写的赢）。
  */
 
+/* ==========================================================================
+ * 第一层 · 调色板
+ * ==========================================================================
+ *
+ * ⚠️ **本节出现的每个值都能在 §5.3 的表里查到**，除了两处：
+ *   · `gray.1/2/4/6/8` —— 表中只给了 5 档而成阶需要 10 档，
+ *     中间那 5 档**按同一明度轴插值**。§5.3 明写这些是"起步值"，
+ *     允许 M4 阶段微调。
+ *   · `--accent-4/-6` —— 表中只给了 `accent.5`；hover/active 需要相邻档。
+ * ========================================================================== */
+
 :root {
-  /* ── 第一层 · 调色板（灰阶，N 越大对比越强）───────────────── */
-  --gray-9: #f5f5f7;
-  --gray-7: #a1a1a6;
-  --gray-5: #6e6e73;
-  --gray-3: #2c2c2e;
+  /* ── 中性阶（§5.3 表 + 插值档）───────────────────────────────────────
+   *
+   * | 令牌 | 深色 | 浅色 | 用途 |
+   * |---|---|---|---|
+   * | gray.9 | #F5F5F7 | #1A1A1C | **对比最强**：主文本、强描边 |
+   * | gray.7 | #A1A1A6 | #4A4A4F | 次文本基准 |
+   * | gray.5 | #6E6E73 | #8E8E93 | 禁用文本 |
+   * | gray.3 | #2C2C2E | #D1D1D6 | 分隔线基准 |
+   * | gray.0 | #1A1A1C | #F5F5F7 | **最接近背景**：兜底底色 |
+   */
   --gray-0: #1a1a1c;
+  --gray-1: #1f1f21;
+  --gray-2: #252527;
+  --gray-3: #2c2c2e;
+  --gray-4: #4a4a4f;
+  --gray-5: #6e6e73;
+  --gray-6: #85858a;
+  --gray-7: #a1a1a6;
+  --gray-8: #c7c7cc;
+  --gray-9: #f5f5f7;
 
+  /* ── 强调色阶（§5.3：`accent.5 = #4C9AFF`，**可随实例替换整条**）────
+   *
+   * ⚠️ 名字保留 `--accent-N`（既有组件已经用它）。
+   * §5.3 的表格把它记作 `accent.5`，所以这里不再另起 `--primary-*` ——
+   * **同一个东西两个名字**正是本项目在别处反复避免的事。
+   */
+  --accent-4: #1f5c96;
   --accent-5: #4c9aff;
+  --accent-6: #6fabff;
+
+  --success-4: #2ea043;
   --success-5: #3fb950;
+  --success-6: #56d364;
+
+  --warning-4: #9e6a03;
   --warning-5: #d29922;
+  --warning-6: #e3b341;
+
+  --danger-4: #da3633;
   --danger-5: #f85149;
+  --danger-6: #ff7b72;
 
-  /* ── 第二层 · 语义令牌（深色为默认主题）──────────────────── */
+  --info-5: #4c9aff;
 
-  /* 材质与表面 */
-  --material-backdrop: #202020;
+  /* ── 基底 ─────────────────────────────────────────────────────────── */
+  --black: #000000;
+  --white: #ffffff;
+  --transparent: transparent;
+
+  /* ========================================================================
+   * 第二层 · 语义令牌（**组件只准用这一层**）
+   * ====================================================================== */
+
+  /* ── 材质与表面（§5.3 表）──────────────────────────────────────────── */
+  --material-backdrop: #202020; /* 材质不可用时的兜底色 */
+
   --surface-panel: rgb(255 255 255 / 8%);
   --surface-card: rgb(255 255 255 / 12%);
-  --surface-raised: #2c2c2e;
+  --surface-raised: #2c2c2e; /* **不透明** —— 使用纪律 2 */
+
+  /* ⭐ **交互四态**（§5.1 v1.3 补：此前缺失 ⇒ 20 个组件写不出来）
+   *
+   * 它们是"叠加层"：叠在 `panel`/`card` **之上**，不是独立底色。
+   * 一个"用固定灰做 hover"的实现会在材质之上显得脏 ——
+   * 而那正是使用纪律 1 想避免的。
+   */
   --surface-hover: rgb(255 255 255 / 6%);
   --surface-active: rgb(255 255 255 / 10%);
+  --surface-selected: rgb(76 154 255 / 16%);
+  --surface-disabled: rgb(255 255 255 / 4%);
 
-  /* 描边与分隔 */
+  /* ── 描边与分隔（§5.3 表）────────────────────────────────────────── */
   --stroke-subtle: rgb(255 255 255 / 10%);
   --stroke-strong: rgb(255 255 255 / 22%);
+  --divider: rgb(255 255 255 / 6%); /* **比 stroke-subtle 更弱** */
 
-  /* 文本 */
+  /* ── 文本（§5.3 表）──────────────────────────────────────────────── */
   --text-primary: #f5f5f7;
   --text-secondary: #a1a1a6;
   --text-disabled: #6e6e73;
+  --text-link: var(--accent-5);
 
-  /* 强调与状态 */
+  /* ⭐ `--text-on-accent` —— 强调色**之上**的文字（§5.3 的对比度约束）
+   *
+   * ## 🔴 这里有一条**实测发现的规格矛盾**，我按实测落值并把它记下来
+   *
+   * 规格 §5.3 的公式是：
+   *
+   * > 深色 `accent.5` 的**相对亮度 > 0.45 → 用深色文字**；否则用浅色文字。
+   *
+   * 而 `--accent-5 = #4C9AFF` 的相对亮度是 **0.3187** ⇒ ≤ 0.45
+   * ⇒ **公式说"用浅色文字"**。
+   *
+   * **而实测（WCAG 2.x 公式独立复算）：**
+   *
+   * | 前景 | 在 `#4C9AFF` 上 | 判定 |
+   * |---|---|---|
+   * | `#FFFFFF`（**公式选的**） | **2.85 : 1** | ✗ **连大字号 3:1 都不过** |
+   * | `#1A1A1C` | **6.10 : 1** | ✓ 过正文 4.5:1 |
+   * | `#000000` | 7.37 : 1 | ✓ |
+   *
+   * **所以公式在 `#4C9AFF` 上落在了错误的一侧。** 那个 0.45 的阈值
+   * 是从别的色值反推的（或写的时候没算），而它在这里**推荐了一个
+   * 连 3:1 都达不到的组合**。
+   *
+   * ## 我为什么按 `#1A1A1C` 落值，而不是按公式
+   *
+   * 因为规格**自己**把对比度定为硬线，而且**自己**承认了这个缺口：
+   *
+   * > （L967）此前的问题：深色 `accent.5 = #4C9AFF`，**若当按钮背景配白字，
+   * > 对比度不足**。
+   *
+   * 也就是说规格**知道**白字不够 —— 而它给的修法（那个公式）**没有修好它**。
+   * 两条规格条文冲突时，**硬线（4.5:1）胜过反推出来的阈值**。
+   *
+   * ⚠️ **而我不会去改那条公式** —— 它写在规格里，改它要用户拍板。
+   * 这条已列入 `SESSION.md` 的待确认项。
+   *
+   * `web/src/tokens.test.ts` 会**独立实现 WCAG 公式**并断言这一对
+   * **真的**过 4.5:1 —— 于是"将来换了强调色却忘了改它"会被测出来。
+   */
+  --text-on-accent: #1a1a1c;
+
+  /* ── 强调与状态 ───────────────────────────────────────────────────── */
   --accent: var(--accent-5);
+  --accent-hover: var(--accent-6);
+  --accent-active: var(--accent-4);
+
   --state-success: var(--success-5);
   --state-warning: var(--warning-5);
   --state-danger: var(--danger-5);
+  --state-info: var(--info-5);
 
-  /* 交互反馈 */
+  /* 兼容既有命名（组件已在使用） */
+  --success: var(--state-success);
+  --warning: var(--state-warning);
+  --danger: var(--state-danger);
+  --info: var(--state-info);
+
+  /* ⭐ 状态**背景**与**配套前景**（§5.1 v1.3）
+   *
+   * §5.1 原文："`state.*.bg` 必须各自标注配套文字色，**不能'背景用了就用
+   * 默认文字'**"。所以每一档**成对定义**：背景是低透明度的语义色，
+   * 前景是**该色在深色主题下能读的那个**。
+   */
+  --state-success-bg: rgb(63 185 80 / 15%);
+  --state-success-fg: var(--success-6);
+  --state-warning-bg: rgb(210 153 34 / 15%);
+  --state-warning-fg: var(--warning-6);
+  --state-danger-bg: rgb(248 81 73 / 15%);
+  --state-danger-fg: var(--danger-6);
+  --state-info-bg: rgb(76 154 255 / 15%);
+  --state-info-fg: var(--info-5);
+
+  /* ── 交互反馈（§5.1 v1.3 补）────────────────────────────────────── */
   --focus-ring: rgb(76 154 255 / 70%);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --overlay-scrim: rgb(0 0 0 / 40%);
 
-  /* 形状与节奏 */
+  /* ── 形状与节奏（§5.1：`4 / 8 / 12 / 16 px`）───────────────────── */
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
+  --radius-full: 9999px;
 
+  /* §5.1：`0/4/8/12/16/20/24/32/40 px` —— **4 的倍数** */
   --space-0: 0;
   --space-1: 4px;
   --space-2: 8px;
@@ -69,10 +254,16 @@
   --space-7: 32px;
   --space-8: 40px;
 
-  /* 发丝线：高分屏下用半分线，让它在物理像素上仍占 1 px（UI 规格 §3.3） */
+  /* 发丝线：高分屏下用半分线，让它物理上仍占 1 px（UI 规格 §3.3） */
   --hairline: 1px;
 
-  /* 动效 */
+  /* ── 阴影：**只有 4 档**（§2 约束 6：禁止多层阴影叠加）───────────── */
+  --elev-0: none;
+  --elev-1: 0 1px 2px rgb(0 0 0 / 24%);
+  --elev-2: 0 8px 24px rgb(0 0 0 / 32%);
+  --elev-3: 0 16px 48px rgb(0 0 0 / 40%);
+
+  /* ── 动效（§5.1）────────────────────────────────────────────────── */
   --duration-fast: 120ms;
   --duration-base: 180ms;
   --duration-slow: 240ms;
@@ -80,8 +271,18 @@
   --easing-enter: cubic-bezier(0, 0, 0.2, 1);
   --easing-exit: cubic-bezier(0.4, 0, 1, 1);
 
-  /* 字体（**用系统自带，不打包 CJK 字体**——UI 规格 §3.2） */
-  --font-family-ui: "Microsoft YaHei UI", "Noto Sans SC", system-ui, sans-serif;
+  /* 灵动岛弹簧：`{ stiffness: 420, damping: 34, mass: 0.9 }`（§5.1）
+   *
+   * ⚠️ **CSS 表达不了弹簧**，所以这三个数是给 **Framer Motion** 用的。
+   * 登记在这里是为了"参数只有一处"，而 TS 侧读它需要显式的桥
+   *（见 `web/src/motion.ts`）—— 一个"CSS 里写了却没人读"的值等于没有。 */
+  --spring-island-stiffness: 420;
+  --spring-island-damping: 34;
+  --spring-island-mass: 0.9;
+
+  /* ── 字体（**用系统自带，不打包 CJK 字体**——UI 规格 §3.2）────────── */
+  --font-family-ui: "Microsoft YaHei UI", "Noto Sans SC", "Segoe UI Variable Text",
+    system-ui, sans-serif;
   --font-family-mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
 
   /* 字号阶梯 */
@@ -90,21 +291,78 @@
   --font-body: 13px;
   --font-title-sm: 16px;
   --font-title: 20px;
+
+  /* ── 层级（z-index）：**集中定义**，于是"谁盖住谁"能被一处读懂 ────── */
+  --z-base: 0;
+  --z-panel: 10;
+  --z-island: 100;
+  --z-overlay: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+
+  /* ── 日志分级色（§5.5）────────────────────────────────────────────
+   *
+   * ⚠️ §5.5 还有一条**功能要求**，与颜色无关但必须一起落：
+   * 用 `meta` **区分日志来源** `CONSOLE`（启动器自己的输出）与
+   * `LOG4J`（游戏进程的输出）—— **日志抽屉必须支持按来源过滤**，
+   * 否则诊断时两种日志混在一起无法阅读。
+   */
+  --console-font-size: 12px;
+  --console-log-debug: var(--text-disabled);
+  --console-log-error: var(--state-danger);
+  --console-log-info: var(--accent-5);
+  --console-log-warn: var(--state-warning);
+  --console-log-default: var(--text-primary);
 }
 
-/* ── 浅色主题：只换调色板与表面，**语义层名字不动**（UI 规格 §5.2）── */
+/* ==========================================================================
+ * 主题 · 浅色（§5.2）
+ * ==========================================================================
+ *
+ * **纪律：主题只提供调色板，语义层不动。**
+ *
+ * 而"语义层不动"要说准确：`--radius-md` / `--space-4` **一个字节都不变**；
+ * 而 `--surface-panel` 从 `白/8%` 变成 `黑/4%` —— **那一处必须变**，
+ * 因为它是**色相方向**的（使用纪律 1 的"白或黑 + 低透明度"）。
+ * 所以下面只覆盖这两类：**调色板**与**色相方向**。
+ * ========================================================================== */
+
+/* `data-theme` 优先于系统（设置里显式选的那个赢）。
+ *
+ * ⚠️ **写法是"浅色规则包含 `@media` 那一段的全部内容"**，而不是
+ * `[data-theme=light]` 覆盖 `@media` —— 因为 CSS 没有"或"选择器。
+ * 重复是这里的代价，而它买到了**确定性**：一个显式选浅色的用户，
+ * 在"系统是深色"的机器上**一定**得到浅色。
+ *
+ * 下面这组浅色覆盖只写一次，由两个选择器共用（见文件末尾的 `:is()` 规则）——
+ * 这里先写 `@media` 那一支。
+ */
 @media (prefers-color-scheme: light) {
   :root {
-    --gray-9: #1a1a1c;
-    --gray-7: #4a4a4f;
-    --gray-5: #8e8e93;
-    --gray-3: #d1d1d6;
     --gray-0: #f5f5f7;
+    --gray-1: #ececef;
+    --gray-2: #e2e2e6;
+    --gray-3: #d1d1d6;
+    --gray-4: #b0b0b6;
+    --gray-5: #8e8e93;
+    --gray-6: #6c6c71;
+    --gray-7: #4a4a4f;
+    --gray-8: #303034;
+    --gray-9: #1a1a1c;
 
+    --accent-4: #08529b;
     --accent-5: #0a66c2;
+    --accent-6: #0b74dc;
+    --success-4: #15682c;
     --success-5: #1a7f37;
+    --success-6: #1f8b3d;
+    --warning-4: #7d4e00;
     --warning-5: #9a6700;
+    --warning-6: #b37a00;
+    --danger-4: #a40e26;
     --danger-5: #cf222e;
+    --danger-6: #e0343f;
+    --info-5: #0a66c2;
 
     --material-backdrop: #f3f3f3;
     --surface-panel: rgb(0 0 0 / 4%);
@@ -112,29 +370,343 @@
     --surface-raised: #ffffff;
     --surface-hover: rgb(0 0 0 / 4%);
     --surface-active: rgb(0 0 0 / 7%);
+    --surface-selected: rgb(10 102 194 / 12%);
+    --surface-disabled: rgb(0 0 0 / 3%);
 
     --stroke-subtle: rgb(0 0 0 / 10%);
     --stroke-strong: rgb(0 0 0 / 22%);
+    --divider: rgb(0 0 0 / 6%);
 
     --text-primary: #1a1a1c;
     --text-secondary: #4a4a4f;
     --text-disabled: #8e8e93;
 
+    /* 浅色：`#0A66C2` 配白字 = **5.69 : 1** ✓ 过 4.5:1（实测复算）。
+     *
+     * ⚠️ 而这里**公式与实测一致**（亮度 0.15 ≤ 0.45 ⇒ 公式也说浅色）——
+     * 所以浅色主题没有那条矛盾。矛盾只在深色主题的浅蓝强调色上。 */
+    --text-on-accent: #ffffff;
+
+    --state-success-bg: rgb(26 127 55 / 12%);
+    --state-success-fg: var(--success-6);
+    --state-warning-bg: rgb(154 103 0 / 12%);
+    --state-warning-fg: var(--warning-4);
+    --state-danger-bg: rgb(207 34 46 / 12%);
+    --state-danger-fg: var(--danger-5);
+    --state-info-bg: rgb(10 102 194 / 12%);
+    --state-info-fg: var(--info-5);
+
     --focus-ring: rgb(10 102 194 / 70%);
+    --overlay-scrim: rgb(0 0 0 / 30%);
+
+    --elev-1: 0 1px 2px rgb(0 0 0 / 8%);
+    --elev-2: 0 8px 24px rgb(0 0 0 / 12%);
+    --elev-3: 0 16px 48px rgb(0 0 0 / 16%);
   }
 }
 
+/* ==========================================================================
+ * 材质档位：`Full` / `Reduced` / `None`（§3.4）
+ * ==========================================================================
+ *
+ * ⚠️ **它与主题正交**（§5.2 原文："材质有独立的开关档位 —— 与主题四态正交"）。
+ * 而它**只降不升**（§5.4.1 第 2 层）—— 所以这里的三档**不是平权的三选一**，
+ * 而是"系统自动降级 + 用户可手动降低"。
+ *
+ * | 档 | 含义 | 谁会进这一档 |
+ * |---|---|---|
+ * | `full` | 窗口取 DWM 材质 | 默认（Windows 11） |
+ * | `reduced` | 材质降级：面板不再依赖"透出" | 省电 / 远程桌面 / 用户手动 |
+ * | `none` | 纯色兜底 | 材质不可用（Win10 / DWM 被关） |
+ *
+ * ⚠️ **而 `none` 也必须好看** —— §7 纪律原文："纯色兜底也必须好看"。
+ * 所以它不是"把透明度设成 0"（那会让面板与背景同色 ⇒ 层次消失），
+ * 而是**把层次从"透明度阶梯"换成"明度阶梯"** —— 档数照旧是三档。
+ *
+ * 这些是**用户可调**的档，所以它们写在系统能力媒体查询**之前**。
+ * ========================================================================== */
+
+[data-material="reduced"] {
+  --surface-panel: rgb(255 255 255 / 12%);
+  --surface-card: rgb(255 255 255 / 16%);
+}
+[data-theme="light"][data-material="reduced"] {
+  --surface-panel: rgb(0 0 0 / 6%);
+  --surface-card: rgb(255 255 255 / 85%);
+}
+
+[data-material="none"] {
+  /* 层次改用**明度阶梯**（不透明），因为"没有东西可透"时
+   * `8%` 与 `12%` 的差别几乎看不出来。 */
+  --material-backdrop: var(--gray-0);
+  --surface-panel: var(--gray-1);
+  --surface-card: var(--gray-2);
+  --surface-raised: var(--gray-3);
+  --surface-hover: rgb(255 255 255 / 8%);
+  --surface-active: rgb(255 255 255 / 12%);
+}
+[data-theme="light"][data-material="none"] {
+  --material-backdrop: #f3f3f3;
+  --surface-panel: #ffffff;
+  --surface-card: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-hover: rgb(0 0 0 / 6%);
+  --surface-active: rgb(0 0 0 / 10%);
+}
+
+/* 显式主题：设置里选的"深色"/"浅色"覆盖系统。
+ *
+ * ⚠️ 深色**必须能覆盖"系统是浅色"** —— 所以它要把 `@media` 那一段的
+ * 浅色值**再改回深色**。这不是重复，而是"显式选择胜过系统偏好"的代价。 */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --gray-0: #1a1a1c;
+  --gray-1: #1f1f21;
+  --gray-2: #252527;
+  --gray-3: #2c2c2e;
+  --gray-4: #4a4a4f;
+  --gray-5: #6e6e73;
+  --gray-6: #85858a;
+  --gray-7: #a1a1a6;
+  --gray-8: #c7c7cc;
+  --gray-9: #f5f5f7;
+  --accent-4: #1f5c96;
+  --accent-5: #4c9aff;
+  --accent-6: #6fabff;
+  --success-4: #2ea043;
+  --success-5: #3fb950;
+  --success-6: #56d364;
+  --warning-4: #9e6a03;
+  --warning-5: #d29922;
+  --warning-6: #e3b341;
+  --danger-4: #da3633;
+  --danger-5: #f85149;
+  --danger-6: #ff7b72;
+  --info-5: #4c9aff;
+  --material-backdrop: #202020;
+  --surface-panel: rgb(255 255 255 / 8%);
+  --surface-card: rgb(255 255 255 / 12%);
+  --surface-raised: #2c2c2e;
+  --surface-hover: rgb(255 255 255 / 6%);
+  --surface-active: rgb(255 255 255 / 10%);
+  --surface-selected: rgb(76 154 255 / 16%);
+  --surface-disabled: rgb(255 255 255 / 4%);
+  --stroke-subtle: rgb(255 255 255 / 10%);
+  --stroke-strong: rgb(255 255 255 / 22%);
+  --divider: rgb(255 255 255 / 6%);
+  --text-primary: #f5f5f7;
+  --text-secondary: #a1a1a6;
+  --text-disabled: #6e6e73;
+  --text-on-accent: #1a1a1c; /* 见 :root 里那条规格矛盾的说明 */
+  --state-success-bg: rgb(63 185 80 / 15%);
+  --state-success-fg: var(--success-6);
+  --state-warning-bg: rgb(210 153 34 / 15%);
+  --state-warning-fg: var(--warning-6);
+  --state-danger-bg: rgb(248 81 73 / 15%);
+  --state-danger-fg: var(--danger-6);
+  --state-info-bg: rgb(76 154 255 / 15%);
+  --state-info-fg: var(--info-5);
+  --focus-ring: rgb(76 154 255 / 70%);
+  --overlay-scrim: rgb(0 0 0 / 40%);
+  --elev-1: 0 1px 2px rgb(0 0 0 / 24%);
+  --elev-2: 0 8px 24px rgb(0 0 0 / 32%);
+  --elev-3: 0 16px 48px rgb(0 0 0 / 40%);
+}
+
+/* 显式浅色：**与 `@media (prefers-color-scheme: light)` 那一支取值相同**。
+ * 重复是刻意的 —— CSS 没有 `@media 或 [attr]` 这种选择器，而
+ * "显式选浅色的用户在深色系统上一定得到浅色"这条性质**必须成立**。
+ *
+ * 有一条测试核对两处的取值一致（`tokens.test.ts`），于是"改了系统那支
+ * 却忘了这一支"会被测出来。 */
+[data-theme="light"] {
+  color-scheme: light;
+  --gray-0: #f5f5f7;
+  --gray-1: #ececef;
+  --gray-2: #e2e2e6;
+  --gray-3: #d1d1d6;
+  --gray-4: #b0b0b6;
+  --gray-5: #8e8e93;
+  --gray-6: #6c6c71;
+  --gray-7: #4a4a4f;
+  --gray-8: #303034;
+  --gray-9: #1a1a1c;
+  --accent-4: #08529b;
+  --accent-5: #0a66c2;
+  --accent-6: #0b74dc;
+  --success-4: #15682c;
+  --success-5: #1a7f37;
+  --success-6: #1f8b3d;
+  --warning-4: #7d4e00;
+  --warning-5: #9a6700;
+  --warning-6: #b37a00;
+  --danger-4: #a40e26;
+  --danger-5: #cf222e;
+  --danger-6: #e0343f;
+  --info-5: #0a66c2;
+  --material-backdrop: #f3f3f3;
+  --surface-panel: rgb(0 0 0 / 4%);
+  --surface-card: rgb(255 255 255 / 72%);
+  --surface-raised: #ffffff;
+  --surface-hover: rgb(0 0 0 / 4%);
+  --surface-active: rgb(0 0 0 / 7%);
+  --surface-selected: rgb(10 102 194 / 12%);
+  --surface-disabled: rgb(0 0 0 / 3%);
+  --stroke-subtle: rgb(0 0 0 / 10%);
+  --stroke-strong: rgb(0 0 0 / 22%);
+  --divider: rgb(0 0 0 / 6%);
+  --text-primary: #1a1a1c;
+  --text-secondary: #4a4a4f;
+  --text-disabled: #8e8e93;
+  --text-on-accent: #ffffff;
+  --state-success-bg: rgb(26 127 55 / 12%);
+  --state-success-fg: var(--success-6);
+  --state-warning-bg: rgb(154 103 0 / 12%);
+  --state-warning-fg: var(--warning-4);
+  --state-danger-bg: rgb(207 34 46 / 12%);
+  --state-danger-fg: var(--danger-5);
+  --state-info-bg: rgb(10 102 194 / 12%);
+  --state-info-fg: var(--info-5);
+  --focus-ring: rgb(10 102 194 / 70%);
+  --overlay-scrim: rgb(0 0 0 / 30%);
+  --elev-1: 0 1px 2px rgb(0 0 0 / 8%);
+  --elev-2: 0 8px 24px rgb(0 0 0 / 12%);
+  --elev-3: 0 16px 48px rgb(0 0 0 / 16%);
+}
+
+/* ==========================================================================
+ * 第三层 · 表现层令牌（§5.4.4）
+ * ==========================================================================
+ *
+ * **结构**：调色板层 → 语义层 → **表现层**。
+ *
+ * | # | 纪律 |
+ * |---|---|
+ * | 1 | **组件只准用表现层令牌，不许内联写渐变与动效参数** |
+ * | 2 | **取值必须整档切换**（`intensity.standard` / `.enhanced`），**不许各取一半** |
+ * | 3 | **`Enhanced` 默认关闭** —— 默认值是给所有人用的 |
+ * | 4 | **新增装饰性效果 = 改本节 + 加一条令牌**，不许在组件里直接写 |
+ *
+ * ⚠️ **只放不违反约束 6/7 的东西**（禁发光扩散、禁无限循环动画）。
+ * 所以这里**没有**"持续呼吸的光"或"无限旋转的环" —— 它们不是"还没加"，
+ * 而是**按约束 6/7 不允许存在**。
+ * ========================================================================== */
+
+:root {
+  /* `Standard`（默认，纪律 3）：朴素但**完整** —— 这些不是占位，
+   * 而是默认档的正式取值。 */
+  --intensity-edge-gradient: none;
+  --intensity-edge-gradient-hover: none;
+  --intensity-motion-countup: 0ms;
+  --intensity-motion-progress-ease: var(--easing-standard);
+}
+
+[data-intensity="enhanced"] {
+  /* 卡片边缘光：**一层沿边缘的线性渐变**替代单色描边。
+   * ⚠️ 它不是"发光" —— 它不向外扩散（约束 6）。 */
+  --intensity-edge-gradient: linear-gradient(
+    135deg,
+    rgb(255 255 255 / 18%),
+    rgb(255 255 255 / 2%) 40%,
+    rgb(255 255 255 / 10%)
+  );
+  --intensity-edge-gradient-hover: linear-gradient(
+    135deg,
+    rgb(76 154 255 / 35%),
+    rgb(76 154 255 / 5%) 45%,
+    rgb(255 255 255 / 12%)
+  );
+  /* 数字滚动计数：**一次性**，默认 800ms（约束 7 禁的是"无限循环"） */
+  --intensity-motion-countup: 800ms;
+  --intensity-motion-progress-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+[data-theme="light"][data-intensity="enhanced"] {
+  --intensity-edge-gradient: linear-gradient(
+    135deg,
+    rgb(0 0 0 / 12%),
+    rgb(0 0 0 / 1%) 40%,
+    rgb(0 0 0 / 6%)
+  );
+  --intensity-edge-gradient-hover: linear-gradient(
+    135deg,
+    rgb(10 102 194 / 30%),
+    rgb(10 102 194 / 4%) 45%,
+    rgb(0 0 0 / 8%)
+  );
+}
+
+/* ==========================================================================
+ * 第 1 层 · 系统能力（**只能收紧，不能放开**，§5.4.1）
+ * ==========================================================================
+ *
+ * ⚠️ 这一层**不可协商、不可被界面覆盖**。
+ *
+ * **它的位置就是纪律 ① 的机器版**：写在**最后**，于是同优先级下它赢 ——
+ * 界面能加 `data-material` / `data-intensity`（上面那些），
+ * 而**系统偏好永远压过它们**。
+ * ========================================================================== */
+
+/* ── 减少动态（信息性保留、装饰性归零，§5.4.3）────────────────────────
+ *
+ * ⚠️ 注意这里**没有**把 `--intensity-motion-progress-ease` 归零：
+ * 进度条的缓动是**信息性**的（它让"快到了"与"卡住了"可区分），
+ * 而 §5.4.3 明写信息性"永远存在，不随视觉强度改变"。
+ * 该做的是把**时长**压短，而不是取消它。
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+    --intensity-motion-countup: 0ms;
+    --intensity-edge-gradient: none;
+  }
+}
+
+/* ── 高对比度 ──────────────────────────────────────────────────────────
+ *
+ * 它做两件事：
+ * ① 把描边加强（**信息性**：层次不能靠低透明度表达 —— 那在高对比度下
+ *    恰恰是最先消失的东西）
+ * ② 让表现层失效（**纪律 ①：高对比度下 `Enhanced` 不生效，且不报错**）
+ */
+@media (prefers-contrast: more) {
+  :root {
+    --stroke-subtle: rgb(255 255 255 / 40%);
+    --stroke-strong: rgb(255 255 255 / 70%);
+    --divider: rgb(255 255 255 / 30%);
+    --text-secondary: var(--gray-8);
+    --text-disabled: var(--gray-7);
+    --focus-ring-width: 3px;
+    --intensity-edge-gradient: none;
+    --intensity-edge-gradient-hover: none;
+    --intensity-motion-countup: 0ms;
+    --intensity-motion-progress-ease: none;
+  }
+  [data-theme="light"] {
+    --stroke-subtle: rgb(0 0 0 / 40%);
+    --stroke-strong: rgb(0 0 0 / 70%);
+    --divider: rgb(0 0 0 / 30%);
+  }
+}
+
+/* ── 高分屏发丝线 ──────────────────────────────────────────────────── */
 @media (min-resolution: 2dppx) {
   :root {
     --hairline: 0.5px;
   }
 }
 
-/* `prefers-reduced-motion` 是**全局**规则，不只是灵动岛（UI 规格 §8.3） */
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --duration-fast: 0ms;
-    --duration-base: 0ms;
-    --duration-slow: 0ms;
-  }
+/* ==========================================================================
+ * 键盘焦点（**信息性，永远存在**，§5.4.3）
+ * ==========================================================================
+ *
+ * 它是"焦点环长什么样"的**唯一真源**，而组件只引用 `--focus-ring*`。
+ * 一个在每个组件里各写一遍 `outline:` 的实现会让它们逐渐不一致 ——
+ * 而"键盘可用"正是 M4 的验收项之一。
+ * ========================================================================== */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
 }
