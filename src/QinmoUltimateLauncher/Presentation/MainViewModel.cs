@@ -1040,7 +1040,10 @@ public sealed class MainViewModel : ObservableObject
             Session = _session,
             OfflineUserName = string.IsNullOrWhiteSpace(OfflineName) ? "Player" : OfflineName.Trim(),
             ServerTarget = string.IsNullOrWhiteSpace(ServerTarget) ? null : ServerTarget.Trim(),
-            MaxMemoryMb = 2048,
+            // **读配置，不再硬编码。**
+            // 先前这里写死 2048，于是 `memory.maxMb` 在 config.json 里改了等于没改——
+            // 这是本项目"配置项读写了却从不生效"的第 N 次（见 docs/性能实测记录.md 的审计）。
+            MaxMemoryMb = _boot.Config.Memory.MaxMb ?? 2048,
         };
     }
 

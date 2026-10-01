@@ -83,6 +83,22 @@ public static partial class CliRunner
 
     // ---------- 命令 ----------
 
+    /// <summary>
+    /// 最大内存：<c>--memory</c> 优先；没给就用配置里的 <c>memory.maxMb</c>；都没有才 2048。
+    ///
+    /// **配置必须排在这个顺序里**，否则 `config.json` 里设了内存的用户会以为它生效了。
+    /// </summary>
+    private static int ResolveMaxMemory(BootContext boot, IReadOnlyList<string> args)
+    {
+        string? text = OptionValue(args, "--memory", null);
+
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            return ParseInt(text, 2048);
+        }
+
+        return boot.Config.Memory.MaxMb ?? 2048;
+    }
     private static int Execute(BootContext boot, IReadOnlyList<string> args, LaunchPipelineMode requested)
     {
         string versionId = Require(args, 1);
@@ -104,7 +120,7 @@ public static partial class CliRunner
             Mode = mode,
             IdentitySource = IdentitySource.Offline,
             OfflineUserName = OptionValue(args, "--offline-name", "Player") ?? "Player",
-            MaxMemoryMb = ParseInt(OptionValue(args, "--memory", "2048"), 2048),
+            MaxMemoryMb = ResolveMaxMemory(boot, args),
             ServerTarget = OptionValue(args, "--server", null),
         };
 
