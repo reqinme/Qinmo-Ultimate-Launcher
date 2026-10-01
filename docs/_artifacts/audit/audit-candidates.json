@@ -17,13 +17,19 @@
     "promise_candidates":  [
                                {
                                    "file":  "docs\\M0-尖刺任务书.md",
-                                   "line":  973,
+                                   "line":  656,
+                                   "kind":  "left undecided",
+                                   "text":  "坏文件自愈：□通过   natives 位置：☑待定"
+                               },
+                               {
+                                   "file":  "docs\\M0-尖刺任务书.md",
+                                   "line":  1005,
                                    "kind":  "left undecided",
                                    "text":  "| 3 | **悬空承诺**：搜\"待 M0 实测\"\"待定\"\"见某文档\"之类，**逐条核对应落点是否真实存在** |"
                                },
                                {
                                    "file":  "docs\\M0-尖刺任务书.md",
-                                   "line":  1255,
+                                   "line":  1287,
                                    "kind":  "left undecided",
                                    "text":  "| v1.6 | **按用户决定闭合三处待定**（A1/A2/A3）：①**S2 步骤 4 的说明按 S1 实测更正** —— 原文写\"窗口不透明、材质走 DWM\"，与 S1 结论"
                                },

@@ -1,0 +1,7 @@
+{
+    "session":  "2026-10-01 16:27:55",
+    "log_file":  "launcher_log.txt",
+    "arg_count":  20,
+    "java_executable":  "-XX:HeapDumpPath=MojangTricksIntelDriversForPerformance_javaw.exe_minecraft.exe.heapdump",
+    "sessions_available":  3
+}

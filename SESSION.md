@@ -1,158 +1,74 @@
-# 上次收工：2026-10-01 · M1 推进到"调用链走通"
+# 上次收工：2026-10-02 · M1 交付物在可自验范围内全部完成；S7 取得真实命令行基准并被一个具体条件阻断
 
 ## 上次做到哪
 
-**M0 的 11 个尖刺里 10 个已有结论**（只剩 S7 等下载）；**M1 已完成四个切片**。
+- **M0 出口条件全部闭合**：11 个尖刺都有结论（**S7 的结论是"被具体条件阻断"**，
+  外加证据）；材质路线已定；预算已实测校准；审计已跑；**Mojang 审批已于 2026-10-01 23:59 提交**
+- **M1 交付物在"我能自验的范围"内全部完成**（14 项）；只差
+  **Tauri 安全基线 + 前端命令层门禁**，而那硬依赖 M4 的前端存在
+- **一条命令验证**：`pwsh -File tools/verify.ps1` → **8/8 全绿**
+- **测试 524 项全绿**；`clippy -D warnings` 0；`fmt --check` 通过；文档 21 份 / 610 标题全绿
+- `main` 已推送，**没有未提交的工作区**
 
-- **文档 21 份 / 608 标题**，结构校验全绿
-- **测试 119 项全绿**；`clippy -D warnings` 0；`fmt --check` 通过
-- `main` 已推送（`c284005`），**没有未提交的工作区**
+### M1 交付物清单
 
-### M1 已完成的切片
-
-| 切片 | 产出 | 测试 |
+| 交付物 | 落点 | 状态 |
 |---|---|---|
-| **错误码体系** | `qul-core/src/error.rs`：五档级别 + 37 码 + `QulError` | 9 项穷举断言 |
-| **重试与取消** | `qul-core/src/retry.rs`：`Backoff` · `RetryPolicy` · `Outcome` · `CancelToken` · `ResumePoint` | 7 项 |
-| **并发写安全** | `qul-infra/src/fsx.rs`：`write_atomic` · 文件锁 · 单实例 · `ensure_within` | 9 单测 + **6 真实多线程** |
-| **身份与审批闸门** | `qul-core/src/identity.rs`：四种身份来源 + `ApprovalState` + 降级原因 | 16 项 |
-| **Provider 窄 trait** | `qul-core/src/provider.rs`：`ProductIdentity` + `Launchable` + `Facts` + `Registry` | 11 项 |
-| **启动计划** | `qul-core/src/plan.rs`：占位符骨架 + 解析 + **可复现** | 12 项 |
-| **MockProvider** | `crates/qul-provider-mock/`（**真 crate**）+ `qul launch-demo` | 6 项 + CLI 五路径 |
+| 错误码体系（码 + 原因 + 建议 + 级别） | `qul-core/src/error.rs` | ✅ |
+| 任务队列与进度 | `qul-core/src/tasks.rs` | ✅ |
+| 下载引擎（规则 + 传输 + 超时 + 进度存储） | `qul-core/src/download.rs` · `qul-infra/src/download.rs` · `store.rs` | ✅ |
+| 校验（SHA-1 流式 + 清单） | `qul-infra/src/check.rs` | ✅ |
+| **解压**（ZIP 解析 + inflate + 落盘防护） | `qul-core/src/{zip,inflate}.rs` · `qul-infra/src/zip.rs` | ✅ |
+| 脱敏日志 | `qul-core/src/scrub.rs` · `qul-infra/src/logging.rs` | ✅ |
+| **i18n 框架** | `qul-core/src/i18n.rs` · `locales/zh-CN.json`（52 键） | ✅ |
+| 并发写安全（原子写 + 锁 + 单实例 + 取消/重试） | `qul-infra/src/fsx.rs` · ADR-0013 | ✅ |
+| 迁移链（版本化 + 备份 + 失败不阻断） | `qul-core/src/migrate.rs` · `qul-infra/src/instance.rs` | ✅ |
+| 崩溃捕获（panic hook + WebView2 检测 + marker + 脱敏） | `qul-core/src/crash.rs` · `qul-infra/src/crash.rs` | ✅ |
+| **实例通用模型** | `qul-core/src/instance.rs` | ✅ |
+| 引擎与界面解耦（Provider 窄 trait + Mock） | `qul-core/src/provider.rs` · `qul-provider-mock` | ✅ |
+| **Tauri 安全基线** | — | ⛔ **依赖 M4** |
+| **前端无法绕过命令层** | — | ⛔ **依赖 M4** |
 
-### M0 尖刺状态
+### 三层架构守卫（"内核零 MC 词汇"）
 
-| 尖刺 | 状态 |
+| 层 | 位置 | 它多管什么 |
+|---|---|---|
+| 1 | `crates/qul-core/tests/architecture.rs` | 跑在 `cargo test` 里；另管依赖方向、能力表、文件名纪律 |
+| 2 | `tools/scan-core-vocabulary.ps1` | **标识符边界** + **硬编码主机名** |
+| 3 | `tools/_probe-scan.ps1` · `tests/vocabulary_probe.rs` | **反证**：检查器必须能被踩红 |
+
+## 下一步第一件事
+
+**等你定 S7 的走法**（三种见 `spikes/s7-official-baseline/结论.md`）：
+
+| 方案 | 做什么 |
 |---|---|
-| S1 · S2 · S3 · S4 · S5(第1步) · S6 · S9 · S11 | ☑ 有结论 |
-| **S8 基岩版** | ☑ **可用**（用户确认能进世界） |
-| **S10 干净机器** | ⏸ 环境降级（**WebView2 缺失项无法覆盖**，已如实标注） |
-| **S7 Java 启动链路** | ⏳ **等下载收尾** |
+| **A（推荐）** | S7 就地挂起，**先推进 M2 → M3**；等 M2/M3 有了离线身份，回头一次做完 S7 第 5–8 步 |
+| **B** | 现在就把最小离线身份补上（专门为 S7 服务，会提前 M3 的一部分） |
+| **C** | 用官方启动器的账号令牌做比对 —— ⚠️ 我不建议（借用户真实令牌实验） |
 
-### M0 出口条件
+**若选 A**：下一件事是 **M2 第一块**（Java 版元数据：版本清单与详情、跨年代结构差异）。
 
-| # | 条件 | 状态 |
-|---|---|---|
-| 1 | S1–S11 全有结论 | ⏳ 差 S7 |
-| 2 | 材质路线三选一 | ✅ |
-| 3 | **预算被实测校准** | ✅ **已闭合**（方案 §7 已回填） |
-| 3b | 里程碑审计（流程 C） | ✅ |
-| 4 | **两项外部流程已提交** | 🟡 **Azure ✅ 已完成**；**Mojang 审批待提交** |
+## 卡在哪
 
----
-
-## 下一步的第一件事
-
-**按顺序做，别跳。**
-
-### A. 🟡 等用户：**提交 Mojang 审批**（唯一有外部等待期的事）
-
-入口：https://help.minecraft.net/hc/en-us/articles/16254801392141
-给我：**提交时间 / 申请编号 / 当前状态**。**一交就闭合出口条件 #4**。
-
-材料清单在 **`docs/流程A-执行记录.md`**（含"可能会被问到的内容"）。
-⚠️ **还有 4 项待用户核实**（截图只有计数，我无法确认）：
-那 2 个公共客户端 URI 的具体值 · `allowPublicClient` · API 权限 · `signInAudience`。
-**若 URI 不是环回地址或 `allowPublicClient=false`，登录会失败。**
-
-### B. 🟡 等下载收尾 → 开 S7
-
-进度：`versions\26.3\26.3.jar` **已下（39.9 MB）** · `assets` 5149 文件 / 461.9 MB ·
-`libraries` 74 文件 / 83.7 MB。查询：
-```powershell
-$mc="$env:APPDATA\.minecraft"
-foreach($d in 'libraries','assets','versions'){ $p=Join-Path $mc $d
-  $s=Get-ChildItem $p -Recurse -File -EA 0 | Measure-Object -Property Length -Sum
-  "{0,-10} {1,6} 文件 {2,9:N1} MB" -f $d,$s.Count,($s.Sum/1MB) }
-```
-
-### C. 🟢 我自己能做（**下一轮从这里开始**）
-
-按 M1 出口条件的剩余缺口排优先级：
-
-| 序 | 单元 | 为什么排这个位置 |
-|---|---|---|
-| 1 | **脱敏日志**（§5.8） | M1 出口条件；且"崩溃日志已脱敏"要它 |
-| 2 | **崩溃捕获**（panic hook + `crash-marker` + WebView2 子进程检测） | M1 出口条件明写 |
-| 3 | **Tauri 安全基线**（§5.8） | M1 出口条件：**前端无法绕过命令层直接 fetch/fs/shell** |
-| 4 | **i18n 框架** | M1 明写；M4 界面全靠它 |
-| 5 | **实例数据格式版本化与迁移链**（§4.7） | M1 出口条件：三个历史版本样本全部迁移成功且备份存在 |
-| 6 | **任务队列与进度** | M1 明写；M2 下载引擎要用 |
-| 7 | 下载故障注入 | M1 出口条件 |
-
-**M1 出口条件逐条对照**：
-内核关键词扫描 0 处 MC 词汇 ✅ · **`MockProvider` 走通 CLI 调用链 ✅（本轮）** ·
-**并发写同一实例不出错 ✅** · 下载故障注入 ⏳ · 三个历史版本样本迁移 ⏳ ·
-panic 与 WebView2 崩溃都能捕获并落 `crash-marker` ⏳ ·
-前端无法绕过命令层直接 `fetch`/`fs`/`shell` ⏳
+| 卡点 | 性质 |
+|---|---|
+| **S7 第 5–8 步** | 阻断：game 参数需要账号令牌，而**离线身份属于 M2/M3，尚未实现** |
+| **M1 的最后两项** | 阻断：**必须有前端**（M4）才能验 |
+| **S10 干净机器分发** | 环境降级：只有这一台电脑，**WebView2 缺失项无法覆盖**（已如实标注） |
+| **Mojang 审批** | 等外部：**已提交，无编号、无进度面板** ⇒ 无法主动探测，只有实际登录时才知道 |
 
 ---
 
-## 卡住的地方
+## 附：S7 本轮取证到的关键事实（勿丢）
 
-**没有技术卡点。** 三个等待项全是外部条件：
-
-| 等待项 | 谁 | 阻塞了什么 |
-|---|---|---|
-| **Mojang 审批提交** | **用户** | M0 出口条件 #4（**不阻塞开发** —— 另三种身份来源不依赖它） |
-| 官方启动器下完 | **用户正在做**（已 90%+） | S7 |
-| 4 项 Azure 待核实 | **用户方便时** | 只影响登录能不能真跑通 |
-| 干净 Windows | **环境不可得** | S10（已按降级处置并如实标注未覆盖项） |
-
----
-
-## 本轮（第 11 轮）的实质产出
-
-### Provider 抽象定了形状，而**只定两个 trait**
-
-方案 §3.2 的纪律是"每个 trait 在**出现第二个使用场景**时引入，不在纸面上预抽"，
-并给了时刻表 —— 所以本轮**刻意只有 `ProductIdentity` + `Launchable`**。
-一个实现的时候拆七个，收益是 0，成本是把错误抽象固化。
-
-### `MockProvider` 是**真 crate**，不是测试里的 struct
-
-**这条最要紧**：M1 出口条件要的是 **CLI** 调用链。若它只在 `#[cfg(test)]` 里，
-CLI 就调不到它，那条出口条件只能用"测试里也走了一遍"交差 —— **那不算走通调用链**。
-
-所以 `crates/qul-provider-mock/` 是真 crate，而 **CLI 侧只多了一行注册**。
-**这次新建顺带完成了"新增一个产品要动几处"的第一次真实测量**：
-若哪天加真实产品需要改内核或改编排层签名，**说明骨架形式不对**。
-
-### 演示**五条路径**，不是一条
-
-`cargo run -p qul-cli -- launch-demo`（退出码 0）：
-注册→列出 · 规划→解析→**预览命令** · 缺事实报错（**一次报全**） ·
-**取消（`Ok(None)`，不是错误）** · 启动→回收退出码 + **断言无占位符残留**。
-
-> **只演示成功路径的链路验证等于没验证 —— 链路上真正会坏的是错误路径。**
-
-### 两条硬要求各有一条测试钉住
-
-| 要求 | 原文 | 测试 |
-|---|---|---|
-| **可复现** | "产出**可复现**启动计划" | `同一份计划解析两次逐字节相同` |
-| **未解析占位符必须失败** | 错误码 `PlanUnresolvedPlaceholder` | `未解析占位符必须失败而不是尽力而为` |
-
-**第二条为什么不能"尽力而为"**：一个没被替换的 `{RUNTIME}` 会被操作系统当成**路径**去打开，
-于是用户看到"游戏起不来"，而**真正的原因是一个花括号** —— 那种失败**无法从现场归因**。
-
----
-
-## 必须记住的几条纪律（累计）
-
-1. **"清理垃圾"必须先确认那不是别人正在用的东西。**（ADR-0013 §7）
-2. **同一份文件的读、写、恢复必须共享同一把锁。**（ADR-0013 §2）
-3. **"读到不存在"比"读到半截"更隐蔽**：后者会被解析器报出来；
-   前者会被上层当成**首次运行** → 用户看到"我的设置被重置了"，**没有任何提示**。
-4. **测试全绿不等于声明为真**：`rust-version = "1.77"` 而代码用了 1.89 的 `File::lock`
-   —— 是 `clippy -D warnings` 的 MSRV 检查抓到的。
-5. **0 命中是弱证据**：只能证明"这次会话没调用"，不能证明"能力不存在"。
-6. **护栏会抓出设计错误，而不只是格式问题**：`MojangApproval` / `serves_bedrock`
-   写进内核类型名被 `tests/architecture.rs` 拦下 —— **它推动了正确的抽象**。
-7. **只演示成功路径的验证等于没验证。**
-8. **方法名让人误判语义，就是方法名的错**（`should_retry` → `has_attempt_left`）。
-9. **`.ps1` 必须纯 ASCII**；**UTF-8 无 BOM 的文件别用 PowerShell 读**（会乱码）。
-10. **写工具对某些路径会报"文件不存在"却拒绝写** → 先写到 `.git/` 再 `Copy-Item`。
-11. **仓库根不要用"向上 N 层"推导** → **向上找 `.git` 标记**。
-12. **配置里有两类值**：编译期常量（改了必须改代码）与配置项（改了只是换个值）。
-    判据见 `docs/配置与设置规格.md` §1.1.5。
+| 事实 | 值 |
+|---|---|
+| 游戏真的进过主菜单 | `.minecraft/logs/latest.log`：`Setting user: qinme` … `Stopping!`（**游戏进程自己写的**） |
+| 官方 JVM 参数基准 | **20 条**，落在 `spikes/s7-official-baseline/baseline-args.txt`（含 6829 字符 classpath） |
+| classpath 组成 | 74 条 windows 库 + `versions\26.3\26.3.jar` |
+| 官方 JVM 选项 | `-Xms2G -Xmx4G -XX:+UseZGC -XX:+AlwaysPreTouch -XX:+UseStringDeduplication -XX:+UseCompactObjectHeaders` |
+| 官方 Java 运行时 | **自己的 LocalCache** 里的 `java-runtime-epsilon`（**Java 25**），不是系统 JDK |
+| natives 去处 | `.minecraft\bin\<hash>\<hash>\{java,jna,lwjgl,netty}`；**内层哈希 = SHA1(版本id)** |
+| **`libraries` 一直是完整的** | JSON 声明 114 → Windows 需要 **74** → 磁盘 **74**。**74 = 74** |
+| 游戏参数**不在**日志里 | 正确的安全做法：令牌不该进日志 ⇒ **S7 第 5 步只能比 JVM 参数那一半** |
