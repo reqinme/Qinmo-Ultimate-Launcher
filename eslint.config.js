@@ -22,6 +22,24 @@ const HEX_COLOR = "/^#(?:[0-9a-fA-F]{3,4}){1,2}$/";
 const CSS_FN = "/^(?:rgb|rgba|hsl|hsla)\\(/";
 const PRODUCT_NAME = "/^(java|bedrock|forge|fabric|neoforge|quilt|optifine|mojang|minecraft)$/i";
 
+/**
+ * S4 的两条护栏（**M0 补**）。
+ *
+ * 判据把 `web/src/api/` 当作**唯一允许碰外部世界的地方**：
+ * 它是 IPC 与网络的边界层，其它地方只许调它导出的函数。
+ *
+ * **为什么需要这两条**：方案 §2「前端零业务逻辑」与 §3.3「界面只渲染」，
+ * 光靠产品名规则挡不住"界面自己发请求"——那种代码**完全合法**，
+ * 只是把网络/IO 知识漏进了组件里。漏进去之后：组件不可测（要起网络）、
+ * 数据来源不唯一（两处各发一次）、错误处理分散（每处自己 try/catch）。
+ *
+ * **与 qul-core 的护栏同构**：那边拦"内核碰 IO"，这边拦"组件碰 IO"，
+ * 拦的是同一类越界，在两层各拦一次。
+ */
+const FETCH_SELECTOR = "CallExpression[callee.name='fetch']";
+const INVOKE_CALL_SELECTOR = "CallExpression[callee.name='invoke']";
+const INVOKE_IMPORT_SELECTOR = "ImportDeclaration[source.value='@tauri-apps/api/core']";
+
 export default tseslint.config(
   {
     ignores: [
@@ -71,6 +89,38 @@ export default tseslint.config(
       "@typescript-eslint/consistent-type-imports": "error",
       eqeqeq: ["error", "always"],
       "no-console": ["warn", { allow: ["warn", "error"] }],
+    },
+  },
+  {
+    // ★ S4 护栏：**边界层之外禁止直接 fetch 与直接 IPC**
+    //
+    // 单独成一个配置块，是为了能**只对它**开 `ignores`——
+    // `web/src/api/` 是允许碰外部世界的地方，它必须被排除。
+    // 若把这条塞进上面的块里，就没法只给某一个目录开豁免。
+    files: ["web/src/**/*.{ts,tsx}"],
+    ignores: ["web/src/api/**"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: FETCH_SELECTOR,
+          message:
+            "组件里不许直接 fetch。网络请求一律走 web/src/api/ 的边界层——" +
+            "否则组件不可测（要起网络）、数据来源不唯一（两处各发一次）、错误处理会散落在各处。",
+        },
+        {
+          selector: INVOKE_CALL_SELECTOR,
+          message:
+            "组件里不许直接调 invoke()。IPC 一律经由 web/src/api/ 的包装函数，" +
+            "那样契约（参数与返回值）就只有一份，改了 Rust 侧只需改一处前端。",
+        },
+        {
+          selector: INVOKE_IMPORT_SELECTOR,
+          message:
+            "组件里不许 import @tauri-apps/api/core。这个导入只该出现在 web/src/api/ 下——" +
+            "一旦组件能拿到 invoke，上面的两条规则就只是「要绕开也很容易」的摆设。",
+        },
+      ],
     },
   },
   {

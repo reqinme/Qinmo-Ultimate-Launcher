@@ -435,6 +435,39 @@ impl TryFrom<CapabilityWire> for Capability {
 ///
 /// 内部用 `BTreeMap` 而非 `HashMap`：**输出稳定**（同样的输入给同样的
 /// JSON 字节序），这让我们能对前后端契约做快照测试。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// 一份**可展示的能力概览**（`Capabilities::overview` 的返回值）。
+///
+/// 刻意做成**已排序的普通数据**，而不是让界面自己去遍历两张表：
+/// 界面的职责是画出来，而"哪些可用、为什么不可用"是内核的判断（见 `overview` 的注释）。
+pub struct Overview {
+    /// 启用的能力条数
+    pub enabled_count: usize,
+    /// 禁用的能力条数
+    pub disabled_count: usize,
+    /// 启用的能力（稳定字符串，已排序）
+    pub enabled: Vec<String>,
+    /// 禁用的能力及其原因（已按 key 排序）
+    pub disabled: Vec<DisabledItem>,
+}
+
+/// 一项被禁用的能力，**必须带原因**。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DisabledItem {
+    /// 能力或详情的稳定字符串
+    pub key: String,
+    /// 为什么不可用（内核保证非空；`validate()` 会检查）
+    pub reason: String,
+}
+
+/// **两张表分开存**：通用能力与产品详情。
+///
+/// **为什么分开而不合成一张**：混在一张表里，界面就分不清"哪些项要按产品筛选、
+/// 哪些是通用的"——**而这正是修正前那版结构别扭的根源**。
+/// 分开之后，"通用项 vs 产品专属项"由**类型**区分，不靠约定。
+///
+/// 内部用 `BTreeMap` 而非 `HashMap`：**输出稳定**（同样的输入给同样的
+/// JSON 字节序），这让我们能对前后端契约做快照测试。
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Capabilities {
     universal: BTreeMap<CapabilityKey, Capability>,
@@ -531,6 +564,55 @@ impl Capabilities {
             out.detail.insert(k, v.clone());
         }
         out
+    }
+
+    /// 把两张表压成**一份可展示的概览**（启用的有哪些、禁用的各因为什么）。
+    ///
+    /// **为什么这个函数在内核里而不是在界面里**：它是**规则**，不是排版。
+    /// "哪些能力可用、不可用的原因是什么"这个判断与窗口、与渲染无关，
+    /// 所以它属于 `qul-core`；界面只负责把返回的结构画出来。
+    ///
+    /// **也是 M0 · S4 那条跨层链路的"计算结果"**：
+    /// 界面按钮 → Tauri 命令 → `qul-app` → 这里 → 返回给前端。
+    /// 选它当链路样板，是因为它**纯计算、无副作用**——
+    /// 链路测试要验的是"调用路径通不通"，不是"副作用对不对"。
+    ///
+    /// 输出**已排序**：`BTreeMap` 的迭代顺序本就稳定，但这里再显式按
+    /// 稳定字符串排序，让概览与"键的声明顺序"无关（否则重排枚举会改动输出）。
+    pub fn overview(&self) -> Overview {
+        let mut enabled: Vec<String> = Vec::new();
+        let mut disabled: Vec<DisabledItem> = Vec::new();
+
+        for (k, v) in self.iter() {
+            if v.is_enabled() {
+                enabled.push(k.as_str().to_string());
+            } else {
+                disabled.push(DisabledItem {
+                    key: k.as_str().to_string(),
+                    reason: v.reason().unwrap_or("").to_string(),
+                });
+            }
+        }
+        for (k, v) in self.iter_detail() {
+            if v.is_enabled() {
+                enabled.push(k.as_str().to_string());
+            } else {
+                disabled.push(DisabledItem {
+                    key: k.as_str().to_string(),
+                    reason: v.reason().unwrap_or("").to_string(),
+                });
+            }
+        }
+
+        enabled.sort();
+        disabled.sort_by(|a, b| a.key.cmp(&b.key));
+
+        Overview {
+            enabled_count: enabled.len(),
+            disabled_count: disabled.len(),
+            enabled,
+            disabled,
+        }
     }
 
     /// 一致性自检：**任何禁用态必须有非空原因**（两张表都查）。

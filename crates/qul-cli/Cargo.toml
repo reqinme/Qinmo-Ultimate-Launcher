@@ -1,0 +1,17 @@
+[package]
+name = "qul-cli"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.77"
+description = '命令行：与界面复用同一套编排逻辑'
+publish = false
+
+[[bin]]
+name = "qul"
+path = "src/main.rs"
+
+[dependencies]
+# ⚠️ 只依赖编排层。**CLI 不许绕开 qul-app 直接调内核或 infra** ——
+# 否则"界面能做的事命令行不能做"这类分叉就会从这里长出来。
+qul-app = { path = "../qul-app" }
+qul-core = { path = "../qul-core" }

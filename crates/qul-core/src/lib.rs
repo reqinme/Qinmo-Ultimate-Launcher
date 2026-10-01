@@ -21,5 +21,8 @@
 pub mod caps;
 pub mod layout;
 
-pub use caps::{Capabilities, Capability, CapabilityKey, CapabilityKind, ReasonError};
+pub use caps::{
+    Capabilities, Capability, CapabilityKey, CapabilityKind, DetailKey, DisabledItem,
+    InstanceDetail, Overview, Packaging, ReasonError,
+};
 pub use layout::{Layer, RelPath, RelPathError};

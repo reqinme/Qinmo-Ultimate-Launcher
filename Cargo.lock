@@ -24,6 +24,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "qul-app"
+version = "0.0.0"
+dependencies = [
+ "qul-core",
+ "serde",
+]
+
+[[package]]
+name = "qul-cli"
+version = "0.0.0"
+dependencies = [
+ "qul-app",
+ "qul-core",
+]
+
+[[package]]
 name = "qul-core"
 version = "0.0.0"
 dependencies = [

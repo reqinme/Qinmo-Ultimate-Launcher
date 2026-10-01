@@ -40,6 +40,39 @@ jobs:
       - name: 测试（含架构约束测试）
         run: cargo test --workspace --all-targets
 
+  # 护栏"能红"检查（M0 · S4）。
+  #
+  # 为什么它必须进 CI：**一个永远绿的检查，和没有检查是一样的** ——
+  # 而且更坏，因为它给人"已经守住了"的错觉。
+  # 本作业故意造出违规、要求对应护栏**报红**，然后清理干净并**要求重新变绿**。
+  #
+  # **单独一个作业，而不是塞进 guard**：它同时需要 Rust（跑架构测试）
+  # 与 pnpm（跑 lint），而 `guard` 作业两个都没装。
+  # 塞进去的后果是它会在 CI 里因为"环境缺失"失败 ——
+  # 那和"护栏失灵"长得一模一样，等于把一条纪律变成噪声。
+  canary:
+    name: 纪律 · 护栏必须能被踩红
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: 三条护栏都必须能被踩红，且清理后重新变绿
+        shell: pwsh
+        run: ./tools/s4-guardrail-canary.ps1
+
   web:
     name: 前端 · 类型 / lint / 测试
     runs-on: windows-latest

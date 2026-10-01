@@ -1,0 +1,425 @@
+================================================================
+guard       : A core-no-io-deps
+expectation : FAIL (guard must trip)
+command     : cargo test -p qul-core --test architecture
+exit code   : 101
+----------------------------------------------------------------
+cargo.exe :     Updating crates.io index
+所在位置 C:\Users\hjc20\Documents\DeepSeek desktop\Qinmo Ultimate Launcher\tools\s4-guardrail-canary.ps1:104 字符: 16
++         $out = & $Argv[0] @($Argv[1..($Argv.Count - 1)]) 2>&1 | Out-S ...
++                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Updating crates.io index:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+     Locking 143 packages to latest compatible versions
+      Adding atomic-waker v1.1.2
+      Adding base64 v0.22.1
+      Adding base64 v0.23.1
+      Adding bitflags v2.13.2
+      Adding bumpalo v3.20.3
+      Adding bytes v1.12.1
+      Adding cc v1.5.1
+      Adding cfg-if v1.0.5
+      Adding core-foundation v0.9.4
+      Adding core-foundation v0.10.1
+      Adding core-foundation-sys v0.8.7
+      Adding core_detect v1.0.0
+      Adding displaydoc v0.2.7
+      Adding encoding_rs v0.8.42
+      Adding equivalent v1.0.2
+      Adding errno v0.3.14
+      Adding fastrand v2.5.0
+      Adding find-msvc-tools v0.1.14
+      Adding fnv v1.0.7
+      Adding foreign-types v0.3.2
+      Adding foreign-types-shared v0.1.1
+      Adding form_urlencoded v1.2.2
+      Adding futures-channel v0.3.34
+      Adding futures-core v0.3.34
+      Adding futures-sink v0.3.34
+      Adding futures-task v0.3.34
+      Adding futures-util v0.3.34
+      Adding getrandom v0.2.17
+      Adding getrandom v0.4.3
+      Adding h2 v0.4.19
+      Adding hashbrown v0.17.1
+      Adding http v1.5.0
+      Adding http-body v1.1.0
+      Adding http-body-util v0.1.5
+      Adding httparse v1.10.1
+      Adding hyper v1.11.1
+      Adding hyper-rustls v0.27.10
+      Adding hyper-tls v0.6.0
+      Adding hyper-util v0.1.21
+      Adding icu_collections v2.3.0
+      Adding icu_locale_core v2.3.0
+      Adding icu_normalizer v2.3.0
+      Adding icu_normalizer_data v2.3.0
+      Adding icu_properties v2.3.0
+      Adding icu_properties_data v2.3.0
+      Adding icu_provider v2.3.1
+      Adding idna v1.1.0
+      Adding idna_adapter v1.2.2
+      Adding indexmap v2.14.2
+      Adding ipnet v2.12.2
+      Adding js-sys v0.3.106
+      Adding libc v0.2.189
+      Adding linux-raw-sys v0.12.1
+      Adding litemap v0.8.3
+      Adding log v0.4.34
+      Adding mime v0.3.17
+      Adding mio v1.2.3
+      Adding multiversion_no_op v1.0.0
+      Adding native-tls v0.2.18
+      Adding once_cell v1.21.4
+      Adding openssl v0.10.81
+      Adding openssl-macros v0.1.1
+      Adding openssl-probe v0.2.1
+      Adding openssl-sys v0.9.117
+      Adding percent-encoding v2.3.2
+      Adding pin-project-lite v0.2.17
+      Adding pkg-config v0.3.34
+      Adding potential_utf v0.1.6
+      Adding r-efi v6.0.0
+      Adding reqwest v0.12.28 (available: v0.13.5)
+      Adding ring v0.17.14
+      Adding rustix v1.1.5
+      Adding rustls v0.23.45
+      Adding rustls-pki-types v1.15.1
+      Adding rustls-webpki v0.103.15
+      Adding rustversion v1.0.23
+      Adding ryu v1.0.23
+      Adding schannel v0.1.29
+      Adding scopeguard v1.2.0
+      Adding security-framework v3.7.0
+      Adding security-framework-sys v2.17.0
+      Adding serde_urlencoded v0.7.1
+      Adding shlex v2.0.1
+      Adding simdutf8 v0.1.5
+      Adding slab v0.4.12
+      Adding smallvec v1.16.2
+      Adding socket2 v0.6.5
+      Adding stable_deref_trait v1.2.1
+      Adding subtle v2.6.1
+      Adding syn v2.0.119
+      Adding sync_wrapper v1.0.2
+      Adding synstructure v0.14.0
+      Adding system-configuration v0.7.0
+      Adding system-configuration-sys v0.6.0
+      Adding tempfile v3.27.0
+      Adding tinystr v0.8.4
+      Adding tokio v1.53.1
+      Adding tokio-native-tls v0.3.1
+      Adding tokio-rustls v0.26.6
+      Adding tokio-util v0.7.19
+      Adding tower v0.5.3
+      Adding tower-http v0.6.11
+      Adding tower-layer v0.3.3
+      Adding tower-service v0.3.3
+      Adding tracing v0.1.44
+      Adding tracing-core v0.1.36
+      Adding try-lock v0.2.5
+      Adding untrusted v0.9.0
+      Adding url v2.5.8
+      Adding utf8_iter v1.0.4
+      Adding vcpkg v0.2.15
+      Adding want v0.3.1
+      Adding wasi v0.11.1+wasi-snapshot-preview1
+      Adding wasm-bindgen v0.2.129
+      Adding wasm-bindgen-futures v0.4.79
+      Adding wasm-bindgen-macro v0.2.129
+      Adding wasm-bindgen-macro-support v0.2.129
+      Adding wasm-bindgen-shared v0.2.129
+      Adding web-sys v0.3.106
+      Adding windows-link v0.2.1
+      Adding windows-registry v0.6.1
+      Adding windows-result v0.4.1
+      Adding windows-strings v0.5.1
+      Adding windows-sys v0.52.0
+      Adding windows-sys v0.61.2
+      Adding windows-targets v0.52.6
+      Adding windows_aarch64_gnullvm v0.52.6
+      Adding windows_aarch64_msvc v0.52.6
+      Adding windows_i686_gnu v0.52.6
+      Adding windows_i686_gnullvm v0.52.6
+      Adding windows_i686_msvc v0.52.6
+      Adding windows_x86_64_gnu v0.52.6
+      Adding windows_x86_64_gnullvm v0.52.6
+      Adding windows_x86_64_msvc v0.52.6
+      Adding writeable v0.6.4
+      Adding yoke v0.8.3
+      Adding yoke-derive v0.8.4
+      Adding zerofrom v0.1.8
+      Adding zerofrom-derive v0.1.8
+      Adding zeroize v1.9.0
+      Adding zerotrie v0.2.5
+      Adding zerovec v0.11.8
+      Adding zerovec-derive v0.11.6
+ Downloading crates ...
+  Downloaded futures-sink v0.3.34
+  Downloaded sync_wrapper v1.0.2
+  Downloaded want v0.3.1
+  Downloaded try-lock v0.2.5
+  Downloaded multiversion_no_op v1.0.0
+  Downloaded tower-layer v0.3.3
+  Downloaded tower-service v0.3.3
+  Downloaded http-body v1.1.0
+  Downloaded futures-task v0.3.34
+  Downloaded windows-registry v0.6.1
+  Downloaded subtle v2.6.1
+  Downloaded serde_urlencoded v0.7.1
+  Downloaded hyper-tls v0.6.0
+  Downloaded slab v0.4.12
+  Downloaded hyper-rustls v0.27.10
+  Downloaded atomic-waker v1.1.2
+  Downloaded untrusted v0.9.0
+  Downloaded futures-core v0.3.34
+  Downloaded rustversion v1.0.23
+  Downloaded core_detect v1.0.0
+  Downloaded http-body-util v0.1.5
+  Downloaded tokio-native-tls v0.3.1
+  Downloaded getrandom v0.2.17
+  Downloaded native-tls v0.2.18
+  Downloaded zeroize v1.9.0
+  Downloaded simdutf8 v0.1.5
+  Downloaded ipnet v2.12.2
+  Downloaded tokio-rustls v0.26.6
+  Downloaded futures-channel v0.3.34
+  Downloaded schannel v0.1.29
+  Downloaded rustls-pki-types v1.15.1
+  Downloaded httparse v1.10.1
+  Downloaded ryu v1.0.23
+  Downloaded rustls-webpki v0.103.15
+  Downloaded tower v0.5.3
+  Downloaded hyper-util v0.1.21
+  Downloaded tokio-util v0.7.19
+  Downloaded tower-http v0.6.11
+  Downloaded reqwest v0.12.28
+  Downloaded hyper v1.11.1
+  Downloaded futures-util v0.3.34
+  Downloaded h2 v0.4.19
+  Downloaded rustls v0.23.45
+  Downloaded encoding_rs v0.8.42
+  Downloaded ring v0.17.14
+   Compiling windows-link v0.2.1
+   Compiling stable_deref_trait v1.2.1
+   Compiling pin-project-lite v0.2.17
+   Compiling bytes v1.12.1
+   Compiling futures-core v0.3.34
+   Compiling writeable v0.6.4
+   Compiling litemap v0.8.3
+   Compiling smallvec v1.16.2
+   Compiling icu_properties_data v2.3.0
+   Compiling icu_normalizer_data v2.3.0
+   Compiling slab v0.4.12
+   Compiling utf8_iter v1.0.4
+   Compiling percent-encoding v2.3.2
+   Compiling once_cell v1.21.4
+   Compiling httparse v1.10.1
+   Compiling futures-task v0.3.34
+   Compiling equivalent v1.0.2
+   Compiling rustversion v1.0.23
+   Compiling futures-sink v0.3.34
+   Compiling hashbrown v0.17.1
+   Compiling native-tls v0.2.18
+   Compiling libc v0.2.189
+   Compiling syn v3.0.6
+   Compiling tower-service v0.3.3
+   Compiling windows-sys v0.61.2
+   Compiling try-lock v0.2.5
+   Compiling atomic-waker v1.1.2
+   Compiling fnv v1.0.7
+   Compiling futures-channel v0.3.34
+   Compiling tracing-core v0.1.36
+   Compiling futures-util v0.3.34
+   Compiling want v0.3.1
+   Compiling form_urlencoded v1.2.2
+   Compiling windows-strings v0.5.1
+   Compiling windows-result v0.4.1
+   Compiling sync_wrapper v1.0.2
+   Compiling base64 v0.23.1
+   Compiling tower-layer v0.3.3
+   Compiling ipnet v2.12.2
+   Compiling scopeguard v1.2.0
+   Compiling core_detect v1.0.0
+   Compiling ryu v1.0.23
+   Compiling http v1.5.0
+   Compiling simdutf8 v0.1.5
+   Compiling multiversion_no_op v1.0.0
+   Compiling cfg-if v1.0.5
+   Compiling bitflags v2.13.2
+   Compiling windows-registry v0.6.1
+   Compiling zeroize v1.9.0
+   Compiling mime v0.3.17
+   Compiling log v0.4.34
+   Compiling indexmap v2.14.2
+   Compiling tracing v0.1.44
+   Compiling base64 v0.22.1
+   Compiling http-body v1.1.0
+   Compiling rustls-pki-types v1.15.1
+   Compiling http-body-util v0.1.5
+   Compiling encoding_rs v0.8.42
+   Compiling synstructure v0.14.0
+   Compiling zerovec-derive v0.11.6
+   Compiling displaydoc v0.2.7
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.21
+   Compiling zerofrom-derive v0.1.8
+   Compiling yoke-derive v0.8.4
+   Compiling zerofrom v0.1.8
+   Compiling yoke v0.8.3
+   Compiling thiserror v2.0.21
+   Compiling zerovec v0.11.8
+   Compiling zerotrie v0.2.5
+   Compiling tinystr v0.8.4
+   Compiling potential_utf v0.1.6
+   Compiling icu_collections v2.3.0
+   Compiling icu_locale_core v2.3.0
+   Compiling serde v1.0.229
+   Compiling icu_provider v2.3.1
+   Compiling icu_properties v2.3.0
+   Compiling icu_normalizer v2.3.0
+   Compiling serde_urlencoded v0.7.1
+   Compiling qul-core v0.0.0 (C:\Users\hjc20\Documents\DeepSeek desktop\Qinmo Ultimate Launcher\crates\qul-core)
+   Compiling socket2 v0.6.5
+   Compiling mio v1.2.3
+   Compiling schannel v0.1.29
+   Compiling tokio v1.53.1
+   Compiling idna_adapter v1.2.2
+   Compiling idna v1.1.0
+   Compiling url v2.5.8
+   Compiling tokio-util v0.7.19
+   Compiling tokio-native-tls v0.3.1
+   Compiling tower v0.5.3
+   Compiling tower-http v0.6.11
+   Compiling h2 v0.4.19
+   Compiling hyper v1.11.1
+   Compiling hyper-util v0.1.21
+   Compiling hyper-tls v0.6.0
+   Compiling reqwest v0.12.28
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8m 04s
+     Running tests\architecture.rs (target\debug\deps\architecture-45e7da982294bb6c.exe)
+
+running 6 tests
+test 每个能力变体都必须登记进_列表 ... ok
+test 内核不许依赖_io_或界面框架 ... FAILED
+test 文件名不许是中文或含空格 ... ok
+test 每个能力变体都必须有稳定字符串 ... ok
+test 内核代码里不许出现厂商与产品品牌 ... ok
+test 内核代码里不许出现游戏数据目录名 ... ok
+
+failures:
+
+---- 内核不许依赖_io_或界面框架 stdout ----
+
+thread '内核不许依赖_io_或界面框架' (43324) panicked at crates\qul-core\tests\architecture.rs:347:9:
+qul-core 不应依赖 `reqwest`——IO/网络/界面属于 qul-infra 或更外层。
+当前依赖表：["serde", "thiserror", "serde_json", "reqwest"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    内核不许依赖_io_或界面框架
+
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p qul-core --test architecture`
+
+
+================================================================
+guard       : A restore
+expectation : PASS (file byte-identical to snapshot)
+command     : sha256(crates/qul-core/Cargo.toml) == snapshot
+exit code   : 0
+----------------------------------------------------------------
+after=88BE98845E457B2662992D3A2E33D73BB858E6A68D5616FBAA9A9131D8E63B84
+snapshot=88BE98845E457B2662992D3A2E33D73BB858E6A68D5616FBAA9A9131D8E63B84
+
+================================================================
+guard       : A after-cleanup
+expectation : PASS (guard green again)
+command     : cargo test -p qul-core --test architecture
+exit code   : 0
+----------------------------------------------------------------
+cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+所在位置 C:\Users\hjc20\Documents\DeepSeek desktop\Qinmo Ultimate Launcher\tools\s4-guardrail-canary.ps1:104 字符: 16
++         $out = & $Argv[0] @($Argv[1..($Argv.Count - 1)]) 2>&1 | Out-S ...
++                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.04s:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+     Running tests\architecture.rs (target\debug\deps\architecture-075c1ebef79f24d2.exe)
+
+running 6 tests
+test 内核不许依赖_io_或界面框架 ... ok
+test 文件名不许是中文或含空格 ... ok
+test 每个能力变体都必须登记进_列表 ... ok
+test 每个能力变体都必须有稳定字符串 ... ok
+test 内核代码里不许出现厂商与产品品牌 ... ok
+test 内核代码里不许出现游戏数据目录名 ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+
+================================================================
+guard       : B component-no-fetch
+expectation : FAIL (rule fires on a real file)
+command     : pnpm run lint
+exit code   : 1
+----------------------------------------------------------------
+
+> qinmo-ultimate-launcher@0.0.0 lint C:\Users\hjc20\Documents\DeepSeek desktop\Qinmo Ultimate Launcher
+> eslint .
+
+
+C:\Users\hjc20\Documents\DeepSeek desktop\Qinmo Ultimate Launcher\web\src\__canary__.ts
+  6:19  error  组件里不许直接 fetch。网络请求一律走 web/src/api/ 的边界层——否则组件不可测（要起网络）、数据来源不唯一（两处各发一次）、错误处理会散落在各处。  no-restricted-syntax
+
+✖ 1 problem (1 error, 0 warnings)
+
+ ELIFECYCLE  Command failed with exit code 1.
+
+
+================================================================
+guard       : C component-no-direct-ipc
+expectation : FAIL (rule fires on a real file)
+command     : pnpm run lint
+exit code   : 1
+----------------------------------------------------------------
+
+> qinmo-ultimate-launcher@0.0.0 lint C:\Users\hjc20\Documents\DeepSeek desktop\Qinmo Ultimate Launcher
+> eslint .
+
+
+C:\Users\hjc20\Documents\DeepSeek desktop\Qinmo Ultimate Launcher\web\src\__canary__.ts
+  2:1   error  组件里不许 import @tauri-apps/api/core。这个导入只该出现在 web/src/api/ 下——一旦组件能拿到 invoke，上面的两条规则就只是「要绕开也很容易」的摆设。  no-restricted-syntax
+  5:10  error  组件里不许直接调 invoke()。IPC 一律经由 web/src/api/ 的包装函数，那样契约（参数与返回值）就只有一份，改了 Rust 侧只需改一处前端。                   no-restricted-syntax
+
+✖ 2 problems (2 errors, 0 warnings)
+
+ ELIFECYCLE  Command failed with exit code 1.
+
+
+================================================================
+guard       : B/C after-cleanup
+expectation : PASS (lint green again)
+command     : pnpm run lint
+exit code   : 0
+----------------------------------------------------------------
+
+> qinmo-ultimate-launcher@0.0.0 lint C:\Users\hjc20\Documents\DeepSeek desktop\Qinmo Ultimate Launcher
+> eslint .
+
+
+
+================================================================
+guard       : tree-clean
+expectation : PASS (no residue)
+command     : sha256 Cargo.toml AND Test-Path canary
+exit code   : 0
+----------------------------------------------------------------
+Cargo.toml after=88BE98845E457B2662992D3A2E33D73BB858E6A68D5616FBAA9A9131D8E63B84
+snapshot=88BE98845E457B2662992D3A2E33D73BB858E6A68D5616FBAA9A9131D8E63B84
+canary present=False
+

@@ -1,0 +1,48 @@
+﻿{
+    "generated_at":  "2026-10-01T22:00:17",
+    "root":  "C:\\Users\\hjc20\\Documents\\DeepSeek desktop\\Qinmo Ultimate Launcher",
+    "guards":  [
+                   {
+                       "guard":  "A core-no-io-deps",
+                       "expectation":  "FAIL (guard must trip)",
+                       "command":  "cargo test -p qul-core --test architecture",
+                       "exit_code":  101
+                   },
+                   {
+                       "guard":  "A restore",
+                       "expectation":  "PASS (file byte-identical to snapshot)",
+                       "command":  "sha256(crates/qul-core/Cargo.toml) == snapshot",
+                       "exit_code":  0
+                   },
+                   {
+                       "guard":  "A after-cleanup",
+                       "expectation":  "PASS (guard green again)",
+                       "command":  "cargo test -p qul-core --test architecture",
+                       "exit_code":  0
+                   },
+                   {
+                       "guard":  "B component-no-fetch",
+                       "expectation":  "FAIL (rule fires on a real file)",
+                       "command":  "pnpm run lint",
+                       "exit_code":  1
+                   },
+                   {
+                       "guard":  "C component-no-direct-ipc",
+                       "expectation":  "FAIL (rule fires on a real file)",
+                       "command":  "pnpm run lint",
+                       "exit_code":  1
+                   },
+                   {
+                       "guard":  "B/C after-cleanup",
+                       "expectation":  "PASS (lint green again)",
+                       "command":  "pnpm run lint",
+                       "exit_code":  0
+                   },
+                   {
+                       "guard":  "tree-clean",
+                       "expectation":  "PASS (no residue)",
+                       "command":  "sha256 Cargo.toml AND Test-Path canary",
+                       "exit_code":  0
+                   }
+               ]
+}
