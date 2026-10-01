@@ -422,6 +422,104 @@ fn main_class_changed_across_eras_and_is_always_read_from_json() {
     }
 }
 
+// ───────────────────────── Java 需求：**事实 vs 假设** ─────────────────────────
+
+#[test]
+fn java_requirement_comes_from_the_metadata_when_declared() {
+    // ⚠️ **这条把 M2 的两块接起来**：`descriptor.rs` 的 `javaVersion`
+    // 与 `java.rs` 的 `JavaRequirement`。
+    //
+    // 实测的爬升：1.6.4 无声明 → 1.12.2 声明 8 → 1.16.5 声明 8
+    //            → 1.19.3 声明 17 → **26.3 声明 25**
+    let cases = [
+        ("1.12.2", 8u32),
+        ("1.16.5", 8),
+        ("1.19.3", 17),
+        ("26.3", 25),
+    ];
+    for (id, want) in cases {
+        let d = load(id);
+        let r = d.java_requirement();
+        assert!(
+            r.source.is_declared(),
+            "{id} 的详情里声明了 javaVersion，所以来源该是「事实」而不是推断：{:?}",
+            r.source
+        );
+        assert_eq!(r.declared_major, Some(want), "{id} 声明的 majorVersion");
+        assert_eq!(r.requirement.min_major(), want, "{id} 的最低主版本");
+    }
+}
+
+#[test]
+fn java_requirement_is_marked_as_a_guess_when_not_declared() {
+    // 实测：`1.6.4` **完全没有** `javaVersion`。
+    // 而这里要断言的是**它被标成假设**，不是"它猜对了"。
+    let d = load("1.6.4");
+    let r = d.java_requirement();
+    assert!(!r.source.is_declared(), "1.6.4 没声明，所以不该标成事实");
+    assert_eq!(r.declared_major, None);
+    assert_eq!(r.source.as_str(), "guessed-from-version-table");
+    // 而推断的结果是 Java 8（1.6.4 属于 ≤1.16.5 那一档）
+    assert_eq!(r.requirement.min_major(), 8);
+    // **解释里必须说清"这是假设"**
+    let e = r.explain();
+    assert!(e.contains("假设"), "解释要说清它是假设：{e}");
+}
+
+#[test]
+fn a_declared_25_is_not_rounded_down_to_a_named_tier() {
+    // ⚠️ **这是本轮新加的那条语义，而它值得单独一条测试。**
+    //
+    // `26.3` 声明 majorVersion=25。一个"看到 25 就归到最近的 Java21 档"的
+    // 实现会让需求**被低估** —— 后果是选出一个版本过低的 Java，
+    // 然后游戏以一个难查的方式失败。
+    //
+    // 所以断言的是**精确的 25**，而不是"至少 21"。
+    let d = load("26.3");
+    let r = d.java_requirement();
+    assert_eq!(
+        r.requirement.min_major(),
+        25,
+        "**不许取整** —— 声明 25 就要 25"
+    );
+    assert!(
+        r.requirement.human().contains("25"),
+        "{}",
+        r.requirement.human()
+    );
+    // 而它确实**不是**那个命名的 Java21 档
+    assert_ne!(
+        r.requirement,
+        qul_core::java::JavaRequirement::Java21,
+        "25 与「Java 21 档」是两件事"
+    );
+}
+
+#[test]
+fn the_version_table_does_not_pretend_to_know_the_future() {
+    // 表的兜底在 1.21 起改用 `AtLeast(n)`。断言两件事：
+    //   ① 1.21.x 仍然是「Java 21 档」（实测 1.21.4 声明 21）
+    //   ② 而更高的次版本号**不再被钉死**
+    use qul_core::java::{GameVersion, JavaRequirement};
+    assert_eq!(
+        GameVersion::parse("1.21.4").unwrap().requirement(),
+        JavaRequirement::Java21
+    );
+    assert_eq!(
+        GameVersion::parse("1.24.0").unwrap().requirement(),
+        JavaRequirement::Java21
+    );
+    assert_eq!(
+        GameVersion::parse("1.25.0").unwrap().requirement(),
+        JavaRequirement::AtLeast(25),
+        "1.25 的要求就是 25 —— 表不再假装知道"
+    );
+    // 而 2.x 也**不猜**
+    assert_eq!(
+        GameVersion::parse("2.0.0").unwrap().requirement(),
+        JavaRequirement::AtLeast(21)
+    );
+}
 // ───────────────────────── 库计数的实测 ─────────────────────────
 
 #[test]

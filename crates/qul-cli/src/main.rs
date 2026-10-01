@@ -23,6 +23,7 @@
 
 mod i18n_demo;
 mod instance_demo;
+mod java_plan;
 mod launch_demo;
 mod scrub_demo;
 use qul_app::AppService;
@@ -37,6 +38,22 @@ fn main() {
         Some("scrub-demo") => std::process::exit(scrub_demo::run_scrub_demo()),
         Some("i18n-demo") => std::process::exit(i18n_demo::run_i18n_demo()),
         Some("instance-demo") => std::process::exit(instance_demo::run_instance_demo()),
+        Some("java-plan") => {
+            // 可选的位置参数：版本 id。而 `--assumptions` 走另一个取证 ——
+            // **刻意分成两个输出**：选 Java 与"我们做了哪些假设"是两个不同的问题，
+            // 混在一起会让人读不出重点。
+            let pos: Vec<String> = args
+                .iter()
+                .skip(1)
+                .filter(|a| !a.starts_with("--"))
+                .cloned()
+                .collect();
+            let v = pos.first().map(|s| s.as_str());
+            if args.iter().any(|a| a == "--assumptions") {
+                std::process::exit(java_plan::run_assumptions(v));
+            }
+            std::process::exit(java_plan::run_java_plan(v));
+        }
         Some("--help") | Some("-h") => print_help(),
         None => run_overview(),
         Some(other) => {

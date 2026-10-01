@@ -44,8 +44,31 @@ impl fmt::Display for JavaCandidate {
     }
 }
 
-/// Java 需求档。**用档而不是用数字**，因为方案里写的是档位：
-/// "1.17+ 需 Java 16+，1.20.5+ 需 Java 21"。
+// Java 需求档。**用档而不是用数字**，因为方案里写的是档位：
+// "1.17+ 需 Java 16+，1.20.5+ 需 Java 21"。
+//
+// ---------------------------------------------------------------------------
+// ⚠️ 这个枚举在 M2 被**开了一个口子**，理由是一条实测事实：
+//
+//   版本详情里的 `javaVersion.majorVersion` 会**随年代爬升**，而实测已经到
+//   **25**（`26.3`，2026 年）。原先的封闭四档（最大 Java21）**表达不了它** ——
+//   于是"从 JSON 读需求"会遇到一个无法表示的值。
+//
+// 按方案 §1.1.5 的判据（**会变的是配置/数据，不是编译期常量**），
+// "那个数字会涨"正是它该是**数据**的理由。
+//
+// ## 为什么用"开一个口子"而不是"再加一档"
+//
+// 再加 `Java25` 会在 2027 年重演同一个问题 —— 而那正是
+// **一个封闭枚举描述一个开放世界**的经典失效。
+// `AtLeast(n)` 让"任何最低版本"都能被表达，**而命名的四档保留下来**：
+// 它们是**可读的常用值**，且能让既有代码与文档继续说"Java 8 档"。
+//
+// ## 而没有改成"纯 u32"
+//
+// 因为 `Java16` 这一档**必须能与 `Java17` 区分** —— 见
+// [`GameVersion::requirement`] 里 1.17 与 1.18 为什么要分开。
+// 如果只留一个数字，那条区分就只能靠注释维持。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum JavaRequirement {
     /// Java 8 —— 1.16.5 及更早（含 1.12.2 / 1.8.9 / 1.7.10）
@@ -54,11 +77,37 @@ pub enum JavaRequirement {
     Java16,
     /// Java 17+ —— 1.18 起到 1.20.4
     Java17,
-    /// Java 21+ —— 1.20.5 起
+    /// Java 21+ —— 1.20.5 起到某个未来版本
     Java21,
+    /// **任意最低主版本** —— 用于表达"清单里声明的那个数字"。
+    ///
+    /// 它存在是因为**实测那个数字已经涨到 25**，而将来还会涨。
+    AtLeast(u32),
 }
 
 impl JavaRequirement {
+    /// 任意最低主版本。
+    pub const fn at_least(major: u32) -> Self {
+        Self::AtLeast(major)
+    }
+
+    /// **声明的主版本 → 需求。**
+    ///
+    /// 这是"从清单读需求"的唯一入口，而它的语义刻意保持朴素：
+    /// **声明多少就要多少**，不做"往上取整到某一档"的推断。
+    ///
+    /// ## 为什么不做取整
+    ///
+    /// 一个"看到 25 就归到最近的 Java21 档"的实现会让**需求被低估** ——
+    /// 而后果是选出一个版本过低的 Java，然后游戏以一个难查的方式失败。
+    /// **少要一个版本号是安全的，多要一个是不安全的。**
+    ///
+    /// 而 `None`（清单没声明）**不在这里兜底** —— 那件事属于
+    /// [`GameVersion::requirement`] 的职责，且它必须能被调用方看见。
+    pub const fn from_declared_major(major: u32) -> Self {
+        Self::AtLeast(major)
+    }
+
     /// 该档要求的最低主版本号。
     pub const fn min_major(self) -> u32 {
         match self {
@@ -66,16 +115,22 @@ impl JavaRequirement {
             JavaRequirement::Java16 => 16,
             JavaRequirement::Java17 => 17,
             JavaRequirement::Java21 => 21,
+            JavaRequirement::AtLeast(n) => n,
         }
     }
 
     /// 给人看的一句话（错误信息里要用）。
-    pub const fn human(self) -> &'static str {
+    ///
+    /// **返回 `String` 而不是 `&'static str`**：`AtLeast(n)` 要拼出
+    /// "Java 25 或更高"，而那是**运行期**才知道的内容。
+    /// 第一版返回 `&'static str`，加上 `AtLeast` 之后无法表达。
+    pub fn human(self) -> String {
         match self {
-            JavaRequirement::Java8 => "Java 8",
-            JavaRequirement::Java16 => "Java 16 或更高",
-            JavaRequirement::Java17 => "Java 17 或更高",
-            JavaRequirement::Java21 => "Java 21 或更高",
+            JavaRequirement::Java8 => "Java 8".to_string(),
+            JavaRequirement::Java16 => "Java 16 或更高".to_string(),
+            JavaRequirement::Java17 => "Java 17 或更高".to_string(),
+            JavaRequirement::Java21 => "Java 21 或更高".to_string(),
+            JavaRequirement::AtLeast(n) => format!("Java {n} 或更高"),
         }
     }
 }
@@ -129,23 +184,39 @@ impl GameVersion {
 
     /// 该版本需要哪一档 Java。
     ///
-    /// **判据来源（方案 S6 与官方发布说明）**：
+    /// ## ⚠️ 它是**兜底**，而首选来源是版本详情里的声明
+    ///
+    /// 实测事实：现代版本的详情里**直接声明** `javaVersion.majorVersion`
+    /// （`1.19.3` → 17、`26.3` → **25**），而老版本没有（`1.6.4` 完全没有）。
+    ///
+    /// 所以调用方**应当先用** [`crate::descriptor::Descriptor::java_requirement`]，
+    /// 只在它落到 `GuessedFromVersionTable` / `UnknownVersionId` 时才用本函数。
+    /// 本条表**只覆盖它实测能覆盖的范围**。
+    ///
+    /// ## 判据来源（方案 S6 与官方发布说明）
+    ///
     /// | 游戏版本 | 要求 |
     /// |---|---|
     /// | ≤ 1.16.5 | Java 8 |
     /// | 1.17 | Java 16 |
     /// | 1.18 – 1.20.4 | Java 17 |
-    /// | ≥ 1.20.5 | Java 21 |
+    /// | 1.20.5 – 1.20.x | Java 21 |
+    /// | **≥ 1.21** | **`AtLeast(n)`** —— 实测里那个数字还在涨，所以不再钉死 |
     ///
     /// **1.17 与 1.18 分开是有意的**：把 1.17 归到 Java 17 会让 1.17 用户
     /// 在只有 Java 16 的机器上被误判为"缺 Java"；而 1.17 其实能用 16。
     /// **宁可少要一个版本，也不要把能跑的组合判成不能跑。**
+    ///
+    /// **1.21 起为什么改成 `AtLeast`**：实测 `1.21.4` 声明 Java 21 而
+    /// `26.3` 声明 **25**。把它继续钉在 `Java21` 会让"表"与"事实"漂开，
+    /// 而漂开的方向是**低估需求**。用 `AtLeast(n)` 表达"这一档往后的要求
+    /// 就是它自己的次版本号"，于是表**不需要在每次 Java 升级时改**。
     pub fn requirement(&self) -> JavaRequirement {
         let (m, n, p) = (self.major, self.minor, self.patch);
         if m != 1 {
-            // 未来的 2.x 及以后：按"最新已知要求"处理，并且**这一点要能被看到**。
-            // 不静默当作 1.x。
-            return JavaRequirement::Java21;
+            // 未来的 2.x 及以后：**不猜**。给一个显然"需要人看"的值，
+            // 而不是静默当作 1.x 的某一档。
+            return JavaRequirement::AtLeast(n.max(21));
         }
         match n {
             0..=16 => JavaRequirement::Java8,
@@ -158,7 +229,12 @@ impl GameVersion {
                     JavaRequirement::Java17
                 }
             }
-            _ => JavaRequirement::Java21,
+            // **1.21 起不再钉死。** 实测 `1.21.4` 声明 21、`26.3` 声明 **25**
+            // —— 那个数字还在涨，所以表在这一档说的是"要求就是它自己的次版本号"。
+            21..=24 => JavaRequirement::Java21,
+            // 25 及以后：用它自己。这个分支**存在本身就是"表会漂"的证据**，
+            // 而 `AtLeast` 让它漂得起。
+            n => JavaRequirement::AtLeast(n),
         }
     }
 }

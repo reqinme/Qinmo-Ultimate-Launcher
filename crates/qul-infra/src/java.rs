@@ -175,6 +175,69 @@ fn from_common_dirs(out: &mut Discovery) {
     }
 }
 
+/// `reg query /s` 输出里的一行，**判定它是哪一类**。
+///
+/// 见 [`parse_reg_value_line`]。
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum RegValue {
+    /// 不是 `REG_SZ` 的值行（键名行、空行）
+    NotAValue,
+    /// 是值行，但**值名不是指向安装目录的那两个** ——
+    /// 例如 `CurrentVersion` / `NOSTARTMENU`。它们不是候选路径。
+    NotAPath,
+    /// 指向 Java 安装目录的一行
+    Path { name: String, value: String },
+}
+
+/// **解析 `reg query /s` 输出里的一行。**
+///
+/// ## 它为什么是一个独立函数
+///
+/// 因为它的判据被一个真 bug 修过，而**那个 bug 的成因必须在源码里看得见**：
+///
+/// `reg query /s` 会输出该键下的**所有**值。第一版对每一行只看
+/// `REG_SZ` 后面那一段，于是把 `CurrentVersion  REG_SZ  25.0.4.1`、
+/// `NOSTARTMENU  REG_SZ  0`、`Version  REG_SZ  1.8` 全当成候选路径，
+/// 然后每一个都报「注册表登记的 JavaHome 下没有 bin\java.exe」。
+///
+/// 那句诊断**在说谎**：那些值从来不是路径。而后果不只是刷屏 ——
+/// 它把 21 条噪声写进了"漏报台账"，而那份台账的作用恰恰是
+/// **查我们漏了什么**。噪声进台账，查漏报时就会看错方向。
+///
+/// ## 判据（实测 `reg query HKLM\SOFTWARE\JavaSoft\JDK /s` 的输出）
+///
+/// ```text
+///     CurrentVersion    REG_SZ    25.0.4.1                              <- 不是路径
+///     JavaHome          REG_SZ    C:\Program Files\Java\jdk-21.0.12.1  <- 路径
+///     NOSTARTMENU       REG_SZ    0                                     <- 不是路径
+///     INSTALLDIR        REG_SZ    C:\Program Files\Java\jdk-21.0.12.1\ <- 路径（MSI 子键）
+/// ```
+///
+/// 所以只认 `JavaHome` 与 `INSTALLDIR` 两个**值名**。
+///
+/// ## 它不做的事
+///
+/// **不去判断那个值"看起来像不像一条路径"** —— 一个靠 `contains('\\')`
+/// 猜的判据会在路径形态变化时静默失效，而值名是格式的一部分，稳定得多。
+/// 真正的验证交给下一步（那里会去实际找 `bin\java.exe`）。
+fn parse_reg_value_line(line: &str) -> RegValue {
+    let Some(idx) = line.find("REG_SZ") else {
+        return RegValue::NotAValue;
+    };
+    let name = line[..idx].trim();
+    let value = line[idx + "REG_SZ".len()..].trim();
+    if value.is_empty() {
+        return RegValue::NotAValue;
+    }
+    if name != "JavaHome" && name != "INSTALLDIR" {
+        return RegValue::NotAPath;
+    }
+    RegValue::Path {
+        name: name.to_string(),
+        value: value.to_string(),
+    }
+}
+
 /// 从注册表读 `JavaSoft` 的安装项。
 ///
 /// 用 `reg.exe query` 而不是引入 `winreg` 依赖：
@@ -194,6 +257,13 @@ fn from_registry(out: &mut Discovery) {
         r"HKLM\SOFTWARE\WOW6432Node\JavaSoft\JRE",
         r"HKLM\SOFTWARE\WOW6432Node\JavaSoft\JDK",
     ];
+    // 有多少个注册表值**不是**路径（版本号、开关）。它们汇总成**一条**记录。
+    //
+    // **它在循环外**：第一版把它写在 `for key` 里，于是末尾那段汇总引用了
+    // 一个已经出作用域的名字。编译器拦住了，而它值得记一句：
+    // **跨迭代的汇总必须声明在迭代之外** —— 否则那段汇总要么编译不过，
+    // 要么（如果它当时能编译）变成"每个键各报一条"。
+    let mut registry_non_path_values = 0usize;
     for key in keys {
         let outq = Command::new("reg").args(["query", key, "/s"]).output();
         let Ok(o) = outq else {
@@ -211,20 +281,40 @@ fn from_registry(out: &mut Discovery) {
         for line in text.lines() {
             let line = line.trim();
             // 形如：    JavaHome    REG_SZ    C:\Program Files\Java\jre1.8.0_442
-            if !line.contains("REG_SZ") {
-                continue;
-            }
-            let Some(idx) = line.find("REG_SZ") else {
-                continue;
+            //
+            // -----------------------------------------------------------------
+            // ⚠️ 这里必须**同时**取"值名"与"值"，而第一版只取了值 ——
+            // 那是一个真 bug，而它是被 CLI 的输出暴露的：
+            //
+            // `reg query /s` 会输出该键下的**所有**值，于是
+            // `CurrentVersion  REG_SZ  25.0.4.1` 与 `NOSTARTMENU  REG_SZ  0`
+            // 也被当成候选路径，然后每一个都报
+            // 「注册表登记的 JavaHome 下没有 bin\java.exe」——
+            // **一条在说谎的诊断**：那些值从来不是路径。
+            //
+            // 后果不只是刷屏：那条记录会把"26 个跳过"写进漏报台账，
+            // 而其中 21 个根本不是候选。一个把噪声记成缺陷的台账，
+            // 会在真正要查漏报时把人引到错方向。
+            //
+            // 所以现在只认**确实指向 Java 安装目录的两个值名**：
+            //   `JavaHome`    —— JavaSoft 键的标准值名
+            //   `INSTALLDIR`  —— MSI 子键下记录的同一个目录
+            // 其余值名**计数但不逐个记账**，因为它们不是候选。
+            //
+            // 判据被抽成 `parse_reg_value_line` 并由单测钉住 ——
+            // 否则"哪天有人把值名判断删掉"会没有任何测试会红。
+            let (name, value) = match parse_reg_value_line(line) {
+                RegValue::NotAValue => continue,
+                RegValue::NotAPath => {
+                    registry_non_path_values += 1;
+                    continue;
+                }
+                RegValue::Path { name, value } => (name, value),
             };
-            let value = line[idx + "REG_SZ".len()..].trim();
-            if value.is_empty() {
-                continue;
-            }
-            let base = PathBuf::from(value);
+            let base = PathBuf::from(&value);
             let mut hit = false;
-            for name in java_exe_names() {
-                let p = base.join("bin").join(name);
+            for name_exe in java_exe_names() {
+                let p = base.join("bin").join(name_exe);
                 if looks_like_java(&p) {
                     out.sources.push(DiscoverySource {
                         kind: format!("registry:{key}"),
@@ -234,12 +324,23 @@ fn from_registry(out: &mut Discovery) {
                 }
             }
             if !hit {
+                // **这一条是真信息**：注册表明确说 Java 在这里，而那里没有 java.exe。
+                // 它与"注册表里有个版本号"是不同的两件事，所以分开记。
                 out.skipped.push((
                     value.to_string(),
-                    "注册表登记的 JavaHome 下没有 bin\\java.exe".into(),
+                    format!("注册表的值 `{name}` 指向这里，但下面没有 bin\\java.exe"),
                 ));
             }
         }
+    }
+    if registry_non_path_values > 0 {
+        // 汇总成一条，而不是 N 条。**"不是候选"与"跳过了一个候选"是两件事。**
+        out.skipped.push((
+            format!("（{registry_non_path_values} 个非路径值）"),
+            "注册表里的版本号/开关等值（如 CurrentVersion / NOSTARTMENU）—— \
+             它们从来不是 Java 安装路径，所以不计为候选"
+                .into(),
+        ));
     }
 }
 
@@ -374,4 +475,132 @@ pub fn discover_and_probe() -> (Discovery, Vec<(String, String)>) {
     }
     d.candidates = ok;
     (d, failed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ───────────────────── `reg query` 行解析 ─────────────────────
+    //
+    // 这一组测试钉住的是一个**被 CLI 输出暴露出来的真 bug**：
+    // 第一版把 `reg query /s` 输出里的**每一个 `REG_SZ` 值**都当成候选路径，
+    // 于是注册表里的版本号与开关全成了"跳过"，
+    // 而每一条都报「注册表登记的 JavaHome 下没有 bin\java.exe」——
+    // **一句在说谎的诊断**。
+    //
+    // 它把 21 条噪声写进了"漏报台账"，而那份台账的作用恰恰是查我们漏了什么。
+
+    #[test]
+    fn java_home_line_is_a_path() {
+        let line = r"    JavaHome    REG_SZ    C:\Program Files\Java\jdk-21.0.12.1";
+        match parse_reg_value_line(line) {
+            RegValue::Path { name, value } => {
+                assert_eq!(name, "JavaHome");
+                assert_eq!(value, r"C:\Program Files\Java\jdk-21.0.12.1");
+            }
+            other => panic!("应当是路径：{other:?}"),
+        }
+    }
+
+    #[test]
+    fn install_dir_line_is_a_path() {
+        // MSI 子键下记录的同一个目录，**末尾带反斜杠** —— 那一份也要收
+        let line = r"    INSTALLDIR    REG_SZ    C:\Program Files\Java\jdk-21.0.12.1\";
+        match parse_reg_value_line(line) {
+            RegValue::Path { name, value } => {
+                assert_eq!(name, "INSTALLDIR");
+                assert!(value.ends_with('\\'));
+            }
+            other => panic!("应当是路径：{other:?}"),
+        }
+    }
+
+    #[test]
+    fn version_and_switch_values_are_not_paths() {
+        // ⚠️ **这三行就是那个 bug 的现场。**
+        // 实测 `reg query HKLM\SOFTWARE\JavaSoft\JDK /s` 会输出它们，
+        // 而它们**从来不是** Java 安装路径。
+        for line in [
+            r"    CurrentVersion    REG_SZ    25.0.4.1",
+            r"    NOSTARTMENU    REG_SZ    0",
+            r"    Version    REG_SZ    1.8",
+            r"    DisplayName    REG_SZ    Java 8 Update 503",
+            r"    Path    REG_SZ    C:\Program Files\Common Files\Oracle\Java\javapath",
+        ] {
+            assert_eq!(
+                parse_reg_value_line(line),
+                RegValue::NotAPath,
+                "**这一行不是候选路径**，而它在第一版里被当成了路径：{line}"
+            );
+        }
+        // 最后那一条尤其值得留意：它**看起来像路径**（含反斜杠），
+        // 而它的值名是 `Path` —— 那是"启动器存根"目录，不是 Java 安装目录。
+        // 判据用**值名**而不是"像不像路径"，正是为了不在这里猜。
+    }
+
+    #[test]
+    fn key_header_lines_and_blank_lines_are_not_values() {
+        for line in [
+            r"HKEY_LOCAL_MACHINE\SOFTWARE\JavaSoft\JDK",
+            r"HKEY_LOCAL_MACHINE\SOFTWARE\JavaSoft\JDK\21.0.12.1",
+            "",
+            "    ",
+        ] {
+            assert_eq!(
+                parse_reg_value_line(line),
+                RegValue::NotAValue,
+                "键名行/空行不该被当成值：{line:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn other_reg_types_are_not_values() {
+        // `reg query` 还会输出 REG_DWORD / REG_EXPAND_SZ / REG_MULTI_SZ。
+        // 第一版只看 `"REG_SZ"` 子串，于是把 `REG_EXPAND_SZ` 也匹配上了
+        // （它**包含** `REG_SZ` 吗？不 —— 但 `REG_SZ` 出现在
+        // `REG_EXPAND_SZ` 里的位置不同，所以这里显式钉住形态）。
+        for line in [
+            r"    Enabled    REG_DWORD    0x1",
+            r"    Foo    REG_MULTI_SZ    a\0b",
+        ] {
+            assert_eq!(parse_reg_value_line(line), RegValue::NotAValue, "{line}");
+        }
+    }
+
+    #[test]
+    fn empty_value_is_not_a_value() {
+        // `JavaHome  REG_SZ  ` （值名对但值为空）：**不是路径**，也不是"非路径值"。
+        // 它落进 `NotAValue`，于是不会被记两次。
+        assert_eq!(
+            parse_reg_value_line(r"    JavaHome    REG_SZ    "),
+            RegValue::NotAValue
+        );
+    }
+
+    #[test]
+    fn value_name_is_matched_exactly_not_as_substring() {
+        // 一个用 `contains("Home")` 之类判据的实现会在将来误收别的值。
+        // 断言的判据是**精确相等**。
+        for line in [
+            r"    JavaHomeBackup    REG_SZ    C:\x",
+            r"    MyINSTALLDIR    REG_SZ    C:\y",
+            r"    JavaHome    REG_SZ    ",
+        ] {
+            assert_ne!(
+                std::mem::discriminant(&parse_reg_value_line(line)),
+                std::mem::discriminant(&RegValue::Path {
+                    name: String::new(),
+                    value: String::new()
+                }),
+                "值名必须精确匹配：{line}"
+            );
+        }
+        // 而精确的那个仍然是路径
+        assert!(matches!(
+            parse_reg_value_line(r"    JavaHome    REG_SZ    C:\z"),
+            RegValue::Path { .. }
+        ));
+    }
 }

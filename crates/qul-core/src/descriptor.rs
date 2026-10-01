@@ -671,6 +671,78 @@ pub struct JavaRequirement {
     pub major_version: Option<u32>,
 }
 
+/// **Java 需求是从哪来的。**
+///
+/// 它存在的唯一理由是让"我们是知道的，还是猜的"**能被看见**。
+/// 一个把两种来源合并成同一个值的实现会让"为什么这台机器用了 Java 8"
+/// 变成一个无人能回答的问题。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JavaReqSource {
+    /// 版本详情里**直接声明**了 `javaVersion.majorVersion`。**这是事实。**
+    DeclaredInMetadata,
+    /// 详情里没声明，我们**按游戏版本号查表推的**。**这是假设。**
+    GuessedFromVersionTable,
+    /// 连游戏版本号都解析不了（实测形态：`rd-132211` / `c0.30_01c`）。
+    /// 我们保守给了最低档，而**这次是真的不知道**。
+    UnknownVersionId,
+}
+
+impl JavaReqSource {
+    /// 它是事实还是假设。
+    pub const fn is_declared(self) -> bool {
+        matches!(self, JavaReqSource::DeclaredInMetadata)
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            JavaReqSource::DeclaredInMetadata => "declared-in-metadata",
+            JavaReqSource::GuessedFromVersionTable => "guessed-from-version-table",
+            JavaReqSource::UnknownVersionId => "unknown-version-id",
+        }
+    }
+
+    /// 给人看的一句话（日志与诊断用）。
+    pub fn explain(self) -> &'static str {
+        match self {
+            JavaReqSource::DeclaredInMetadata => {
+                "版本详情直接声明了 javaVersion.majorVersion —— 这是事实，不是推断"
+            }
+            JavaReqSource::GuessedFromVersionTable => {
+                "版本详情没有声明 javaVersion —— 我们按游戏版本号查表推的，**这是假设**"
+            }
+            JavaReqSource::UnknownVersionId => {
+                "连游戏版本号都解析不了 —— 保守给了最低档，**这次是真的不知道**"
+            }
+        }
+    }
+}
+
+/// Java 需求 + 它的来源。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JavaRequirementSource {
+    pub requirement: crate::java::JavaRequirement,
+    pub source: JavaReqSource,
+    /// 清单声明的那个数字（没声明则为 `None`）
+    pub declared_major: Option<u32>,
+}
+
+impl JavaRequirementSource {
+    /// 一行给人看的说明（日志与 CLI 都用它）。
+    pub fn explain(&self) -> String {
+        match self.declared_major {
+            Some(n) => format!(
+                "需要 {}（清单声明 majorVersion={n}）—— {}",
+                self.requirement.human(),
+                self.source.explain()
+            ),
+            None => format!(
+                "需要 {} —— {}",
+                self.requirement.human(),
+                self.source.explain()
+            ),
+        }
+    }
+}
 /// **格式对照表：旧形态参数串的 JSON 键。**
 ///
 /// ⚠️ **它不是 `#[serde(rename)]` 的来源** —— serde 只接受字符串字面量
@@ -939,6 +1011,57 @@ impl Descriptor {
         self.client_download()
             .map(|d| d.path.as_str())
             .filter(|p| !p.is_empty())
+    }
+
+    /// **这个版本需要哪个 Java，以及那个结论是从哪来的。**
+    ///
+    /// ## 它把"M2 的两块"接起来
+    ///
+    /// 在它存在之前，`java.rs` 的 [`crate::java::GameVersion::requirement`]
+    /// 只能**按游戏版本号查一张表**。而实测事实是：
+    /// **现代版本的清单里直接声明了 `javaVersion.majorVersion`**
+    /// （`1.19.3` → 17、`26.3` → 25），而老版本没有（`1.6.4` 完全没有）。
+    ///
+    /// 所以正确顺序是：
+    ///
+    /// | 顺序 | 来源 | 何时适用 |
+    /// |---|---|---|
+    /// | ① | **清单声明** | 现代版本（实测 1.7.10 起有，1.19.3 起是权威） |
+    /// | ② | **版本号表** | 清单没声明时（老版本），**并列为一次假设** |
+    ///
+    /// ## 而"用哪个来源"必须能被看见
+    ///
+    /// [`crate::java::JavaRequirement::from_declared_major`] **不做取整** ——
+    /// 声明 25 就是 25，不归到"最近的一档"。因为一次取整会让需求**被低估**，
+    /// 而那会选出一个版本过低的 Java，然后游戏以一个难查的方式失败。
+    ///
+    /// 返回的 [`JavaRequirementSource`] 就是这个选择的**可见形式**：
+    /// 调用方能把"我们按版本号表猜的"写进日志，
+    /// 于是"为什么这台机器用了 Java 8"永远有答案。
+    pub fn java_requirement(&self) -> JavaRequirementSource {
+        use crate::java::{GameVersion, JavaRequirement};
+        if let Some(declared) = self.java_version.as_ref().and_then(|j| j.major_version) {
+            return JavaRequirementSource {
+                requirement: JavaRequirement::from_declared_major(declared),
+                source: JavaReqSource::DeclaredInMetadata,
+                declared_major: Some(declared),
+            };
+        }
+        // 清单没声明：退回按版本号查表，而**这是一个假设，不是事实**。
+        match GameVersion::parse(&self.id) {
+            Some(gv) => JavaRequirementSource {
+                requirement: gv.requirement(),
+                source: JavaReqSource::GuessedFromVersionTable,
+                declared_major: None,
+            },
+            None => JavaRequirementSource {
+                // 连版本号都解析不了（实测有 `rd-132211` / `c0.30_01c` 这种）。
+                // 保守给最低档，并**如实标成"我们不知道"**。
+                requirement: JavaRequirement::Java8,
+                source: JavaReqSource::UnknownVersionId,
+                declared_major: None,
+            },
+        }
     }
 }
 
