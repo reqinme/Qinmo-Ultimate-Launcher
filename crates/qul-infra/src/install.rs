@@ -96,6 +96,8 @@ pub enum NeedKind {
     Logging,
     /// 资源索引文件
     AssetIndex,
+    /// **一个资产对象**（按哈希去重后的）
+    AssetObject,
 }
 
 impl NeedKind {
@@ -106,6 +108,7 @@ impl NeedKind {
             NeedKind::Natives => "natives",
             NeedKind::Logging => "logging",
             NeedKind::AssetIndex => "asset-index",
+            NeedKind::AssetObject => "asset-object",
         }
     }
 }
@@ -205,6 +208,28 @@ pub fn required_files(
     env: &Env,
     version_id: &str,
 ) -> Result<Vec<FileNeed>, InstallError> {
+    required_files_with_assets(d, env, version_id, None, DEFAULT_ASSET_BASE)
+}
+
+/// **资产对象的默认主机**（方案 §11.5 的端点清单）。
+///
+/// ⚠️ **这是本项目里第二个硬编码的 URL**，而理由与第一个（版本清单）不同：
+/// 版本清单是**入口**（没有它就没有任何元数据）；
+/// 而这个是**格式约定** —— 资产索引里**只有哈希，没有 URL**。
+///
+/// 也就是说：**索引本身不告诉你从哪下**，所以那个主机只能是一个常量。
+/// 而它**可以被覆盖**（见 `required_files_with_assets` 的参数），
+/// 于是镜像与代理仍然能做。
+pub const DEFAULT_ASSET_BASE: &str = "https://resources.download.minecraft.net";
+
+/// **带资产**地列出需要的文件。
+pub fn required_files_with_assets(
+    d: &Descriptor,
+    env: &Env,
+    version_id: &str,
+    assets: Option<&qul_core::assets::AssetIndex>,
+    asset_base_url: &str,
+) -> Result<Vec<FileNeed>, InstallError> {
     let mut out: Vec<FileNeed> = Vec::new();
 
     // ① 客户端 jar
@@ -281,6 +306,29 @@ pub fn required_files(
             size: ai.size,
             kind: NeedKind::AssetIndex,
         });
+    }
+
+    // ⑤ **资产对象**（按哈希去重 —— 实测 5147 个逻辑名里有重复哈希）
+    //
+    // 这是本函数里唯一一处"逻辑名不参与落盘路径"的地方：
+    // 对象的路径**完全由哈希决定**，所以两个逻辑名指向同一份内容时
+    // 只该产生**一个** `FileNeed`。
+    // 一个按逻辑名逐条产生的实现会把同一个哈希下两次，
+    // 而进度总数会虚高成一个永远到不了的数。
+    if let Some(idx) = assets {
+        for (hash, size) in idx.unique_hashes() {
+            out.push(FileNeed {
+                rel: qul_core::assets::object_rel_path(hash),
+                // ⚠️ **资产没有单独的 sha1 字段** —— 哈希本身就是内容地址。
+                sha1: hash.to_string(),
+                url: format!("{}{}", asset_base_url.trim_end_matches('/'), {
+                    // 主机后面要接 `/`，而 `object_url_path` 返回 `xx/hash`
+                    format!("/{}", qul_core::assets::object_url_path(hash))
+                }),
+                size,
+                kind: NeedKind::AssetObject,
+            });
+        }
     }
 
     // **去重**：同一个相对路径只该出现一次。
@@ -435,6 +483,18 @@ pub struct InstallConfig {
     pub concurrency: usize,
     /// natives 解压的上限等（转发给 `zip::ExtractConfig`）
     pub extract: crate::zip::ExtractConfig,
+    /// **是否把资产对象也算进需要清单。**
+    ///
+    /// 实测 `26.3` 的资产索引有 **5147 个对象**（去重后仍约 5000 个）。
+    /// 把它们算进来会让盘点从"毫秒级"变成"要算 5000 个文件的 SHA-1"。
+    ///
+    /// 而**默认是 `false`**，因为：
+    /// ① 资产是**可选内容**（缺了游戏能起，只是没声音没语言）；
+    /// ② 5000 个文件的盘点应当在**用户真的点了"完整安装"**时才做。
+    ///
+    /// ⚠️ 这个默认值是有意的，而它必须能被显式打开 ——
+    /// 一个"总是校验全部资产"的实现会让**每次启动都扫 5000 个文件**。
+    pub include_assets: bool,
 }
 
 impl Default for InstallConfig {
@@ -444,6 +504,7 @@ impl Default for InstallConfig {
             // 实测推荐值是 8（S5：官方源并发 ×2.18 吞吐）
             concurrency: 8,
             extract: crate::zip::ExtractConfig::default(),
+            include_assets: false,
         }
     }
 }
@@ -794,6 +855,121 @@ mod tests {
         let needs = required_files(&d, &win(), "old").unwrap();
         assert!(!needs.iter().any(|n| n.kind == NeedKind::Logging));
         assert_eq!(needs.len(), 1, "只要客户端 jar");
+    }
+
+    // ───────────────── 资产对象（按哈希去重）─────────────────
+
+    /// 一个**真实形态**的资产索引（两个逻辑名共享一个哈希）。
+    fn asset_index() -> qul_core::assets::AssetIndex {
+        qul_core::assets::AssetIndex::parse(
+            r#"{"objects":{
+                "icons/a.png": {"hash":"1111111111111111111111111111111111111111","size":10},
+                "icons/b.png": {"hash":"1111111111111111111111111111111111111111","size":10},
+                "lang/en_us.json": {"hash":"2222222222222222222222222222222222222222","size":20}
+            }}"#,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn 资产按哈希去重且路径由哈希决定() {
+        // ⚠️ **这条测试钉的是"逻辑名不参与落盘路径"。**
+        //
+        // 实测 5147 个逻辑名里有重复哈希。一个按逻辑名逐条产生的实现会
+        // 把同一个哈希下两次，而**进度总数会虚高成永远到不了的数**。
+        let d = Descriptor::parse(&descriptor_json()).unwrap();
+        let idx = asset_index();
+        let needs = required_files_with_assets(
+            &d,
+            &win(),
+            "x",
+            Some(&idx),
+            crate::install::DEFAULT_ASSET_BASE,
+        )
+        .unwrap();
+
+        let assets: Vec<_> = needs
+            .iter()
+            .filter(|n| n.kind == NeedKind::AssetObject)
+            .collect();
+        assert_eq!(
+            assets.len(),
+            2,
+            "**两个逻辑名共享一个哈希 ⇒ 只该有两个对象**：{:?}",
+            assets.iter().map(|a| &a.rel).collect::<Vec<_>>()
+        );
+        // 路径就是 `assets/objects/<前2位>/<hash>`
+        assert!(assets
+            .iter()
+            .any(|a| a.rel == "assets/objects/11/1111111111111111111111111111111111111111"));
+        // 而 URL 是 `<主机>/<前2位>/<hash>`
+        assert!(
+            assets
+                .iter()
+                .any(|a| a.url
+                    == "https://resources.download.minecraft.net/11/1111111111111111111111111111111111111111"),
+            "{:?}",
+            assets.iter().map(|a| &a.url).collect::<Vec<_>>()
+        );
+        // **哈希本身就是 sha1**（资产没有单独的 sha1 字段）
+        assert_eq!(
+            assets[0].sha1,
+            assets[0].rel.rsplit('/').next().unwrap(),
+            "资产的内容地址就是它的哈希"
+        );
+    }
+
+    #[test]
+    fn 不给资产索引时不算资产() {
+        // 默认路径（也是全部既有测试走的路径）。
+        let d = Descriptor::parse(&descriptor_json()).unwrap();
+        let a = required_files(&d, &win(), "x").unwrap();
+        let b =
+            required_files_with_assets(&d, &win(), "x", None, crate::install::DEFAULT_ASSET_BASE)
+                .unwrap();
+        assert_eq!(a, b, "`required_files` 默认不算资产");
+        assert!(!a.iter().any(|n| n.kind == NeedKind::AssetObject));
+    }
+
+    #[test]
+    fn 资产主机可以被覆盖() {
+        // **镜像与代理要做得到** —— 主机是常量，但它是一个**参数**。
+        let d = Descriptor::parse(&descriptor_json()).unwrap();
+        let idx = asset_index();
+        let needs =
+            required_files_with_assets(&d, &win(), "x", Some(&idx), "http://mirror.local/assets")
+                .unwrap();
+        let obj = needs
+            .iter()
+            .find(|n| n.kind == NeedKind::AssetObject)
+            .unwrap();
+        assert!(
+            obj.url.starts_with("http://mirror.local/assets/"),
+            "{}",
+            obj.url
+        );
+        // 末尾多余的 `/` 不该产生双斜杠
+        let needs2 =
+            required_files_with_assets(&d, &win(), "x", Some(&idx), "http://mirror.local/assets/")
+                .unwrap();
+        let obj2 = needs2
+            .iter()
+            .find(|n| n.kind == NeedKind::AssetObject)
+            .unwrap();
+        assert!(
+            !obj2.url.contains("//1"),
+            "末尾斜杠不该产生双斜杠：{}",
+            obj2.url
+        );
+    }
+
+    #[test]
+    fn 默认资产主机是方案写的那一个() {
+        // 方案 §11.5 的端点清单。改它会让所有资产的下载都走错地方。
+        assert_eq!(
+            crate::install::DEFAULT_ASSET_BASE,
+            "https://resources.download.minecraft.net"
+        );
     }
 
     // ───────────────── 盘点（**离线自证的那条**）─────────────────
