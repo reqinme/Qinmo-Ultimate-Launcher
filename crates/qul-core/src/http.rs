@@ -125,12 +125,30 @@ impl FetchResponse {
         }
     }
 
-    /// 从响应头读镜像哈希提示（`x-bmclapi-hash`）。
+    /// 从响应头读镜像哈希提示。
+    ///
+    /// **头名由调用方给**（`header_name`），因为**它是那个镜像的契约，不是我们的**。
+    ///
+    /// ## ⚠️ 这里原来硬编码了 `"x-bmclapi-hash"`
+    ///
+    /// 而那是**一个具体镜像的专有头名** —— 它出现在内核里意味着
+    /// **内核认识那个镜像**。那正好违反了本项目的第一条架构纪律
+    /// （方案 §4.3：「内核零 MC 词汇」——而它的实质是**内核不认识任何一个具体产品**）。
+    ///
+    /// 区别很关键：
+    ///
+    /// | | 谁该知道 |
+    /// |---|---|
+    /// | **"存在一种镜像哈希提示"这个概念** | **内核**（它是通用机制） |
+    /// | **`x-bmclapi-hash` 这个具体名字** | **那个镜像的 Provider / 配置** |
+    ///
+    /// 与 `identity.rs` 那条同源：内核定义契约，**具体值由调用方给**
+    /// （那里是 `what: &str`，这里是 `header_name: &str`）。
     ///
     /// **它只用于缓存命中判断，不用于完整性校验** ——
     /// 见 `crate::source::MirrorHint` 的类型文档。
-    pub fn mirror_hint(&self) -> Option<crate::source::MirrorHint> {
-        self.header("x-bmclapi-hash")
+    pub fn mirror_hint_with(&self, header_name: &str) -> Option<crate::source::MirrorHint> {
+        self.header(header_name)
             .and_then(crate::source::MirrorHint::parse)
     }
 }
@@ -356,15 +374,15 @@ mod tests {
     #[test]
     fn 镜像哈希提示从头里读出来且不可用于校验() {
         let r = FetchResponse::new(200, vec![])
-            .with_header("x-bmclapi-hash", "0123456789abcdef0123456789abcdef01234567");
-        let h = r.mirror_hint().expect("应当能解析");
+            .with_header("x-mirror-hash", "0123456789abcdef0123456789abcdef01234567");
+        let h = r.mirror_hint_with("x-mirror-hash").expect("应当能解析");
         assert!(h.is_usable_for_cache_hit());
         assert!(
             !h.is_usable_for_integrity(),
             "镜像哈希**绝不能**用于完整性校验"
         );
         // 非法形态返回 None 而不是一个坏值
-        let bad = FetchResponse::new(200, vec![]).with_header("x-bmclapi-hash", "nope");
-        assert!(bad.mirror_hint().is_none());
+        let bad = FetchResponse::new(200, vec![]).with_header("x-mirror-hash", "nope");
+        assert!(bad.mirror_hint_with("x-mirror-hash").is_none());
     }
 }
