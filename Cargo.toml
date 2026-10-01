@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = ["crates/qul-core"]
+
+# ── 工作区统一依赖版本（成员 crate 用 `dep.workspace = true` 引用）──
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+# ── 发布配置 ──────────────────────────────────────────────────
+[profile.release]
+# 体积优先（方案 §7 的预算里，安装包 ≤25 MB 不含运行时）
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

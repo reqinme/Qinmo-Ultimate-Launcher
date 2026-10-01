@@ -1,0 +1,96 @@
+name: verify
+
+# U0 的最小 CI：**只做一件事——证明这两个测试套件在任何机器上都能跑**。
+#
+# 有意不做的事：
+#   - 不构建 Tauri 应用（U0 还没有 src-tauri；等 M4 再加）
+#   - 不缓存 Rust（minimal profile 下构建只有几秒，缓存的复杂度不值得）
+#   - 不做安全扫描 / 许可证扫描（等引入真实依赖后再做，见方案 §11.5）
+#
+# **注意**：`repos/` 与 `_archive/` 已被 .gitignore 排除，CI 里不存在，
+# 所以下方按方案 §8.2 做的"内核不许出现游戏词汇"快速扫描**不会误报**。
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  rust:
+    name: Rust · 内核测试与架构约束
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: 格式检查
+        run: cargo fmt --all --check
+
+      - name: Clippy（把警告当错误）
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: 测试（含架构约束测试）
+        run: cargo test --workspace --all-targets
+
+  web:
+    name: 前端 · 类型 / lint / 测试
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: 类型检查
+        run: pnpm typecheck
+
+      - name: lint（含"界面禁止字面颜色值 / 禁止按产品名分支"三条纪律规则）
+        run: pnpm lint
+
+      - name: 测试
+        run: pnpm test
+
+  # 方案 §8.2 的"内核不许出现游戏词汇"——CI 侧的廉价版本。
+  # **权威版本是 crates/qul-core/tests/architecture.rs**（它只看代码、忽略注释）；
+  # 这一步的存在理由是：万一那条测试被误删，CI 仍然会拦。
+  guard:
+    name: 纪律 · 内核无游戏词汇 + 工作区清洁
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 内核源码不许出现游戏专属词汇
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -rniE 'minecraft|mojang|forge|fabric|neoforge|quilt|bedrock|optifine' \
+               crates/qul-core/src \
+               --include='*.rs' \
+               | grep -vE '^\s*[^:]+:[0-9]+:\s*(//|/\*|\*)'; then
+            echo "::error::内核源码里出现了游戏专属词汇（内核不认识具体游戏，见方案 §3.3 / §1.4）"
+            exit 1
+          fi
+          echo "内核源码干净。"
+
+      - name: 工作区必须干净（防止生成物被误提交）
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --porcelain
+          test -z "$(git status --porcelain)"

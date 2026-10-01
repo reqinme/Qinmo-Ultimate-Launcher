@@ -1,0 +1,14 @@
+[package]
+name = "qul-core"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.77"
+description = "内核：通用模型 + 规则（零 IO、零 Tauri、零 MC 词汇）"
+publish = false
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

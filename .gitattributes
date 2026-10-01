@@ -1,0 +1,16 @@
+# 统一换行：仓库内一律 LF，检出时按平台还原。
+# 理由：CI 在 Windows 上跑，而 `cargo fmt --check` 与 ESLint 都对行尾敏感；
+# 不统一的话会出现"本地过、CI 挂"且报错指向格式而非真正原因的情况。
+* text=auto eol=lf
+
+# 二进制/资源类不做行尾转换
+*.png binary
+*.jpg binary
+*.ico binary
+*.webp binary
+*.woff2 binary
+*.exe binary
+
+# 生成物与锁文件按语言惯例
+pnpm-lock.yaml merge=ours
+Cargo.lock -diff

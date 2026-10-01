@@ -1,0 +1,117 @@
+/**
+ * 样式骨架。
+ *
+ * **两条纪律的落点**：
+ *  1. **颜色一律 `var(--token)`**，不写字面值（ESLint 会拦）。
+ *  2. **描边用 `var(--hairline)`**，不用固定 `1px`——高分屏下由令牌切换成
+ *     半分线，让它在物理像素上仍占 1 px（UI 规格 §3.3）。
+ *
+ * 本页只是 U0 的验收页，不是最终界面。它**刻意用最小样式**，
+ * 目的是让"令牌能生效"这件事可验证，而不是把外观定下来——
+ * 外观要等 S1 的材质结论（UI 规格 §11.2）。
+ */
+
+:root {
+  font-family: var(--font-family-ui);
+  font-size: var(--font-body);
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  /* 材质不可用时的兜底底色；有材质时由 DWM 覆盖 */
+  background: var(--material-backdrop);
+}
+
+.shell {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-7) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.shell__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.shell__title {
+  margin: 0;
+  font-size: var(--font-title);
+  font-weight: 600;
+}
+
+.shell__note {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.panel {
+  padding: var(--space-4);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+}
+
+.panel__title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-title-sm);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.badge {
+  font-size: var(--font-body-sm);
+  color: var(--text-secondary);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+}
+
+.caps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.caps__item {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.caps__item--on {
+  color: var(--text-primary);
+}
+
+.caps__item--off {
+  color: var(--text-disabled);
+}
+
+/* 禁用原因：这是**产品信息**，不是错误提示，所以用次要文本色而非红色 */
+.caps__reason {
+  color: var(--text-secondary);
+  font-size: var(--font-body-sm);
+  text-align: right;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

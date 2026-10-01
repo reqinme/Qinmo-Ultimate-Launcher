@@ -1,0 +1,38 @@
+{
+  "name": "qinmo-ultimate-launcher",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "秦墨 · 通用启动器（前端外壳；业务逻辑一律在 Rust 侧）",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^9.15.0",
+    "globals": "^15.12.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.16.0",
+    "vite": "^6.0.1",
+    "vitest": "^3.2.7"
+  },
+  "pnpm": {
+    "//": "pnpm 10 默认拦截依赖的构建脚本（防供应链投毒）。esbuild 是唯一确实需要的：它的 postinstall 只做一件事——把平台二进制链到正确位置。**白名单机制本身要保留**，将来引入带 postinstall 的依赖时应逐个评审，而不是图省事关掉整个限制。",
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

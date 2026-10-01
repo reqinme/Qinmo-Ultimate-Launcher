@@ -1,0 +1,49 @@
+# ── Rust / Cargo ──────────────────────────────────────────────
+/target/
+**/*.rs.bk
+*.pdb
+
+# ── Node / 前端 ───────────────────────────────────────────────
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+.eslintcache
+
+# ── Tauri 构建产物 ────────────────────────────────────────────
+src-tauri/target/
+src-tauri/gen/
+
+# ── 测试与覆盖率 ──────────────────────────────────────────────
+/coverage/
+*.lcov
+
+# ── 本地环境与密钥（**绝不入库**）──────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+*.key
+credentials.json
+
+# ── 编辑器 / 系统 ─────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ── 尖刺实验的临时产物（可重跑，不入库）──────────────────────
+/spikes/**/out/
+/spikes/**/*.log
+
+# ── 只读参考仓库与已封存项目（**有意保留，见 README**）────────
+#    repos/    17 个克隆的参考项目（约 587 MB，只读、不入库）
+#    _archive/ 已封存的第一轮 C#/WPF 项目（含它自己的 .git）
+#    两者都**不提交**：它们是资料，不是源码。
+/repos/
+/_archive/
