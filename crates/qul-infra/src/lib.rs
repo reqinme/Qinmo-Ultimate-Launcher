@@ -9,5 +9,6 @@
 
 pub mod crash;
 pub mod fsx;
+pub mod instance;
 pub mod java;
 pub mod logging;

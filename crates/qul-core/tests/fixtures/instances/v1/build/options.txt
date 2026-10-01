@@ -1,0 +1,2 @@
+fov:0.5
+lang:zh_CN

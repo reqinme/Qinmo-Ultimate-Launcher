@@ -1,0 +1,8 @@
+{
+  "key": "legacy-v1",
+  "name": "历史实例 v1",
+  "memory_mb": 2048,
+  "jvm_args": ["-XX:+UseG1GC"],
+  "loader": { "kind": "vanilla" },
+  "last_played": "2026-01-15T10:00:00Z"
+}

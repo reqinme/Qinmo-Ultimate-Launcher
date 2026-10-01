@@ -25,6 +25,7 @@ pub mod crash;
 pub mod error;
 pub mod identity;
 pub mod java;
+pub mod migrate;
 pub mod plan;
 pub mod provider;
 pub mod retry;

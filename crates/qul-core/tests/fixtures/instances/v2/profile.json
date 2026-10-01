@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "key": "legacy-v2",
+  "name": "历史实例 v2",
+  "runtime": {
+    "memory_mb": 4096,
+    "jvm_args": ["-XX:+UseG1GC"]
+  },
+  "mod_loader": { "kind": "fabric", "version": "0.15.0" }
+}

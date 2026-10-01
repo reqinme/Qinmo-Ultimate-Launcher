@@ -1,0 +1,4 @@
+{
+  "note": "部署锁定态，v1 形态（无 version）",
+  "files": ["a.jar", "b.jar"]
+}

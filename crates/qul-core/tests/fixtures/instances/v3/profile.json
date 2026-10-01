@@ -1,0 +1,9 @@
+{
+  "version": 3,
+  "key": "current-v3",
+  "name": "当前实例 v3",
+  "runtime": { "memory_mb": 8192 },
+  "mod_loader": { "kind": "neoforge" },
+  "game_dir": "build",
+  "created_by": "user"
+}
