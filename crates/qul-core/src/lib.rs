@@ -24,6 +24,7 @@ pub mod layout;
 pub mod crash;
 pub mod download;
 pub mod error;
+pub mod http;
 pub mod identity;
 pub mod java;
 pub mod migrate;
