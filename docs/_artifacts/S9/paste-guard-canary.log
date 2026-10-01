@@ -1,0 +1,62 @@
+canary line : listen_socket_tx: oneshot::Sender<Result<SocketAddr, theseus::Error>>,
+canary from : C:\Users\hjc20\Documents\DeepSeek desktop\Qinmo Ultimate Launcher\repos\Axolotl\apps\app\src\api\oauth_utils\auth_code_reply.rs
+
+================================================================
+step        : baseline
+expectation : PASS (exit 0)
+exit code   : 0
+----------------------------------------------------------------
+root  : C:\Users\hjc20\Documents\DeepSeek desktop\Qinmo Ultimate Launcher
+building reference line set from repos ...
+  code lines >= 40: 443584
+  prose lines >= 80: 26531
+
+OK: no long identical lines between our sources and repos.
+
+
+================================================================
+step        : injected
+expectation : FAIL (exit 1)
+exit code   : 1
+----------------------------------------------------------------
+root  : C:\Users\hjc20\Documents\DeepSeek desktop\Qinmo Ultimate Launcher
+building reference line set from repos ...
+  code lines >= 40: 443584
+  prose lines >= 80: 26531
+
+FAIL: 1 long identical line(s) between our sources and repos.
+Borrowing a MECHANISM is allowed; moving its CODE in is not.
+If a line is genuinely unavoidable (e.g. a third-party header), narrow this check or record an exception in docs/source-register.
+
+  crates\qul-core\src\__canary_copy.rs:3
+      also in repos\Axolotl\apps\app\src\api\oauth_utils\auth_code_reply.rs
+      listen_socket_tx: oneshot::Sender<Result<SocketAddr, theseus::Error>>,
+
+
+================================================================
+step        : injected-names-file
+expectation : PASS (report points at the canary)
+exit code   : 0
+----------------------------------------------------------------
+(see injected output above)
+
+================================================================
+step        : after-cleanup
+expectation : PASS (exit 0)
+exit code   : 0
+----------------------------------------------------------------
+root  : C:\Users\hjc20\Documents\DeepSeek desktop\Qinmo Ultimate Launcher
+building reference line set from repos ...
+  code lines >= 40: 443584
+  prose lines >= 80: 26531
+
+OK: no long identical lines between our sources and repos.
+
+
+================================================================
+step        : tree-clean
+expectation : PASS (canary removed)
+exit code   : 0
+----------------------------------------------------------------
+canary present=False
+

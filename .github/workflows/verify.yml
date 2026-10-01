@@ -73,6 +73,38 @@ jobs:
         shell: pwsh
         run: ./tools/s4-guardrail-canary.ps1
 
+      # 流程 B（M0）：来源记录 + 依赖许可 + 防误粘贴。
+      #
+      # 防误粘贴检查只在存在 repos/ 时才有意义。CI 里 repos/ 被 .gitignore
+      # 排除（它们是只读参考、且体积大），所以这一步在 CI 上会以"无法运行"
+      # 退出并报错 —— 那是**刻意的**：一个跑不起来的检查绝不能被当成通过。
+      # 因此这里用 continue-on-error 之前的显式判断，而不是静默跳过。
+      - name: 参考仓库是否就位
+        id: repos
+        shell: pwsh
+        run: |
+          if (Test-Path repos) {
+            Write-Output "present=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Output "present=false" >> $env:GITHUB_OUTPUT
+            Write-Output "repos/ absent in CI (gitignored reference clones) - the paste guard and the canary cannot run here."
+          }
+
+      - name: 依赖许可与来源记录
+        if: steps.repos.outputs.present == 'true'
+        shell: pwsh
+        run: ./tools/check-licenses.ps1
+
+      - name: 防误粘贴检查
+        if: steps.repos.outputs.present == 'true'
+        shell: pwsh
+        run: ./tools/check-copy-paste.ps1
+
+      - name: 防误粘贴检查必须能被踩红
+        if: steps.repos.outputs.present == 'true'
+        shell: pwsh
+        run: ./tools/paste-guard-canary.ps1
+
   web:
     name: 前端 · 类型 / lint / 测试
     runs-on: windows-latest

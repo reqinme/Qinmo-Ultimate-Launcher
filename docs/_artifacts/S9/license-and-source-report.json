@@ -1,0 +1,99 @@
+﻿{
+    "generated_at":  "2026-10-01T22:37:58",
+    "rust_total":  13,
+    "rust_unknown":  0,
+    "rust_copyleft":  0,
+    "npm_total":  8,
+    "npm_unknown":  0,
+    "problems":  [
+
+                 ],
+    "rust":  [
+                 {
+                     "crate":  "unicode-ident",
+                     "license":  "(MIT OR Apache-2.0) AND Unicode-3.0"
+                 },
+                 {
+                     "crate":  "zmij",
+                     "license":  "MIT"
+                 },
+                 {
+                     "crate":  "itoa",
+                     "license":  "MIT OR Apache-2.0"
+                 },
+                 {
+                     "crate":  "proc-macro2",
+                     "license":  "MIT OR Apache-2.0"
+                 },
+                 {
+                     "crate":  "quote",
+                     "license":  "MIT OR Apache-2.0"
+                 },
+                 {
+                     "crate":  "serde",
+                     "license":  "MIT OR Apache-2.0"
+                 },
+                 {
+                     "crate":  "serde_core",
+                     "license":  "MIT OR Apache-2.0"
+                 },
+                 {
+                     "crate":  "serde_derive",
+                     "license":  "MIT OR Apache-2.0"
+                 },
+                 {
+                     "crate":  "serde_json",
+                     "license":  "MIT OR Apache-2.0"
+                 },
+                 {
+                     "crate":  "syn",
+                     "license":  "MIT OR Apache-2.0"
+                 },
+                 {
+                     "crate":  "thiserror",
+                     "license":  "MIT OR Apache-2.0"
+                 },
+                 {
+                     "crate":  "thiserror-impl",
+                     "license":  "MIT OR Apache-2.0"
+                 },
+                 {
+                     "crate":  "memchr",
+                     "license":  "Unlicense OR MIT"
+                 }
+             ],
+    "npm":  [
+                {
+                    "pkg":  "typescript",
+                    "license":  "Apache-2.0"
+                },
+                {
+                    "pkg":  "eslint",
+                    "license":  "MIT"
+                },
+                {
+                    "pkg":  "globals",
+                    "license":  "MIT"
+                },
+                {
+                    "pkg":  "react",
+                    "license":  "MIT"
+                },
+                {
+                    "pkg":  "react-dom",
+                    "license":  "MIT"
+                },
+                {
+                    "pkg":  "typescript-eslint",
+                    "license":  "MIT"
+                },
+                {
+                    "pkg":  "vite",
+                    "license":  "MIT"
+                },
+                {
+                    "pkg":  "vitest",
+                    "license":  "MIT"
+                }
+            ]
+}
