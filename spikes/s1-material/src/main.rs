@@ -42,6 +42,19 @@ use std::time::Duration;
 
 use serde::Serialize;
 
+// ── S2: geometry of the blur test page, in CSS pixels from the page's top-left.
+//
+// These are emitted in the result JSON so the analysis script can locate the
+// card and the control WITHOUT guessing. That matters because a guess that is
+// slightly off would silently measure the checkerboard instead of the card --
+// and then "no blur detected" would be an artifact of the script, not a fact
+// about WebView2. (This project has already been burned twice by verification
+// conditions that did not match the thing under test.)
+const CARD_X: f64 = 60.0;
+const CARD_Y: f64 = 60.0;
+const CARD_W: f64 = 380.0;
+const CARD_H: f64 = 300.0;
+
 /// 本次运行用到的全部参数（原样进 JSON，便于事后核对"这张图当时是什么配置"）。
 #[derive(Debug, Clone, Serialize)]
 struct RunSpec {
@@ -58,6 +71,25 @@ struct RunSpec {
     os_build: String,
     /// 应用材质前的等待毫秒数
     apply_delay_ms: u64,
+    // ── S2 ────────────────────────────────────────────────────────────────
+    /// 窗口是否开启了透明（S2 的自变量）
+    transparent: bool,
+    /// 测试页是否含 `backdrop-filter` 卡片
+    blur: bool,
+    /// 被测卡片在页面坐标系里的矩形（CSS 像素）
+    card_rect: Rect,
+    /// 对照卡片（**同样式但不带 backdrop-filter**）的矩形。
+    /// 它防的是"别的东西也在模糊"这种误判。
+    control_rect: Rect,
+}
+
+/// 页面坐标系里的一个矩形（CSS 像素）。
+#[derive(Debug, Clone, Copy, Serialize)]
+struct Rect {
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
 }
 
 /// 一次调用的结果，含**成功与失败两种情形**——
@@ -146,22 +178,40 @@ fn main() {
         None
     };
     let decorations = has_flag(&args, "--decorations");
+
+    // ── S2: transparency is the variable under test ────────────────────────
+    //
+    // S1 hard-coded `transparent(true)` because that was the only way to see
+    // DWM material. S2 needs it as a SWITCH, because the whole question is
+    // whether a transparent window breaks CSS `backdrop-filter`.
+    //
+    // Default is OPAQUE (false): that is the configuration we actually intend
+    // to ship (material via DWM, no CSS blur). Pass --transparent to test the
+    // other side.
+    let transparent = has_flag(&args, "--transparent");
+
+    // ── S2: does the page exercise `backdrop-filter`? ──────────────────────
+    // Default false keeps S1's page byte-identical, so re-running S1 still
+    // reproduces its original numbers.
+    let blur = has_flag(&args, "--blur");
     let result_path: PathBuf = arg_value(&args, "--result")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("s1-result.json"));
 
     let run_id = format!(
-        "{}-{}-{}",
+        "{}-{}-{}-{}-{}",
         material,
         match dark {
             Some(true) => "dark",
             Some(false) => "light",
             None => "auto",
         },
-        if decorations { "deco" } else { "bare" }
+        if decorations { "deco" } else { "bare" },
+        if transparent { "trans" } else { "opaque" },
+        if blur { "blur" } else { "noblur" }
     );
 
-    let html = build_html(&run_id, &material, dark, decorations);
+    let html = build_html(&run_id, &material, dark, decorations, transparent, blur);
     let html_dir = result_path
         .parent()
         .map(|p| p.join(format!("page-{run_id}")))
@@ -184,6 +234,15 @@ fn main() {
         enable_transparency: read_theme_dword("EnableTransparency"),
         os_build: os_build(),
         apply_delay_ms: APPLY_DELAY_MS,
+        transparent,
+        blur,
+        card_rect: Rect { x: CARD_X, y: CARD_Y, w: CARD_W, h: CARD_H },
+        control_rect: Rect {
+            x: CARD_X + CARD_W + 40.0,
+            y: CARD_Y,
+            w: CARD_W,
+            h: CARD_H,
+        },
     };
 
     let title = format!("S1 | {run_id}");
@@ -201,15 +260,19 @@ fn main() {
             .inner_size(1100.0, 760.0)
             .position(120.0, 90.0)
             .decorations(decorations)
-            // ⚠️ **`transparent(true)` 是材质能不能看见的关键。**
+            // ⚠️ **`transparent(true)` 是材质能不能看见的关键（S1 结论）。**
             //
-            // 第一轮矩阵的像素分析显示：所有格子（含对照组）窗口内部
+            // S1 第一轮矩阵的像素分析显示：所有格子（含对照组）窗口内部
             // 都是纯白、标准差 0，且 `apply_mica` 那格与"完全不调材质"的对照组
             // 数值一模一样。也就是说 apply_* 都返回 Ok，但**没有任何可见效果**。
             //
             // 原因：WebView2 默认以不透明背景填充窗口，把 DWM 材质整个盖住。
             // 材质改的是**窗口**属性，而窗口被一层不透明内容填满 → 看不见。
-            .transparent(true)
+            //
+            // S2 把它变成**开关**：不透明才是我们要发货的形态（材质走 DWM、
+            // 界面零 CSS 模糊）。透明那一侧是用来验"透明会不会破坏
+            // backdrop-filter"的。
+            .transparent(transparent)
             .build()?;
 
             // ── 延迟后在后台线程里应用材质 ─────────────────────────────
@@ -325,12 +388,112 @@ fn main() {
 ///    材质生效时这里透出桌面（像素方差高），失效时是死色（方差低）。
 /// 4. **亮度阶梯条** —— 让"材质到底有没有改变背景亮度"变成可测的量，
 ///    而不是靠肉眼说"看起来差不多"。
-fn build_html(run_id: &str, material: &str, dark: Option<bool>, decorations: bool) -> String {
+fn build_html(
+    run_id: &str,
+    material: &str,
+    dark: Option<bool>,
+    decorations: bool,
+    transparent: bool,
+    blur: bool,
+) -> String {
     let mode = match dark {
         Some(true) => "dark=true",
         Some(false) => "dark=false",
         None => "dark=未指定",
     };
+
+    // ── S2: the blur test page ────────────────────────────────────────────
+    //
+    // WHY A CHECKERBOARD: the question is not "does it look glassy" but
+    // "did `backdrop-filter` actually blur anything". A high-frequency
+    // checkerboard makes that answerable by pixels: blur provably smooths it,
+    // and a non-blurred control region right next to it keeps its contrast.
+    //
+    // WHY A SOLID-RED PROBE: red survives every material blend nearly
+    // untouched, so reading the checkerboard's red channel inside the card
+    // still tells us whether it was smoothed. (S1 learned this the hard way:
+    // checking saturation alone made every channel look washed out.)
+    //
+    // CARD GEOMETRY IS EMITTED IN THE RESULT JSON (see CARD_* below), so the
+    // analysis script never has to guess where the card is.
+    if blur {
+        return format!(
+            r#"<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<style>
+  /* Transparent page background: this is what makes the window's own
+     transparency (and therefore the S2 question) meaningful. */
+  html,body {{ margin:0; height:100%; background:transparent; overflow:hidden;
+    font: 13px/1.6 "Microsoft YaHei UI","Noto Sans SC",system-ui,sans-serif;
+    color:#101014; }}
+
+  /* High-frequency checkerboard. BLUR PROVABLY SMOOTHS THIS.
+     Deliberately pure BLACK / WHITE, and the metric is LUMINANCE.
+
+     Two earlier attempts and why they were abandoned:
+       1. two overlapping 45-degree red gradients -> rendered white/near-black
+       2. explicit red/black gradients            -> still rendered white/near-black
+     Red simply does not survive to the screenshot in this WebView. Rather than
+     keep guessing why, the pattern now asserts ONLY what is actually measured:
+     sharp black/white edges, which blur provably softens. A test page must not
+     claim a colour it does not render -- that is how a measurement ends up
+     disagreeing with reality while the report still says "pass". */
+  .checker {{
+    position:fixed; inset:0; background-color:#000000;
+    background-image: repeating-conic-gradient(#ffffff 0% 25%, #000000 0% 50%);
+    background-size: 16px 16px;
+  }}
+
+  /* The card under test. Mostly empty on purpose: the interior must stay a
+     clean checkerboard sample so the measurement is not polluted by text. */
+  .card {{
+    position: fixed;
+    left: {card_x}px; top: {card_y}px;
+    width: {card_w}px; height: {card_h}px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.35);
+    background: rgba(255,255,255,0.06);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(160%);
+  }}
+
+  /* A second card WITHOUT backdrop-filter, same size and colour.
+     This is the control: if BOTH look smoothed, then something other than
+     `backdrop-filter` is doing it, and the measurement is invalid. */
+  .card-control {{
+    position: fixed;
+    left: {ctrl_x}px; top: {card_y}px;
+    width: {card_w}px; height: {card_h}px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.35);
+    background: rgba(255,255,255,0.06);
+  }}
+
+  .label {{
+    position: fixed; left: {card_x}px; top: {label_y}px;
+    font-size: 12px; font-weight: 700; color:#ffffff;
+    text-shadow: 0 1px 4px #000;
+    background: rgba(0,0,0,0.55); padding: 3px 8px; border-radius: 6px;
+  }}
+  .hud {{ position:fixed; right:14px; top:14px; font-size:11px; color:#fff;
+          background:rgba(0,0,0,0.6); padding:6px 10px; border-radius:6px;
+          font-family:Consolas,monospace; }}
+</style></head><body>
+<div class="checker"></div>
+<div class="card" id="card"></div>
+<div class="card-control" id="card-control"></div>
+<div class="label">backdrop-filter: blur(24px) &nbsp;|&nbsp; run {run_id}</div>
+<div class="hud">material={material} &middot; {mode} &middot; transparent={transparent} &middot; blur={blur}</div>
+</body></html>"#,
+            card_x = CARD_X,
+            card_y = CARD_Y,
+            card_w = CARD_W,
+            card_h = CARD_H,
+            ctrl_x = CARD_X + CARD_W + 40.0,
+            label_y = CARD_Y + CARD_H + 10.0,
+        );
+    }
+
+    // ── S1's original page (unchanged when --blur is absent) ──────────────
     format!(
         r#"<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <style>
