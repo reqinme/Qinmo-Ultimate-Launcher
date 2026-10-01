@@ -18,4 +18,5 @@ pub mod java;
 pub mod logging;
 pub mod process;
 pub mod store;
+pub mod winhttp;
 pub mod zip;

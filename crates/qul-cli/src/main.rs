@@ -22,6 +22,7 @@
 //! 却要承担一条新依赖及其许可审查。等到子命令真的多起来再换。
 
 mod compare_launch;
+mod download_probe;
 mod i18n_demo;
 mod instance_demo;
 mod java_plan;
@@ -41,6 +42,7 @@ fn main() {
         Some("scrub-demo") => std::process::exit(scrub_demo::run_scrub_demo()),
         Some("i18n-demo") => std::process::exit(i18n_demo::run_i18n_demo()),
         Some("instance-demo") => std::process::exit(instance_demo::run_instance_demo()),
+        Some("download-probe") => std::process::exit(download_probe::run_download_probe()),
         Some("launch-chain") => {
             let pos: Vec<String> = args
                 .iter()
