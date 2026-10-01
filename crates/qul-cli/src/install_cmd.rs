@@ -174,6 +174,8 @@ pub struct InstallArgs {
     pub data_root: Option<PathBuf>,
     pub offline: bool,
     pub with_assets: bool,
+    /// **从一份已有的安装里迁移**（官方那份 `.minecraft` 是最常见的来源）
+    pub migrate_from: Option<PathBuf>,
     pub verbose: bool,
 }
 
@@ -361,6 +363,7 @@ pub fn run_install(args: &InstallArgs) -> i32 {
     let cfg = qul_infra::install::InstallConfig {
         offline_only: args.offline,
         include_assets: args.with_assets,
+        migrate_from: args.migrate_from.clone(),
         ..Default::default()
     };
     let sink = CliSink::new(args.verbose);
@@ -400,6 +403,12 @@ pub fn run_install(args: &InstallArgs) -> i32 {
     println!("  需要   : {} 个文件", inv.needs.len());
     println!("  已有   : {} 个（**sha1 全部核对过**）", inv.present);
     println!("  新下   : {} 个", out.downloaded);
+    if out.migrated > 0 {
+        println!(
+            "  **迁移** : {} 个（从已有安装搬的，**每一个都过了 SHA-1**）",
+            out.migrated
+        );
+    }
     println!("  解压   : {} 个 natives 文件", out.extracted);
     println!(
         "  缺口   : {} 个文件 / {} 字节",

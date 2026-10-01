@@ -52,6 +52,7 @@ fn main() {
             let mut offline = false;
             let mut with_assets = false;
             let mut verbose = false;
+            let mut migrate_from = None;
             // 参数是**全部** args 减掉第一个（子命令名），而不是一个叫 `rest` 的变量 ——
             // 那个名字是我凭想象写的，而它不存在。
             let mut it = args.iter().skip(1);
@@ -61,6 +62,7 @@ fn main() {
                     "--with-assets" => with_assets = true,
                     "--verbose" | "-v" => verbose = true,
                     "--dir" => data_root = it.next().map(std::path::PathBuf::from),
+                    "--from" => migrate_from = it.next().map(std::path::PathBuf::from),
                     other if other.starts_with('-') => {
                         println!("不认识的选项：{other}");
                         std::process::exit(2);
@@ -73,6 +75,7 @@ fn main() {
                 data_root,
                 offline,
                 with_assets,
+                migrate_from,
                 verbose,
             }));
         }

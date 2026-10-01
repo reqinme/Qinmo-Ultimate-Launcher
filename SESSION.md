@@ -1,5 +1,58 @@
-# 上次收工：M3 的第 ⑤ 阶段走到了**资源加载**，而 natives 的两个真 bug 已修好
+# 上次收工：🎉 **M3 达成了** —— 游戏到了主菜单（`Setting user: qinme` · 音频引擎起来了 · 贴图集建好了）
 
+## 上次做到哪（本轮之后）
+
+# 🎉 **M3 达成** —— 方案 §8 的 M3 出口条件是
+# 「CLI 能完成一次真实安装 → 部署 → 启动全链路」，**它闭合了**。
+
+## 而证据是游戏自己写的日志
+
+```
+[02:01:40] [Render thread/INFO]: Environment: Environment[… name=PROD]
+[02:01:40] [Render thread/INFO]: Setting user: qinme          ← **离线身份生效**
+[02:01:40] [Render thread/INFO]: Backend library: LWJGL version 3.4.3+4
+[02:01:41] [Render thread/INFO]: Reloading ResourceManager: vanilla, vanilla
+[02:01:43] [Render thread/INFO]: OpenAL initialized on device OpenAL Soft on 扬声器
+[02:01:43] [Render thread/INFO]: Sound engine started
+[02:01:43] [Render thread/INFO]: Created: 2048x2048x4 minecraft:textures/atlas/blocks.png-atlas
+```
+
+**进程活着 10 分钟以上**（内存 1028 MB / CPU 95.7 s），而不是前两次的 1.3 秒崩溃。
+
+### 全链路的三个数字
+
+| 环节 | 实测 |
+|---|---|
+| 真实安装（联网） | **76 文件 / 129.8 MB / 145.7 s / 缺口 0** |
+| 资产迁移（**离线，零联网**） | **5147 个对象 / 461.4 MB / 62.9 s / 每个都过 SHA-1** |
+| 启动 | **到主菜单**（`Setting user` + 音频 + 贴图集） |
+
+## 本轮修掉的四个真 bug
+
+| # | bug | 症状 |
+|---|---|---|
+| ① | `inventory()` 内部**写死了不带资产的 `required_files`** | 索引解析出 **5147 个对象**，而流水线说**需要 76 个** —— 于是"0 缺口"那句话是**错的** |
+| ② | 迁移被放在 `offline_only` **之后** | `--offline --from <官方目录>` **一个文件都没搬** |
+| ③ | `cwd` 用的是 `resolved.cwd`（**从没被设过**） | 游戏在**仓库根**跑，`logs/` 写到那里，而 `git add -A` 把它提交了 |
+| ④ | `--from` 被插进了 **`launch` 子命令** | 编译错误（而它是我的替换打偏了） |
+
+## ⚠️ 而 ③ 的验证**还没做**
+
+我把它改成 `cwd: Some(game_dir.display().to_string())` 了，而**没有再跑一次游戏确认
+`logs/` 落在实例里**。所以它有**编译保证**，没有**实测保证** —— 下一轮要补。
+
+## 一条**纠正**：我之前那个"5147 个逻辑名里有重复哈希"是**错的**
+
+实测：**5147 个逻辑名 = 5147 个不同哈希，去重掉 0 个**。
+去重逻辑仍然正确且必要（协议允许共享，代价一次 `BTreeMap` 插入），
+**但它在这个版本上是空转的** —— 而我上一轮把它写成了实测结论。
+代码注释与文档都已改正。
+
+## 下一步：M3 ✅ → **M4 的门禁五项**
+
+M3 已达成，所以按 §8 的关键路径，下一站是 **M4（界面主干）**，
+而它开工前需要**门禁五项齐备**。要做的第一件事是**核对那五项的门禁现状**，
+以及 **M1 剩余的两项**（Tauri 安全基线 + 前端命令层门禁 —— 它们硬依赖 M4 的前端）。
 ## 上次做到哪（本轮之后）
 
 - **`qul launch` 出现了**，而它**真的把游戏拉起来了** —— 退出码与日志都拿到了
@@ -48,6 +101,59 @@
 - **⚠️ 我差点加一条"跳过 natives-*-arm64"的规则来"修"它** ——
   而那条规则会让那 10 个 jar **下载不下来**，官方却下载了它们。
   依据是一个**我没有验证的猜测**（"官方没下"），而验证它只需要**一条目录列举**。
+## 上次做到哪（本轮之后）
+
+# 🎉 **M3 达成** —— 方案 §8 的 M3 出口条件是
+# 「CLI 能完成一次真实安装 → 部署 → 启动全链路」，**它闭合了**。
+
+## 而证据是游戏自己写的日志
+
+```
+[02:01:40] [Render thread/INFO]: Environment: Environment[… name=PROD]
+[02:01:40] [Render thread/INFO]: Setting user: qinme          ← **离线身份生效**
+[02:01:40] [Render thread/INFO]: Backend library: LWJGL version 3.4.3+4
+[02:01:41] [Render thread/INFO]: Reloading ResourceManager: vanilla, vanilla
+[02:01:43] [Render thread/INFO]: OpenAL initialized on device OpenAL Soft on 扬声器
+[02:01:43] [Render thread/INFO]: Sound engine started
+[02:01:43] [Render thread/INFO]: Created: 2048x2048x4 minecraft:textures/atlas/blocks.png-atlas
+```
+
+**进程活着 10 分钟以上**（内存 1028 MB / CPU 95.7 s），而不是前两次的 1.3 秒崩溃。
+
+### 全链路的三个数字
+
+| 环节 | 实测 |
+|---|---|
+| 真实安装（联网） | **76 文件 / 129.8 MB / 145.7 s / 缺口 0** |
+| 资产迁移（**离线，零联网**） | **5147 个对象 / 461.4 MB / 62.9 s / 每个都过 SHA-1** |
+| 启动 | **到主菜单**（`Setting user` + 音频 + 贴图集） |
+
+## 本轮修掉的四个真 bug
+
+| # | bug | 症状 |
+|---|---|---|
+| ① | `inventory()` 内部**写死了不带资产的 `required_files`** | 索引解析出 **5147 个对象**，而流水线说**需要 76 个** —— 于是"0 缺口"那句话是**错的** |
+| ② | 迁移被放在 `offline_only` **之后** | `--offline --from <官方目录>` **一个文件都没搬** |
+| ③ | `cwd` 用的是 `resolved.cwd`（**从没被设过**） | 游戏在**仓库根**跑，`logs/` 写到那里，而 `git add -A` 把它提交了 |
+| ④ | `--from` 被插进了 **`launch` 子命令** | 编译错误（而它是我的替换打偏了） |
+
+## ⚠️ 而 ③ 的验证**还没做**
+
+我把它改成 `cwd: Some(game_dir.display().to_string())` 了，而**没有再跑一次游戏确认
+`logs/` 落在实例里**。所以它有**编译保证**，没有**实测保证** —— 下一轮要补。
+
+## 一条**纠正**：我之前那个"5147 个逻辑名里有重复哈希"是**错的**
+
+实测：**5147 个逻辑名 = 5147 个不同哈希，去重掉 0 个**。
+去重逻辑仍然正确且必要（协议允许共享，代价一次 `BTreeMap` 插入），
+**但它在这个版本上是空转的** —— 而我上一轮把它写成了实测结论。
+代码注释与文档都已改正。
+
+## 下一步：M3 ✅ → **M4 的门禁五项**
+
+M3 已达成，所以按 §8 的关键路径，下一站是 **M4（界面主干）**，
+而它开工前需要**门禁五项齐备**。要做的第一件事是**核对那五项的门禁现状**，
+以及 **M1 剩余的两项**（Tauri 安全基线 + 前端命令层门禁 —— 它们硬依赖 M4 的前端）。
 ## 上次做到哪（本轮之后）
 
 - **M3 的 `qul install` 真的跑通了** —— 从 `piston-meta.mojang.com` 装了

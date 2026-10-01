@@ -356,6 +356,60 @@ pub fn required_files_with_assets(
     Ok(deduped)
 }
 
+/// **从一份已有的安装里搬一个文件过来，并校验它。**
+///
+/// 返回 `true` 表示"搬成功且 sha1 通过"。
+///
+/// ## 三个候选位置，按优先级
+///
+/// | 位置 | 它是谁 |
+/// |---|---|
+/// | `<源>/<rel>` | **官方那份** —— `assets/objects/xx/hash` 与元数据里的 `path` 都直接对得上 |
+/// | `<源>/libraries/<rel>` | 有些布局把库放在 `libraries/` 下 |
+/// | `<源>/versions/...` | 客户端 jar |
+///
+/// ## 而"搬"是 `copy` 而不是 `rename`/硬链接
+///
+/// 因为**源目录是用户正在用的东西** —— 硬链接会让"我们删了它"变成
+/// "他的官方安装少了一个文件"，而那是**不该发生的耦合**。
+/// 代价是一次 461 MB 的复制，而那是磁盘 IO，不是网络。
+fn try_migrate(
+    src_root: &std::path::Path,
+    rel: &str,
+    want_sha1: &str,
+    dest: &std::path::Path,
+) -> bool {
+    let relp = rel.replace('/', std::path::MAIN_SEPARATOR_STR);
+    for cand in [src_root.join(&relp), src_root.join("libraries").join(&relp)] {
+        if !cand.is_file() {
+            continue;
+        }
+        // **先校验源文件** —— 校验不过就不搬（省一次复制）
+        if !matches!(crate::check::sha1_file(&cand), Ok(h) if h.eq_ignore_ascii_case(want_sha1)) {
+            continue;
+        }
+        if let Some(d) = dest.parent() {
+            if std::fs::create_dir_all(d).is_err() {
+                return false;
+            }
+        }
+        if std::fs::copy(&cand, dest).is_err() {
+            return false;
+        }
+        // **复制之后再校验一次目标** —— 因为复制可能被磁盘错误截断，
+        // 而"搬完了但内容不对"是最难查的那种坏。
+        //
+        // ⚠️ 这里必须是 `return`，而不是把 `matches!` 放在循环体末尾 ——
+        // 一个 `for` 循环的值是 `()`，而函数的返回类型是 `bool`。
+        // 编译器抓到了它，而那个错误的形状是"看起来像在返回一个判断"。
+        return matches!(
+            crate::check::sha1_file(dest),
+            Ok(h) if h.eq_ignore_ascii_case(want_sha1)
+        );
+    }
+    false
+}
+
 /// **从实例目录里读已经下好的资产索引。**
 ///
 /// ## 为什么是"读"而不是"取"
@@ -394,7 +448,35 @@ pub fn inventory(
     instance_root: &Path,
     cancel: &CancelToken,
 ) -> Result<Inventory, InstallError> {
-    let needs = required_files(d, env, version_id)?;
+    // 不带资产 —— 保留原签名给既有调用方（**11 处测试**）。
+    inventory_with_assets(
+        d,
+        env,
+        version_id,
+        instance_root,
+        cancel,
+        None,
+        DEFAULT_ASSET_BASE,
+    )
+}
+
+/// **带资产的盘点。**
+///
+/// ⚠️ 这个函数是必须的，因为**原来的 `inventory` 内部写死了 `required_files`**
+/// —— 于是 `install` 里那个"资产索引已经下好了"的路径**盘点不到任何资产**。
+///
+/// 实测它长这样：索引解析出 **5147 个对象**，而流水线说**需要 76 个文件**
+/// —— 而那 76 个里**一个资产都没有**。于是"装完了 0 缺口"那句话是**错的**。
+pub fn inventory_with_assets(
+    d: &Descriptor,
+    env: &Env,
+    version_id: &str,
+    instance_root: &Path,
+    cancel: &CancelToken,
+    assets: Option<&qul_core::assets::AssetIndex>,
+    asset_base_url: &str,
+) -> Result<Inventory, InstallError> {
+    let needs = required_files_with_assets(d, env, version_id, assets, asset_base_url)?;
     let mut present = 0usize;
     let mut missing: Vec<FileNeed> = Vec::new();
 
@@ -527,6 +609,22 @@ pub struct InstallConfig {
     /// 它是一个配置项而**不是纯常量**，因为镜像与代理要做得到 ——
     /// 而资产索引里**只有哈希，没有 URL**，所以那个主机只能由我们给。
     pub asset_base_url: Option<String>,
+    /// **从一份已有的安装里迁移文件**（`None` = 不迁移）。
+    ///
+    /// ## 它为什么存在
+    ///
+    /// 实测 `26.3` 的资产有 **5147 个对象 / 461.4 MB**。而**用户机器上多半
+    /// 已经有一份官方安装** —— 把那 461 MB 重新下一遍是**纯粹的浪费**，
+    /// 而且是"启动器最该省掉的那种浪费"。
+    ///
+    /// ## 而"迁移"不等于"信任"
+    ///
+    /// 从源目录搬过来的每一个文件**都要过同一个 SHA-1 校验**
+    ///（`Sha1Verifier`，与下载那条路完全一样）。校验不过就**回退到下载**。
+    ///
+    /// **这一点不可协商**：一个"搬过来就算数"的实现会让
+    /// "我装的是别的东西"变成"我装的东西坏了而这台机器上查不出来"。
+    pub migrate_from: Option<std::path::PathBuf>,
 }
 
 impl Default for InstallConfig {
@@ -538,6 +636,7 @@ impl Default for InstallConfig {
             extract: crate::zip::ExtractConfig::default(),
             include_assets: false,
             asset_base_url: None,
+            migrate_from: None,
         }
     }
 }
@@ -549,6 +648,8 @@ pub struct InstallOutcome {
     pub inventory: Inventory,
     /// 实际下载了几个文件
     pub downloaded: usize,
+    /// **从已有安装迁移过来的个数**（它们与下载的一样过了 SHA-1）
+    pub migrated: usize,
     /// 解压了几个 natives 包
     pub extracted: usize,
     /// 走到哪个阶段结束
@@ -584,17 +685,23 @@ pub fn install(
     // ── ① 解析 ──
     let t = std::time::Instant::now();
     sink.stage(Stage::Parse, &format!("解析 {version_id} 的元数据"));
-    // 资产：**只读本机已有的索引** —— 见 `load_asset_index` 的说明
-    //（索引自己也是一个要下载的文件，所以顺序不能反）。
+    let asset_base = cfg
+        .asset_base_url
+        .clone()
+        .unwrap_or_else(|| DEFAULT_ASSET_BASE.to_string());
+    // ⚠️ **必须在索引就位之后重读一次磁盘。**
+    //
+    // 第一次进来时索引可能还不存在（它自己也是一个要下载的文件），
+    // 于是 `assets` 是 `None`、盘点里一个资产都没有。所以这里**再读一次**
+    // —— 上面那段已经把索引下下来了（如果它之前不在）。
+    //
+    // 那个顺序是本模块的一个真实约束：**一轮的输入不该依赖这一轮的输出**。
+    // 所以做法是"下完再读"，而不是"读到才算需要"。
     let assets = if cfg.include_assets {
         load_asset_index(d, instance_root)
     } else {
         None
     };
-    let asset_base = cfg
-        .asset_base_url
-        .clone()
-        .unwrap_or_else(|| DEFAULT_ASSET_BASE.to_string());
     let needs = required_files_with_assets(d, env, version_id, assets.as_ref(), &asset_base)?;
     stage_ms.insert(Stage::Parse.key(), t.elapsed().as_millis() as u64);
     sink.stage(Stage::Parse, &format!("需要 {} 个文件", needs.len()));
@@ -607,6 +714,8 @@ pub fn install(
     // 交织之后，坏文件在它自己那一步就被发现并立刻重下。
     let t = std::time::Instant::now();
     let mut downloaded = 0usize;
+    // **从已有安装迁移过来的个数**（它们也过了 SHA-1）
+    let mut migrated = 0usize;
     let mut present = 0usize;
     let mut missing: Vec<FileNeed> = Vec::new();
 
@@ -627,11 +736,27 @@ pub fn install(
             continue;
         }
         missing.push(n.clone());
+
+        // ②a **先试试从已有的安装迁移**（而"迁移"也要过校验）
+        //
+        // ⚠️ **它在 `offline_only` 之前。** 迁移是**本地复制**，
+        // 不是联网 —— 所以"离线模式"不该把它挡掉。
+        // 第一版把它放在 `offline_only` 之后，于是
+        // `--offline --from <官方目录>` **一个文件都没搬**（实测）。
+        if let Some(src_root) = &cfg.migrate_from {
+            if try_migrate(src_root, &n.rel, &n.sha1, &p) {
+                migrated += 1;
+                sink.files(i + 1, needs.len(), &n.rel);
+                continue;
+            }
+        }
+
         if cfg.offline_only {
             continue;
         }
 
         // ② 下载
+
         if let Some(dir) = p.parent() {
             std::fs::create_dir_all(dir).map_err(|e| InstallError::Download {
                 rel: n.rel.clone(),
@@ -809,11 +934,20 @@ pub fn install(
     stage_ms.insert(Stage::Extract.key(), t.elapsed().as_millis() as u64);
 
     // 重新盘点一次作为**最终证据**（而不是复用循环里那个半成品状态）
-    let final_inv = inventory(d, env, version_id, instance_root, cancel)?;
+    let final_inv = inventory_with_assets(
+        d,
+        env,
+        version_id,
+        instance_root,
+        cancel,
+        assets.as_ref(),
+        &asset_base,
+    )?;
 
     Ok(InstallOutcome {
         inventory: final_inv,
         downloaded,
+        migrated,
         extracted,
         reached: Stage::Extract,
         stage_ms,

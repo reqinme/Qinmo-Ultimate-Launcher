@@ -519,7 +519,21 @@ pub fn run_launch(args: &LaunchArgs) -> i32 {
             program: resolved.program.clone(),
             args: vec!["-version".to_string()],
             env: resolved.env.clone(),
-            cwd: resolved.cwd.clone(),
+            // 🔴 **`cwd` 必须显式设成实例目录。**
+            //
+            // 第一版写的是 `resolved.cwd.clone()`，而 `LaunchPlan` **没有设过它**
+            // —— 于是进程继承了**我们自己的** cwd（仓库根）。
+            //
+            // 实测的症状：`logs/latest.log` 出现在**仓库根**，而不是实例里；
+            // 而 `git add -A` 把它提交了（**同一类坑第二次**）。
+            //
+            // 而它不只是"日志放错地方"：客户端还会在 cwd 里写 `crash-reports/`、
+            // `saves/`、`options.txt`、`resourcepacks/` —— **一个实例的全部用户数据**。
+            // 放在仓库根意味着"两个实例共用一份配置"，而那会让
+            // "我调好的按键怎么变了"变成一个无法回答的问题。
+            // ⚠️ `ResolvedCommand::cwd` 是 **`Option<String>`**，不是 `Option<PathBuf>`
+            // —— 我按 `PathBuf` 写了，编译器抓到了。
+            cwd: Some(game_dir.display().to_string()),
         }
     } else {
         println!();
