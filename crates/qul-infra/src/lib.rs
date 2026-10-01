@@ -15,3 +15,4 @@ pub mod instance;
 pub mod java;
 pub mod logging;
 pub mod store;
+pub mod zip;
