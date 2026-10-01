@@ -19,6 +19,7 @@
 #![forbid(unsafe_code)]
 
 pub mod caps;
+pub mod launch_plan;
 pub mod layout;
 
 pub mod crash;

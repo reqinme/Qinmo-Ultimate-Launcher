@@ -21,6 +21,7 @@
 //! **刻意手写参数解析**：现阶段引入 clap 只是为两条子命令，
 //! 却要承担一条新依赖及其许可审查。等到子命令真的多起来再换。
 
+mod compare_launch;
 mod i18n_demo;
 mod instance_demo;
 mod java_plan;
@@ -39,6 +40,17 @@ fn main() {
         Some("scrub-demo") => std::process::exit(scrub_demo::run_scrub_demo()),
         Some("i18n-demo") => std::process::exit(i18n_demo::run_i18n_demo()),
         Some("instance-demo") => std::process::exit(instance_demo::run_instance_demo()),
+        Some("compare-launch") => {
+            let pos: Vec<String> = args
+                .iter()
+                .skip(1)
+                .filter(|a| !a.starts_with("--"))
+                .cloned()
+                .collect();
+            std::process::exit(compare_launch::run_compare_launch(
+                pos.first().map(|s| s.as_str()),
+            ));
+        }
         Some("offline-demo") => {
             // 可选的位置参数：账户名（默认 `Steve`）。
             let pos: Vec<String> = args
