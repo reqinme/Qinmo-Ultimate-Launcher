@@ -1,0 +1,710 @@
+/**
+ * 基础组件的样式（M4 门禁第 ② 项）
+ * ============================================================================
+ *
+ * ## 🔴 三条纪律，逐条落在这里
+ *
+ * 1. **一个十六进制色值都没有**（§2 约束 4）。全部走语义令牌 ——
+ *    于是主题四态、材质三档、视觉强度两档**都只改令牌文件**。
+ * 2. **层次只用三样东西表达**：不透明度阶梯、描边、留白（§2 约束 3）。
+ *    **没有发光、没有渐变叠模糊、没有多层阴影**（约束 6）。
+ * 3. **六状态**：`:hover` / `:active` / `:focus-visible` 三个伪类，
+ *    加 `.X--disabled` / `.X--loading` 两个类（后两个来自 `VisualState`）。
+ */
+
+/* ==========================================================================
+ * 操作：Button / IconButton
+ * ======================================================================== */
+
+.btn {
+  --btn-bg: var(--surface-card);
+  --btn-fg: var(--text-primary);
+  --btn-border: var(--stroke-subtle);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  min-block-size: 32px;
+  border: var(--hairline) solid var(--btn-border);
+  border-radius: var(--radius-md);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font: inherit;
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--easing-standard),
+    border-color var(--duration-fast) var(--easing-standard);
+}
+
+/* 六状态之一：**悬停** */
+.btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+/* 六状态之二：**按下** */
+.btn:active:not(:disabled) {
+  background: var(--surface-active);
+}
+
+/* 六状态之三：**聚焦** —— 用令牌文件里那一条 `:focus-visible`。
+ * ⚠️ 但这里**额外**把描边也换上强调色：焦点环在 1px 描边之上时
+ * 只有环没有底色变化，在浅色主题下不够显眼。 */
+
+.btn--primary {
+  --btn-bg: var(--accent);
+  /* ⚠️ 强调色之上的文字走 `--text-on-accent`，**不是**随手一个白。
+   * 那个令牌是按对比度算出来的 —— 见 `tokens.css` 里那条规格矛盾的说明。 */
+  --btn-fg: var(--text-on-accent);
+  --btn-border: var(--accent);
+}
+.btn--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.btn--primary:active:not(:disabled) {
+  background: var(--accent-active);
+}
+
+.btn--secondary {
+  --btn-bg: var(--surface-card);
+}
+.btn--secondary:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.btn--danger {
+  --btn-bg: var(--state-danger);
+  --btn-fg: var(--white);
+  --btn-border: var(--state-danger);
+}
+.btn--danger:hover:not(:disabled) {
+  background: var(--state-danger-fg);
+}
+
+.btn--icon {
+  padding: 0;
+  inline-size: 32px;
+  min-inline-size: 32px;
+}
+
+/* 六状态之四：**禁用** —— 原生 `disabled` 同时也让它不可聚焦 */
+.btn:disabled {
+  background: var(--surface-disabled);
+  color: var(--text-disabled);
+  border-color: var(--stroke-subtle);
+  cursor: not-allowed;
+}
+
+/* 六状态之五：**加载** —— ⚠️ 可聚焦，所以选择器是 `[aria-busy]` 而不是 `:disabled` */
+.btn[aria-busy="true"] {
+  color: var(--text-secondary);
+  cursor: progress;
+}
+
+.spinner {
+  inline-size: 14px;
+  block-size: 14px;
+  border-radius: var(--radius-full);
+  /* 两段不同颜色的环 ⇒ 转起来能看出方向 */
+  border: 2px solid var(--stroke-strong);
+  border-block-start-color: var(--accent);
+  animation: spin 900ms linear infinite;
+  flex: none;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/**
+ * ⚠️ **减少动态时把转速降到 2.4 秒 —— 而不是 `animation: none`。**
+ *
+ * §5.4.3 的判据："**去掉它，用户就丢失或无法判断信息**" ⇒ 信息性 ⇒
+ * **永远存在**。而"这个按钮在忙"正是信息。所以这里让它**几乎不动**
+ * （看不出旋转，但环还在，且颜色分层还在），而不是取消它。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2400ms;
+  }
+}
+
+/* ==========================================================================
+ * 输入：TextField / SearchField / Select
+ * ======================================================================== */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.field__label {
+  font-size: var(--font-body-sm);
+  color: var(--text-secondary);
+}
+
+.field__label--sr {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.field__input {
+  padding: var(--space-2) var(--space-3);
+  min-block-size: 32px;
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  font: inherit;
+  transition: border-color var(--duration-fast) var(--easing-standard);
+}
+
+.field__input:hover:not(:disabled) {
+  border-color: var(--stroke-strong);
+}
+
+.field__input::placeholder {
+  color: var(--text-disabled);
+}
+
+.field__input:disabled {
+  background: var(--surface-disabled);
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.field--search {
+  position: relative;
+}
+
+.field__searchGlyph {
+  position: absolute;
+  inset-inline-start: var(--space-3);
+  inset-block-end: 10px;
+  inline-size: 12px;
+  block-size: 12px;
+  border: 2px solid var(--text-disabled);
+  border-radius: var(--radius-full);
+  pointer-events: none;
+}
+
+.field__input--search {
+  padding-inline-start: var(--space-7);
+}
+
+.field__hint {
+  margin: 0;
+  font-size: var(--font-caption);
+  color: var(--text-secondary);
+}
+
+.field__error {
+  margin: 0;
+  font-size: var(--font-caption);
+  color: var(--state-danger-fg);
+}
+
+.field--loading .field__input {
+  color: var(--text-secondary);
+}
+
+/* 下拉触发器：与输入框同形，但那是有意的（它们在同一行里并排） */
+.select__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  min-block-size: 32px;
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.select__trigger:hover:not(:disabled) {
+  border-color: var(--stroke-strong);
+}
+
+.select__trigger[aria-busy="true"] {
+  color: var(--text-secondary);
+}
+
+.select__chevron {
+  inline-size: 0;
+  block-size: 0;
+  border-inline-start: 4px solid var(--transparent);
+  border-inline-end: 4px solid var(--transparent);
+  border-block-start: 5px solid var(--text-secondary);
+}
+
+/* ⚠️ 浮层用 `--surface-raised`（**不透明**）—— 使用纪律 2：
+ * "浮层用不透明色，它浮在最高层，必须与背景明确分离"。 */
+.select__content,
+.popover {
+  background: var(--surface-raised);
+  border: var(--hairline) solid var(--stroke-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elev-2);
+  padding: var(--space-1);
+  z-index: var(--z-overlay);
+}
+
+.select__item {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  outline: none;
+}
+
+.select__item[data-highlighted] {
+  background: var(--surface-hover);
+}
+
+.select__item[data-state="checked"] {
+  background: var(--surface-selected);
+}
+
+.popover__arrow {
+  fill: var(--surface-raised);
+}
+
+/* ==========================================================================
+ * 选择：Checkbox / Radio / Switch
+ * ======================================================================== */
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.choice__label {
+  font-size: var(--font-body);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.choice__box,
+.choice__radio {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 16px;
+  block-size: 16px;
+  border: var(--hairline) solid var(--stroke-strong);
+  background: var(--surface-panel);
+  flex: none;
+  cursor: pointer;
+}
+
+.choice__box {
+  border-radius: var(--radius-sm);
+}
+
+.choice__radio {
+  border-radius: var(--radius-full);
+}
+
+.choice__box:hover:not(:disabled),
+.choice__radio:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.choice__box[data-state="checked"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent);
+  font-size: var(--font-caption);
+  line-height: 1;
+}
+
+.choice__radio[data-state="checked"] {
+  border-color: var(--accent);
+}
+
+.choice__dot {
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+.choice--disabled .choice__label,
+.choice__box:disabled + .choice__label,
+.choice__radio:disabled + .choice__label {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.choice__box:disabled,
+.choice__radio:disabled {
+  background: var(--surface-disabled);
+  border-color: var(--stroke-subtle);
+  cursor: not-allowed;
+}
+
+.switch {
+  position: relative;
+  inline-size: 36px;
+  block-size: 20px;
+  border-radius: var(--radius-full);
+  border: var(--hairline) solid var(--stroke-subtle);
+  background: var(--surface-active);
+  cursor: pointer;
+  flex: none;
+  padding: 0;
+  transition: background var(--duration-fast) var(--easing-standard);
+}
+
+.switch[data-state="checked"] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.switch:disabled {
+  background: var(--surface-disabled);
+  cursor: not-allowed;
+}
+
+.switch__thumb {
+  display: block;
+  inline-size: 14px;
+  block-size: 14px;
+  border-radius: var(--radius-full);
+  background: var(--white);
+  /* ⚠️ 只用 `transform`（§4.4 纪律）—— 不用 `left`，那会触发重排。 */
+  transform: translateX(3px);
+  transition: transform var(--duration-base) var(--easing-standard);
+}
+
+.switch[data-state="checked"] .switch__thumb {
+  transform: translateX(19px);
+}
+
+.fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.fieldset__legend {
+  padding: 0;
+  margin-block-end: var(--space-2);
+  font-size: var(--font-body-sm);
+  color: var(--text-secondary);
+}
+
+.choiceGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* ==========================================================================
+ * 容器：Panel / Card
+ * ======================================================================== */
+
+.panel {
+  padding: var(--space-4);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-lg);
+  /* 面板是**最底层**的容器 ⇒ `surface.panel`，且**没有阴影**（`elev.0`）。 */
+  background: var(--surface-panel);
+}
+
+.panel__title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-title-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.card {
+  padding: var(--space-3);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-md);
+  /* 卡片比面板**离背景远一档** ⇒ `surface.card`。 */
+  background: var(--surface-card);
+}
+
+/* ==========================================================================
+ * 浮层：Dialog / Popover / Tooltip / Toast
+ * ======================================================================== */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-scrim);
+  z-index: var(--z-overlay);
+}
+
+.dialog {
+  position: fixed;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  transform: translate(-50%, -50%);
+  z-index: var(--z-modal);
+  inline-size: min(480px, calc(100vw - var(--space-8)));
+  padding: var(--space-5);
+  background: var(--surface-raised);
+  border: var(--hairline) solid var(--stroke-strong);
+  border-radius: var(--radius-xl);
+  /* **单层** `elev.3` —— 约束 6 禁多层阴影叠加。 */
+  box-shadow: var(--elev-3);
+}
+
+.dialog__title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-title-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.dialog__desc {
+  margin: 0 0 var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--font-body-sm);
+}
+
+.dialog__body {
+  margin-block-end: var(--space-4);
+}
+
+.tooltip {
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface-raised);
+  border: var(--hairline) solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--elev-1);
+  font-size: var(--font-caption);
+  color: var(--text-primary);
+  z-index: var(--z-toast);
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elev-2);
+  /* ⚠️ 语气色**成对**使用（背景 `-bg` + 文字 `-fg`）——
+   * 一个"背景用了就用默认文字"的实现正是 §5.1 禁止的那种。 */
+  background: var(--state-info-bg);
+  color: var(--state-info-fg);
+}
+
+.toast--success {
+  background: var(--state-success-bg);
+  color: var(--state-success-fg);
+}
+.toast--warning {
+  background: var(--state-warning-bg);
+  color: var(--state-warning-fg);
+}
+.toast--danger {
+  background: var(--state-danger-bg);
+  color: var(--state-danger-fg);
+}
+
+.toast__body {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.toast__title {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+}
+
+.toast__detail {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-body-sm);
+  opacity: 0.85;
+}
+
+.toast__close {
+  flex: none;
+}
+
+/* ==========================================================================
+ * 反馈：Progress / RingProgress / EmptyState
+ * ======================================================================== */
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.progress__label {
+  margin: 0;
+  font-size: var(--font-body-sm);
+  color: var(--text-secondary);
+}
+
+.progress__track {
+  block-size: 4px;
+  border-radius: var(--radius-full);
+  background: var(--surface-active);
+  overflow: hidden;
+}
+
+.progress__fill {
+  block-size: 100%;
+  background: var(--accent);
+  /* 用 `--intensity-motion-progress-ease`（**表现层令牌**）——
+   * 纪律 1："组件只准用表现层令牌，不许内联写动效参数"。 */
+  transition: inline-size var(--duration-slow) var(--intensity-motion-progress-ease);
+}
+
+/**
+ * **不确定进度**：一条来回走的条。
+ *
+ * ⚠️ 它**必须与"0%"看起来不同** —— 一个把 null 当 0 的实现会让
+ * 正在探测的进度条**看起来像卡住了**，而那正是用户等待时最会误解的。
+ */
+.progress__track--indeterminate .progress__fill {
+  inline-size: 30%;
+  animation: indeterminate 1400ms var(--easing-standard) infinite;
+}
+
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(340%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress__track--indeterminate .progress__fill {
+    /* 仍然是动的（信息性），但**慢很多** —— 见 `.spinner` 那段说明。 */
+    animation-duration: 3600ms;
+  }
+}
+
+.ring {
+  inline-size: 44px;
+  block-size: 44px;
+  border-radius: var(--radius-full);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.ring__hole {
+  inline-size: 34px;
+  block-size: 34px;
+  border-radius: var(--radius-full);
+  background: var(--material-backdrop);
+  display: grid;
+  place-items: center;
+}
+
+.ring__text {
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-7) var(--space-4);
+  border: var(--hairline) dashed var(--stroke-subtle);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.empty__title {
+  margin: 0;
+  font-size: var(--font-title-sm);
+  color: var(--text-primary);
+}
+
+.empty__detail {
+  margin: 0;
+  max-inline-size: 46ch;
+  color: var(--text-secondary);
+  font-size: var(--font-body-sm);
+}
+
+.empty__action {
+  margin-block-start: var(--space-2);
+}
+
+/* ==========================================================================
+ * 布局：Tabs / Sidebar
+ * ======================================================================== */
+
+.tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tabs__list {
+  display: flex;
+  gap: var(--space-1);
+  border-block-end: var(--hairline) solid var(--stroke-subtle);
+}
+
+.tabs__trigger {
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  /* 选中态用一条**底部描边**，而不是一个实心背景 ——
+   * 标签是"当前位置"，与侧栏项同理（见 `Shell.css`）。 */
+  border-block-end: 2px solid var(--transparent);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tabs__trigger:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.tabs__trigger[data-state="active"] {
+  color: var(--text-primary);
+  border-block-end-color: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+.tabs__content {
+  outline: none;
+}
+
+/* ==========================================================================
+ * 骨架占位（`○` 那 9 个里也先给一个最小可用版，因为空态与它成对出现）
+ * ======================================================================== */
+
+.skeleton {
+  border-radius: var(--radius-sm);
+  background: var(--surface-active);
+  min-block-size: 1em;
+}

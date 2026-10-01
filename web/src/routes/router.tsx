@@ -33,6 +33,7 @@ import { Shell } from "./Shell.tsx";
 import { PagePlaceholder } from "./PagePlaceholder.tsx";
 import { CapabilitiesPage } from "./CapabilitiesPage.tsx";
 import { CapabilitiesQueryPage } from "./CapabilitiesQueryPage.tsx";
+import { ComponentsPage } from "./ComponentsPage.tsx";
 
 /** 根路由：外壳（侧栏 + 顶栏 + 内容区）。 */
 const rootRoute = createRootRoute({
@@ -125,6 +126,17 @@ const capabilitiesRoute = createRoute({
 });
 
 /**
+ * **门禁② 的自验页**：20 个基础组件 × 六状态。
+ *
+ * ⚠️ 它也**不在侧栏里** —— 它是给人眼验伪类状态用的自检口。
+ */
+const componentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/__components",
+  component: ComponentsPage,
+});
+
+/**
  * **门禁④ 的贯通示例。**
  *
  * 它走完整条链：`api/index.ts` 的边界层 → `api/query.ts` 的键与缓存 →
@@ -167,6 +179,7 @@ const routeTree = rootRoute.addChildren([
   aboutRoute,
   capabilitiesRoute,
   capabilitiesQueryRoute,
+  componentsRoute,
 ]);
 
 export const router = createRouter({

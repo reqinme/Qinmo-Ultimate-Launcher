@@ -27,6 +27,8 @@
 
 // ⚠️ 这些是**真实**的实现，只是从 Node 的 realm 取。
 import { TextDecoder, TextEncoder } from "node:util";
+import { afterEach } from "vitest";
+import { cleanup } from "@testing-library/react";
 
 const g = globalThis as unknown as Record<string, unknown>;
 
@@ -53,3 +55,35 @@ for (const name of ["Request", "Response", "Headers", "fetch"] as const) {
     }
   }
 }
+
+/* ============================================================================
+ * 🔴 **显式清理 DOM —— 因为 `globals: false`**
+ * ============================================================================
+ *
+ * ## 症状（而它极难从失败信息里看出来）
+ *
+ * 「对话框：它没打开时内容不在 DOM 里」这条测试**单跑通过、全量失败**，
+ * 而错误是 `expected <span></span> to be null`。
+ *
+ * ## 真因
+ *
+ * `@testing-library/react` 的自动清理**注册在一个全局 `afterEach` 上**，
+ * 而只有当 `globals: true` 时它才会自己注册。我们把 `globals` 设成了 `false`
+ *（那是刻意的：显式 import 让每个测试文件的依赖自洽）——
+ * **于是 DOM 从不清空**，前面测试渲染的对话框**留在了文档里**。
+ *
+ * ## 为什么必须显式清理，而不是"把 globals 打开"
+ *
+ * 打开 `globals` 会修好这一条，而它同时会把 `describe` / `it` / `expect`
+ * 注入全局 —— 那正是我们刻意不要的东西。
+ * **一个显式的 `afterEach(cleanup)` 只解决它，不动别的东西。**
+ *
+ * ## 而这一类 bug 的教训值得单独说
+ *
+ * **"单跑通过、全量失败"几乎总是共享状态** —— 而这里共享的是 `document`。
+ * 一个只在全量下出现的失败如果被当成 flake 重试掉，它就永远不会被找到
+ *（见 `SESSION.md` 里那次"瞬时失败"的记录）。
+ */
+afterEach(() => {
+  cleanup();
+});
