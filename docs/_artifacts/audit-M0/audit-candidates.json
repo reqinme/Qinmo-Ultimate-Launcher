@@ -1,0 +1,250 @@
+﻿{
+    "generated_at":  "2026-10-01T22:40:49",
+    "note":  "CANDIDATE LIST, not a verdict. Task-book checks 1-2 need semantic judgement; this script cannot supply it.",
+    "files_scanned":  20,
+    "section_refs_defined":  179,
+    "dangling_refs":  [
+                          "13.1",
+                          "13.2",
+                          "13.3",
+                          "13.4",
+                          "13.5",
+                          "13.6",
+                          "13.7",
+                          "13.8",
+                          "13.9",
+                          "6.5"
+                      ],
+    "promise_candidates":  [
+                               {
+                                   "file":  "docs\\M0-尖刺任务书.md",
+                                   "line":  839,
+                                   "kind":  "left undecided",
+                                   "text":  "| 3 | **悬空承诺**：搜\"待 M0 实测\"\"待定\"\"见某文档\"之类，**逐条核对应落点是否真实存在** |"
+                               },
+                               {
+                                   "file":  "docs\\MultiMC-源码调研.md",
+                                   "line":  267,
+                                   "kind":  "explicit TODO",
+                                   "text":  "`// TODO: check if the file has the expected checksum`"
+                               },
+                               {
+                                   "file":  "docs\\MultiMC-源码调研.md",
+                                   "line":  282,
+                                   "kind":  "explicit TODO",
+                                   "text":  "`// DEPRECATED: explicit numeric order values, used for loading old non-component config. "
+                               },
+                               {
+                                   "file":  "docs\\MultiMC-源码调研.md",
+                                   "line":  350,
+                                   "kind":  "explicit TODO",
+                                   "text":  "| **元数据文件不做校验** | `BaseEntity.cpp:88` TODO；元数据是信任根，不校验是逻辑漏洞 |"
+                               },
+                               {
+                                   "file":  "docs\\MultiMC-源码调研.md",
+                                   "line":  352,
+                                   "kind":  "explicit TODO",
+                                   "text":  "| **数值型 `m_order` 排序残留** | 上游自己标了 DEPRECATED 与 TODO；我们用显式组件数组顺序即可 |"
+                               },
+                               {
+                                   "file":  "docs\\UI设计规格.md",
+                                   "line":  11,
+                                   "kind":  "left undecided",
+                                   "text":  "| **v2.0** | **界面稿的文案纪律：禁止编造氛围文案**（用户抓错）——**① 起因**：用户问\"**营火已经点好了是什么意思？我好像没有说要加这个**\"。这句**是参"
+                               },
+                               {
+                                   "file":  "docs\\UI设计规格.md",
+                                   "line":  513,
+                                   "kind":  "left undecided",
+                                   "text":  "| 3 | **必须编的地方，显式标成 `〈待定文案〉`**，让用户一眼看出这是占位而不是设计 |"
+                               },
+                               {
+                                   "file":  "docs\\下载引擎设计规格.md",
+                                   "line":  325,
+                                   "kind":  "left undecided",
+                                   "text":  "| 1 | \"并发下载，默认并发数待定\" | **自适应爬坡，初值 4、上限 64、2s 一评** | 实测链路波动 27%，固定值无意义（NexBox 实证） |"
+                               },
+                               {
+                                   "file":  "docs\\代码调研笔记.md",
+                                   "line":  141,
+                                   "kind":  "explicit TODO",
+                                   "text":  "| 旧格式迁移 | `Component.h:79-81` 注释：*\"DEPRECATED: explicit numeric order values, used for loa"
+                               },
+                               {
+                                   "file":  "docs\\代码调研笔记.md",
+                                   "line":  478,
+                                   "kind":  "explicit TODO",
+                                   "text":  "| **元数据文件自身不校验** | MultiMC `BaseEntity.cpp:88` TODO | 它是所有校验的**信任根** |"
+                               },
+                               {
+                                   "file":  "docs\\代码调研笔记.md",
+                                   "line":  628,
+                                   "kind":  "says it will be filled in later",
+                                   "text":  "### 8.5 待补（五个子调研回来后再最终核对）"
+                               },
+                               {
+                                   "file":  "docs\\可直接用的资产清单.md",
+                                   "line":  153,
+                                   "kind":  "says it will be filled in later",
+                                   "text":  "| 待补 | 子调研正在取**完整字段表** |"
+                               },
+                               {
+                                   "file":  "docs\\可直接用的资产清单.md",
+                                   "line":  315,
+                                   "kind":  "explicit TODO",
+                                   "text":  "**⚠️ 缺口**：`BaseEntity.cpp:88` 的 TODO 表明**元数据文件自身不校验**——而它是所有校验的信任根。**我们要补。**"
+                               },
+                               {
+                                   "file":  "docs\\方案-重新立意版.md",
+                                   "line":  103,
+                                   "kind":  "left undecided",
+                                   "text":  "- 状态：已定 / 待定 / 已废弃"
+                               },
+                               {
+                                   "file":  "docs\\方案-重新立意版.md",
+                                   "line":  1121,
+                                   "kind":  "left undecided",
+                                   "text":  "| 1 | \"并发下载，默认并发数待定\" | **自适应爬坡**：初 4 worker、每 2s 评估、改善 ×1.25、劣化 ×0.65、连续 2 次劣化收缩、上限 64 段 |"
+                               },
+                               {
+                                   "file":  "docs\\方案-重新立意版.md",
+                                   "line":  1279,
+                                   "kind":  "defers to a measurement",
+                                   "text":  "| **2** | **执行方式** | 按 **§12.10 那次的检查清单**：① 引用完整性（`§X.Y` 与锚点逐个核\"存在 + 语义相符\"）② 数字一致性（尖刺编号 / "
+                               },
+                               {
+                                   "file":  "docs\\方案-重新立意版.md",
+                                   "line":  1397,
+                                   "kind":  "left undecided",
+                                   "text":  "### 10.2 待定"
+                               },
+                               {
+                                   "file":  "docs\\方案-重新立意版.md",
+                                   "line":  1434,
+                                   "kind":  "defers to a measurement",
+                                   "text":  "| **`launcher_profiles.json` 兼容** | ⚠️ **v3.9 降级为\"待实测项\"**：wiki 说它可用于与官方启动器数据互通、**以及 Forge "
+                               },
+                               {
+                                   "file":  "docs\\方案-重新立意版.md",
+                                   "line":  1782,
+                                   "kind":  "left undecided",
+                                   "text":  "待定：K10 百宝箱首批工具 / K11 联机是否接第三方 / ~~K12 代码签名~~（个人自用已消解，见 §9.1）"
+                               },
+                               {
+                                   "file":  "docs\\方案-重新立意版.md",
+                                   "line":  1794,
+                                   "kind":  "defers to a measurement",
+                                   "text":  "| v3.10 | **跨文档引用修复 + 内容缺口补齐 + 我的自审修正**（不改任何设计决策）：**①§7 编号理清**——补 `### 7.1`（带宽实测），并把下载引擎由 "
+                               },
+                               {
+                                   "file":  "docs\\方案-重新立意版.md",
+                                   "line":  1802,
+                                   "kind":  "left undecided",
+                                   "text":  "| v3.2 | 落实 K3/K4/K7 三项拍板：**§5 重写**为\"一期不做插件系统，只做代码分区\"（删掉编译期注册/动态加载那套表述）；**§4.3 新增**两段式导航并修"
+                               },
+                               {
+                                   "file":  "docs\\来源记录.md",
+                                   "line":  121,
+                                   "kind":  "explicit TODO",
+                                   "text":  "| 5 | 元数据文件自身不校验（信任根不校验） | MultiMC `BaseEntity.cpp:88` TODO | 完整性链条断点在根上 |"
+                               },
+                               {
+                                   "file":  "docs\\ADR\\README.md",
+                                   "line":  41,
+                                   "kind":  "left undecided",
+                                   "text":  "| **ADR-0011** | 崩溃归因的实现来源 | **待定（M11 前）** | **分三档**：① 归因规则的**结构与算子**（`_Contains`/`_Contai"
+                               },
+                               {
+                                   "file":  "docs\\ADR\\README.md",
+                                   "line":  52,
+                                   "kind":  "left undecided",
+                                   "text":  "**状态取值**：`已定` / `待定` / `已废弃`（废弃时必须写明\"被哪条取代\"）。"
+                               },
+                               {
+                                   "file":  "docs\\ADR\\README.md",
+                                   "line":  61,
+                                   "kind":  "left undecided",
+                                   "text":  "- 状态：已定 / 待定 / 已废弃（被 ADR-00XX 取代）"
+                               },
+                               {
+                                   "file":  "SESSION.md",
+                                   "line":  147,
+                                   "kind":  "left undecided",
+                                   "text":  "| **§4.6.1.3** | **界面稿只放事实性占位，禁止编造氛围文案**；必须编的标 `〈待定文案〉` | 我照着参考图的语气编了\"营火已经点好了\"，用户以为那是需求 |"
+                               }
+                           ],
+    "licence_mismatches":  [
+
+                           ],
+    "count_mismatches":  [
+
+                         ],
+    "p0":  [
+
+           ],
+    "p1":  [
+               {
+                   "kind":  "dangling-section-ref",
+                   "severity":  "P1",
+                   "where":  "docs\\M0-尖刺任务书.md, docs\\方案-重新立意版.md",
+                   "detail":  "section 13.1 has no matching heading"
+               },
+               {
+                   "kind":  "dangling-section-ref",
+                   "severity":  "P1",
+                   "where":  "docs\\方案-重新立意版.md",
+                   "detail":  "section 13.2 has no matching heading"
+               },
+               {
+                   "kind":  "dangling-section-ref",
+                   "severity":  "P1",
+                   "where":  "docs\\方案-重新立意版.md",
+                   "detail":  "section 13.3 has no matching heading"
+               },
+               {
+                   "kind":  "dangling-section-ref",
+                   "severity":  "P1",
+                   "where":  "docs\\方案-重新立意版.md",
+                   "detail":  "section 13.4 has no matching heading"
+               },
+               {
+                   "kind":  "dangling-section-ref",
+                   "severity":  "P1",
+                   "where":  "docs\\方案-重新立意版.md",
+                   "detail":  "section 13.5 has no matching heading"
+               },
+               {
+                   "kind":  "dangling-section-ref",
+                   "severity":  "P1",
+                   "where":  "docs\\方案-重新立意版.md",
+                   "detail":  "section 13.6 has no matching heading"
+               },
+               {
+                   "kind":  "dangling-section-ref",
+                   "severity":  "P1",
+                   "where":  "docs\\方案-重新立意版.md",
+                   "detail":  "section 13.7 has no matching heading"
+               },
+               {
+                   "kind":  "dangling-section-ref",
+                   "severity":  "P1",
+                   "where":  "docs\\方案-重新立意版.md",
+                   "detail":  "section 13.8 has no matching heading"
+               },
+               {
+                   "kind":  "dangling-section-ref",
+                   "severity":  "P1",
+                   "where":  "docs\\方案-重新立意版.md",
+                   "detail":  "section 13.9 has no matching heading"
+               },
+               {
+                   "kind":  "dangling-section-ref",
+                   "severity":  "P1",
+                   "where":  "docs\\M0-尖刺任务书.md, docs\\UI设计规格.md, docs\\方案-重新立意版.md",
+                   "detail":  "section 6.5 has no matching heading"
+               }
+           ],
+    "p2":  [
+
+           ]
+}

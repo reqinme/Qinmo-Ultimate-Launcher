@@ -175,3 +175,11 @@ jobs:
       - name: 文档结构检查（标题守恒 / 重复标题 / 围栏成对）
         shell: pwsh
         run: ./tools/check-docs.ps1 -Strict
+
+      # 里程碑审计（流程 C）。纯文本分析，不需要 Rust / pnpm，所以放这里而不是
+      # canary 作业。它的检查 1、2 需要语义判断，脚本只能给候选清单 ——
+      # 因此只有 P0（会误导实现或许可风险）才让它失败：一个永远红的审计
+      # 会被人略读，而那比没有审计更糟。
+      - name: 里程碑审计（引用 / 承诺 / 许可 / 计数）
+        shell: pwsh
+        run: ./tools/audit-milestone.ps1 -OutDir docs/_artifacts/audit
