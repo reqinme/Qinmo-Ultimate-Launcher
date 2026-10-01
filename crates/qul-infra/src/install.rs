@@ -356,6 +356,33 @@ pub fn required_files_with_assets(
     Ok(deduped)
 }
 
+/// **从实例目录里读已经下好的资产索引。**
+///
+/// ## 为什么是"读"而不是"取"
+///
+/// 因为索引**本身也是一个要下载的文件**，而它的 sha1 在版本详情里。
+/// 所以顺序必须是：**先把它下下来（第 ② 阶段）→ 再解析它（为了知道还有哪些对象）**。
+///
+/// 一个"先解析索引再下载"的实现会陷入循环：要下索引才知道对象清单，
+/// 而要算对象清单又得先有索引。
+///
+/// 所以本函数**只读本机已有的那份**；没有就返回 `None`，
+/// 而调用方（`install`）会在下一轮把对象算进来。
+/// 那个行为在第一次安装时表现为"这一轮只下索引，对象下一轮再算" ——
+/// **而那是对的**：一轮的输入不该依赖这一轮的输出。
+pub fn load_asset_index(
+    d: &Descriptor,
+    instance_root: &Path,
+) -> Option<qul_core::assets::AssetIndex> {
+    let ai = d.asset_index_ref()?;
+    let p = instance_root
+        .join("assets")
+        .join("indexes")
+        .join(format!("{}.json", ai.id));
+    let text = std::fs::read_to_string(p).ok()?;
+    qul_core::assets::AssetIndex::parse(&text).ok()
+}
+
 /// **盘点：哪些已有、哪些缺。**
 ///
 /// 它对每个文件算一次 SHA-1 —— 那在本机 74 个库上是毫秒级，
@@ -495,6 +522,11 @@ pub struct InstallConfig {
     /// ⚠️ 这个默认值是有意的，而它必须能被显式打开 ——
     /// 一个"总是校验全部资产"的实现会让**每次启动都扫 5000 个文件**。
     pub include_assets: bool,
+    /// **资产主机**（`None` = 用 `DEFAULT_ASSET_BASE`）。
+    ///
+    /// 它是一个配置项而**不是纯常量**，因为镜像与代理要做得到 ——
+    /// 而资产索引里**只有哈希，没有 URL**，所以那个主机只能由我们给。
+    pub asset_base_url: Option<String>,
 }
 
 impl Default for InstallConfig {
@@ -505,6 +537,7 @@ impl Default for InstallConfig {
             concurrency: 8,
             extract: crate::zip::ExtractConfig::default(),
             include_assets: false,
+            asset_base_url: None,
         }
     }
 }
@@ -551,7 +584,18 @@ pub fn install(
     // ── ① 解析 ──
     let t = std::time::Instant::now();
     sink.stage(Stage::Parse, &format!("解析 {version_id} 的元数据"));
-    let needs = required_files(d, env, version_id)?;
+    // 资产：**只读本机已有的索引** —— 见 `load_asset_index` 的说明
+    //（索引自己也是一个要下载的文件，所以顺序不能反）。
+    let assets = if cfg.include_assets {
+        load_asset_index(d, instance_root)
+    } else {
+        None
+    };
+    let asset_base = cfg
+        .asset_base_url
+        .clone()
+        .unwrap_or_else(|| DEFAULT_ASSET_BASE.to_string());
+    let needs = required_files_with_assets(d, env, version_id, assets.as_ref(), &asset_base)?;
     stage_ms.insert(Stage::Parse.key(), t.elapsed().as_millis() as u64);
     sink.stage(Stage::Parse, &format!("需要 {} 个文件", needs.len()));
 

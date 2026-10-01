@@ -24,6 +24,7 @@
 mod compare_launch;
 mod download_probe;
 mod i18n_demo;
+mod install_cmd;
 mod instance_demo;
 mod java_plan;
 mod launch_chain;
@@ -43,6 +44,37 @@ fn main() {
         Some("i18n-demo") => std::process::exit(i18n_demo::run_i18n_demo()),
         Some("instance-demo") => std::process::exit(instance_demo::run_instance_demo()),
         Some("download-probe") => std::process::exit(download_probe::run_download_probe()),
+        // ── `qul install [版本id] [--offline] [--with-assets] [--dir <路径>] [--verbose]` ──
+        Some("install") => {
+            let mut version = None;
+            let mut data_root = None;
+            let mut offline = false;
+            let mut with_assets = false;
+            let mut verbose = false;
+            // 参数是**全部** args 减掉第一个（子命令名），而不是一个叫 `rest` 的变量 ——
+            // 那个名字是我凭想象写的，而它不存在。
+            let mut it = args.iter().skip(1);
+            while let Some(a) = it.next() {
+                match a.as_str() {
+                    "--offline" => offline = true,
+                    "--with-assets" => with_assets = true,
+                    "--verbose" | "-v" => verbose = true,
+                    "--dir" => data_root = it.next().map(std::path::PathBuf::from),
+                    other if other.starts_with('-') => {
+                        println!("不认识的选项：{other}");
+                        std::process::exit(2);
+                    }
+                    other => version = Some(other.to_string()),
+                }
+            }
+            std::process::exit(install_cmd::run_install(&install_cmd::InstallArgs {
+                version,
+                data_root,
+                offline,
+                with_assets,
+                verbose,
+            }));
+        }
         Some("launch-chain") => {
             let pos: Vec<String> = args
                 .iter()
