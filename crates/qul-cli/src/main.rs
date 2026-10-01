@@ -21,6 +21,7 @@
 //! **刻意手写参数解析**：现阶段引入 clap 只是为两条子命令，
 //! 却要承担一条新依赖及其许可审查。等到子命令真的多起来再换。
 
+mod i18n_demo;
 mod launch_demo;
 mod scrub_demo;
 use qul_app::AppService;
@@ -33,6 +34,7 @@ fn main() {
         Some("java") => run_java(args.iter().any(|a| a == "--json")),
         Some("launch-demo") => std::process::exit(launch_demo::run_launch_demo()),
         Some("scrub-demo") => std::process::exit(scrub_demo::run_scrub_demo()),
+        Some("i18n-demo") => std::process::exit(i18n_demo::run_i18n_demo()),
         Some("--help") | Some("-h") => print_help(),
         None => run_overview(),
         Some(other) => {
@@ -52,6 +54,9 @@ fn print_help() {
     println!("  qul java --json  同上，输出 JSON（供自动化消费）");
     println!("  qul launch-demo  产品调用链演示（M1 出口条件；**不启动任何真实程序**）");
     println!("  qul scrub-demo   脱敏管道取证（六类敏感内容 + 版本号不误伤）");
+    println!(
+        "  qul i18n-demo    语言包取证（合法性 · 键一致 · **缺键时用户会看到什么** · 参数 · 统计）"
+    );
     println!("  qul --help     显示本帮助");
 }
 

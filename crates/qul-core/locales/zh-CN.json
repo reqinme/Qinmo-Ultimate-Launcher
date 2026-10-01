@@ -1,0 +1,70 @@
+{
+  "locale": "zh-CN",
+  "name": "简体中文",
+  "entries": {
+    "app.name": "秦墨",
+    "app.tagline": "一个可扩展的启动器平台",
+
+    "action.confirm": "确定",
+    "action.cancel": "取消",
+    "action.retry": "重试",
+    "action.close": "关闭",
+    "action.copy": "复制",
+    "action.export": "导出",
+
+    "nav.home": "主页",
+    "nav.instances": "实例",
+    "nav.downloads": "下载",
+    "nav.accounts": "账号管理",
+    "nav.toolbox": "百宝箱",
+    "nav.settings": "设置",
+    "nav.about": "关于",
+
+    "state.loading": "正在加载…",
+    "state.empty": "这里还没有内容",
+    "state.blocked": "等待前置任务完成",
+    "state.running": "进行中",
+    "state.done": "已完成",
+    "state.failed": "失败",
+    "state.cancelled": "已取消",
+    "state.paused": "已暂停",
+
+    "progress.unknown_total": "总量未知",
+    "progress.file": "文件 {done} / {total}",
+    "progress.session": "本次已下载 {done}",
+
+    "error.title": "出错了",
+    "error.code": "错误码：{code}",
+    "error.suggestion": "建议：{suggestion}",
+    "error.unregistered": "未登记的错误",
+
+    "approval.pending": "需审批通过，当前状态：{state}",
+    "approval.no_progress_query": "我方无法查询进度；只有在你实际尝试登录时，才能知道审批是否通过",
+
+    "java.not_found": "没有找到可用的 Java",
+    "java.wrong_version": "该版本需要 {required}，本机只有 {found}",
+    "java.choose_failed": "无法自动选择合适的 Java",
+
+    "download.queued": "排队中",
+    "download.verifying": "正在校验",
+    "download.committing": "正在落位",
+    "download.cancelled_is_not_failure": "你取消了这次下载",
+
+    "migrate.upgrading": "正在升级实例格式",
+    "migrate.failed": "格式升级没有成功",
+    "migrate.backup_at": "备份位置：{path}",
+    "migrate.restore_hint": "回滚方式：把上面那个目录里的文件复制回实例目录",
+    "migrate.others_unaffected": "该实例已标为「需手动处理」；其余实例不受影响",
+
+    "extract.skipped": "有 {count} 个条目被跳过",
+    "extract.reason": "原因：{reason}",
+
+    "settings.theme": "主题",
+    "settings.language": "语言",
+    "settings.concurrency": "下载并发",
+    "settings.material": "窗口材质",
+
+    "about.version": "版本 {version}",
+    "about.license": "许可证"
+  }
+}

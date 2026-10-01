@@ -25,6 +25,7 @@ pub mod crash;
 pub mod download;
 pub mod error;
 pub mod http;
+pub mod i18n;
 pub mod identity;
 pub mod inflate;
 pub mod java;
