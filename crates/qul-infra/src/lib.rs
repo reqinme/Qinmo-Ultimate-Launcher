@@ -14,5 +14,6 @@ pub mod fsx;
 pub mod instance;
 pub mod java;
 pub mod logging;
+pub mod process;
 pub mod store;
 pub mod zip;

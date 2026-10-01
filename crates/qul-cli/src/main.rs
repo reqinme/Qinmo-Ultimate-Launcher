@@ -25,6 +25,7 @@ mod compare_launch;
 mod i18n_demo;
 mod instance_demo;
 mod java_plan;
+mod launch_chain;
 mod launch_demo;
 mod offline_demo;
 mod scrub_demo;
@@ -40,6 +41,17 @@ fn main() {
         Some("scrub-demo") => std::process::exit(scrub_demo::run_scrub_demo()),
         Some("i18n-demo") => std::process::exit(i18n_demo::run_i18n_demo()),
         Some("instance-demo") => std::process::exit(instance_demo::run_instance_demo()),
+        Some("launch-chain") => {
+            let pos: Vec<String> = args
+                .iter()
+                .skip(1)
+                .filter(|a| !a.starts_with("--"))
+                .cloned()
+                .collect();
+            std::process::exit(launch_chain::run_launch_chain(
+                pos.first().map(|s| s.as_str()),
+            ));
+        }
         Some("compare-launch") => {
             let pos: Vec<String> = args
                 .iter()
