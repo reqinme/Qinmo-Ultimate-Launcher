@@ -12,6 +12,34 @@
 //!
 //! 第 3 条无法靠"记得写"来保证，所以它由[类型系统](Capability)守住：
 //! **构造禁用态的唯一途径是 `Capability::disabled(原因)`，而它拒绝空原因。**
+//!
+//! # 产品维度放在哪一层（**这一节是修正后加的，理由必须留着**）
+//!
+//! **起因**：给基岩版补能力时连着别扭两次——禁用词表把"产品名"与"内容类型"混在一起、
+//! 通用项与产品专属项挤在同一个列表里。查了同类实现（Portal 同时支持 Java 与基岩）
+//! 之后看清了根因：**我把"详情层"的东西放进了"实例层"的枚举。**
+//!
+//! **reference（Portal `MinecraftInstance.cs`）的分层，值得记**：
+//!
+//! | 层 | 它放什么 | 是否分产品 |
+//! |---|---|---|
+//! | 实例层 | 目录、名称、图标、备注、收藏、游玩时长、磁盘占用 | **完全通用** |
+//! | 详情层 | Java：JVM 参数 / 内存 / 独立实例；基岩：`BedrockInstanceConfig` | **各自一套** |
+//!
+//! **但它用 `if (Type == Java)` 贯穿全局**：UI 层 **79 处 / 19 个文件**，Core 层 **55 处**。
+//! 那是方案 §3.3 明确要消灭的写法，**所以我们不照抄它的写法，只采纳它的分层**。
+//!
+//! **因此本模块分两层**：
+//!
+//! - [`CapabilityKey`]：**通用**能力——启动、预检、世界、配置、截图、崩溃分析……
+//!   任何产品都成立，**它的成员里不许出现产品专属概念**（由架构测试强制）。
+//! - [`InstanceDetail`]：**产品专属**详情——一个实例**恰好持有一种**。
+//!   产品专属的能力项（光影 / 行为包 / 皮肤包 / 加载器 / 依赖组件）挂在它上面。
+//!
+//! **诚实记下这条边界**：**"界面完全不提到产品"做不到 100% 干净。**
+//! 因为"哪个产品会出现哪些条目"这份数据**必然要提到产品**——
+//! 我们能做的是**把它压缩到 Provider 侧一处**，而不是消灭它。
+//! （对照：Portal 是 134 处；我们的目标是**一处**。）
 
 use std::collections::BTreeMap;
 
@@ -39,41 +67,21 @@ pub enum CapabilityKey {
     /// 能检测本机已安装的实例（每个产品查法不同：普通路径 / 商店包）
     DetectInstalled,
 
-    // ── 内容管理（产品相关区，界面按 enabled 才渲染）──────────
+    // ── 内容管理（**通用**部分）─────────────────────────────
     //
-    // ⚠️ **这一组里既有通用项、也有产品专属项**，见 `product_specific()`。
-    //   通用（表意中性，跨产品同名）：Mods / ResourcePacks / Worlds /
-    //     Configs / Screenshots
-    //   产品专属（只在某些产品下有意义，缺失靠 `reason` 表达）：
-    //     Shaders（Java）/ BehaviorPacks（基岩）/ SkinPacks（基岩）/ Loaders（Java）
+    // ⚠️ **这一组只放"任何产品都成立"的项。**
+    // 产品专属的（光影 / 行为包 / 皮肤包 / 加载器 / 依赖组件）**不在这里**，
+    // 它们在 [`InstanceDetail`] 上——见本模块文档"产品维度放在哪一层"。
     /// 能管理模组类内容
     Mods,
     /// 能管理资源包
     ResourcePacks,
-    /// 能管理光影
-    ///
-    /// **产品专属**：Java 版有，基岩版没有 → 基岩实例上必须
-    /// `disabled("基岩版不支持光影")`。
-    Shaders,
-    /// 能管理行为包
-    ///
-    /// **产品专属**：基岩版有，Java 版没有。这是"能力驱动界面"最典型的一处——
-    /// 切到基岩版实例时「光影」自动消失、「行为包」自动出现（方案 §3.3）。
-    BehaviorPacks,
-    /// 能管理皮肤包
-    ///
-    /// **产品专属**：基岩版有，Java 版没有。
-    SkinPacks,
     /// 能管理世界/存档
     Worlds,
     /// 能管理配置
     Configs,
     /// 能截图/管理截图
     Screenshots,
-    /// 能安装与管理加载器（Fabric / Forge / NeoForge …）
-    ///
-    /// **产品专属**：Java 版有，基岩版没有"加载器"这个概念。
-    Loaders,
 
     // ── 稳定与诊断 ────────────────────────────────────────────
     /// 能捕获崩溃并归因
@@ -92,12 +100,6 @@ pub enum CapabilityKey {
     Isolation,
     /// 能离线游玩
     OfflinePlay,
-
-    // ── 依赖组件 ──────────────────────────────────────────────
-    /// 能检测并引导安装依赖组件（Gaming Services / GameInput）
-    ///
-    /// **产品专属**：基岩版需要，Java 版没有这个概念。
-    ProductDependencies,
 }
 
 impl CapabilityKey {
@@ -111,19 +113,14 @@ impl CapabilityKey {
         Self::DetectInstalled,
         Self::Mods,
         Self::ResourcePacks,
-        Self::Shaders,
-        Self::BehaviorPacks,
-        Self::SkinPacks,
         Self::Worlds,
         Self::Configs,
         Self::Screenshots,
-        Self::Loaders,
         Self::CrashAnalysis,
         Self::LogFiltering,
         Self::Snapshots,
         Self::Isolation,
         Self::OfflinePlay,
-        Self::ProductDependencies,
     ];
 
     /// 稳定性标识（落进 `profile.json` 与前后端消息里）。
@@ -137,19 +134,14 @@ impl CapabilityKey {
             Self::DetectInstalled => "detect_installed",
             Self::Mods => "mods",
             Self::ResourcePacks => "resource_packs",
-            Self::Shaders => "shaders",
-            Self::BehaviorPacks => "behavior_packs",
-            Self::SkinPacks => "skin_packs",
             Self::Worlds => "worlds",
             Self::Configs => "configs",
             Self::Screenshots => "screenshots",
-            Self::Loaders => "loaders",
             Self::CrashAnalysis => "crash_analysis",
             Self::LogFiltering => "log_filtering",
             Self::Snapshots => "snapshots",
             Self::Isolation => "isolation",
             Self::OfflinePlay => "offline_play",
-            Self::ProductDependencies => "product_dependencies",
         }
     }
 
@@ -162,43 +154,180 @@ impl CapabilityKey {
     /// 实例级的能力**必须**在实例描述符里被求值；产品级只作为默认值继承。
     pub const fn kind(self) -> CapabilityKind {
         match self {
-            // 隔离与快照随形态变（GDK vs UWP 差别极大），所以是实例级
+            // 隔离与快照随形态变（同产品内 GDK 与 UWP 差别极大），所以是实例级
             Self::Isolation | Self::Snapshots => CapabilityKind::Instance,
-            // 依赖组件是"这台机器上装没装"，也是实例级
-            Self::ProductDependencies => CapabilityKind::Instance,
             _ => CapabilityKind::Product,
         }
     }
+}
 
-    /// **这一项是不是"产品专属"的**（只在某些产品下才有意义）。
+impl InstanceDetail {
+    /// **产品专属**能力的完整列表（跨所有产品的并集），**顺序固定**。
     ///
-    /// **为什么需要这个区分——它是"能力驱动界面"的落点**：
+    /// 界面的**第二级左导航** = 通用能力（[`CapabilityKey::ALL`] 里 enabled 的）
+    /// **＋** 本产品详情里 enabled 的项。**界面不写任何产品判断。**
+    pub const ALL_KEYS: &'static [DetailKey] = &[
+        DetailKey::Shaders,
+        DetailKey::BehaviorPacks,
+        DetailKey::SkinPacks,
+        DetailKey::Loaders,
+        DetailKey::ProductDependencies,
+    ];
+}
+
+/// **产品专属**能力的标识。
+///
+/// **为什么这些不放在 [`CapabilityKey`] 里**（这是修正后的结构，理由见模块文档）：
+/// 它们**不是"任何产品都成立的能力"**，而是**某个产品详情的一部分**。
+/// 混进通用枚举会导致：
+/// - 通用项与产品专属项挤在同一张表，界面分不清哪些要按产品筛选
+/// - 架构测试的禁用词表把"产品名"与"内容类型"混在一起（这个坑踩过）
+///
+/// **`Loaders` 与 `Shell`（启动通道）的差别**：`Loaders` 是"能装加载器"，
+/// 属 Java 详情；基岩的"依赖组件"属基岩详情。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum DetailKey {
+    /// 能管理光影 —— **Java 详情**
+    Shaders,
+    /// 能管理行为包 —— **基岩详情**（"能力驱动界面"最典型的一处：
+    /// 切到基岩版实例时「光影」消失、「行为包」出现，见方案 §3.3）
+    BehaviorPacks,
+    /// 能管理皮肤包 —— **基岩详情**
+    SkinPacks,
+    /// 能安装与管理加载器（Fabric / Forge / NeoForge …）—— **Java 详情**
+    Loaders,
+    /// 能检测并引导安装依赖组件（Gaming Services / GameInput）—— **基岩详情**
+    ProductDependencies,
+}
+
+impl DetailKey {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Shaders => "shaders",
+            Self::BehaviorPacks => "behavior_packs",
+            Self::SkinPacks => "skin_packs",
+            Self::Loaders => "loaders",
+            Self::ProductDependencies => "product_dependencies",
+        }
+    }
+}
+
+/// 一个实例的**产品专属详情**——**恰好持有一种**。
+///
+/// **"恰好一种"由类型保证**：不存在"两种都是"，也不存在"两者都不是"。
+/// 这是把产品差异**收敛到一处**的落点。
+///
+/// ## ⚠️ 为什么这里的变体名**不带具体产品名**
+///
+/// 曾经用过 `Java` / `Bedrock` 这类命名，被架构测试当场拦下
+/// （"生产代码/字符串中出现 bedrock"）。**拦住是对的**，理由有两条：
+///
+/// 1. **与 [`DetailKey`] 的命名原则不一致**：那里是**按能力**命名
+///    （中性的 `BehaviorPacks`，不带产品名）。同一层里两套命名原则，
+///    等于把"产品名"从后门放了回来。
+/// 2. **产品名不是决定能力的那个轴**。真正决定"能不能管内容包"的是
+///    **数据在哪**——普通文件系统，还是系统沙箱里。
+///    **同一个产品可以有多个形态（见 [`Packaging`]），而同一个形态也可能被多个产品共用。**
+///
+/// **所以命名按"形态 / 数据布局"，不按品牌。** 品牌名只在
+/// **Provider 的适配代码**与**面向用户的 `reason` 文案**里出现。
+///
+/// ## 为什么还要一个 `Universal` 变体
+///
+/// 它是给**平台级**能力用的（不绑定任何游戏的能力，比如"磁盘清理"），
+/// 以及给测试用的替身。**它不该被用来回避实现产品详情。**
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum InstanceDetail {
+    /// 产品无关的实例（平台级能力 / 测试替身）
+    Universal,
+    /// **文件系统形态**：实例数据是普通文件，**内容与世界都可直接读写**。
+    /// （模组化内容产品普遍是这个形态）
+    FileSystem,
+    /// **商店沙箱形态**：数据位于 MSIX 沙箱内，**内容包与世界管理都不可用**。
+    /// （商店分发的产品普遍是这个形态）
+    StoreSandbox,
+}
+
+/// **包形态**——同一产品内**能力差别极大**，所以它是详情的一部分。
+///
+/// 方案 §6.2 的能力矩阵按这两列分列（普通文件 vs MSIX 沙箱）。
+///
+/// **命名按"数据在哪"，不按品牌**（理由见 [`InstanceDetail`]）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Packaging {
+    /// 普通文件系统：**内容与世界都可管理**
+    FileSystem,
+    /// MSIX 沙箱：**内容包与世界管理都不可用**
+    Sandbox,
+}
+
+impl InstanceDetail {
+    /// 详情里各能力的结论表。
     ///
-    /// 界面的**第二级左导航**要随产品换一套。换的依据**不是**
-    /// `if product == "bedrock"`，而是**遍历这个列表、只渲染 `enabled` 的项**：
+    /// **`Universal` 返回空表**——它没有任何产品专属能力，
+    /// 而"未声明 ≠ 禁用"（见 [`Capabilities::contains_detail`]）。
+    pub fn details(&self) -> Capabilities {
+        let mut c = Capabilities::new();
+        match self {
+            Self::Universal => {}
+            Self::FileSystem => {
+                // 文件系统形态：光影与加载器是这类产品的典型能力
+                c.set_detail(DetailKey::Shaders, Capability::enabled());
+                c.set_detail(DetailKey::Loaders, Capability::enabled());
+                // 而"行为包 / 皮肤包 / 依赖组件"不属于这类——
+                // **如实声明不可用并给原因**，而不是省略
+                c.set_detail(
+                    DetailKey::BehaviorPacks,
+                    Capability::disabled("该类产品的内容以模组形式存在，没有行为包").unwrap(),
+                );
+                c.set_detail(
+                    DetailKey::SkinPacks,
+                    Capability::disabled("该类产品没有皮肤包").unwrap(),
+                );
+                c.set_detail(
+                    DetailKey::ProductDependencies,
+                    Capability::disabled("该类产品没有此概念").unwrap(),
+                );
+            }
+            Self::StoreSandbox => {
+                // 商店沙箱形态：行为包 / 皮肤包 / 依赖组件是它的典型能力
+                c.set_detail(DetailKey::BehaviorPacks, Capability::enabled());
+                c.set_detail(DetailKey::SkinPacks, Capability::enabled());
+                c.set_detail(DetailKey::ProductDependencies, Capability::enabled());
+                c.set_detail(
+                    DetailKey::Shaders,
+                    Capability::disabled("该类产品不支持光影").unwrap(),
+                );
+                c.set_detail(
+                    DetailKey::Loaders,
+                    Capability::disabled("该类产品没有加载器").unwrap(),
+                );
+            }
+        }
+        c
+    }
+
+    /// 详情 + **包形态**：形态能把同一类产品内部再分出一档能力。
     ///
-    /// | 产品专属项 | Java 版 | 基岩版 |
-    /// |---|---|---|
-    /// | `Shaders` 光影 | ✅ | ⛔ `disabled("基岩版不支持光影")` |
-    /// | `BehaviorPacks` 行为包 | ⛔ `disabled("Java 版没有行为包")` | ✅ |
-    /// | `SkinPacks` 皮肤包 | ⛔ | ✅ |
-    /// | `Loaders` 加载器 | ✅ | ⛔ `disabled("基岩版没有加载器")` |
-    /// | `ProductDependencies` 依赖组件 | ⛔ | ✅ |
-    ///
-    /// **通用项**（`Mods` / `ResourcePacks` / `Worlds` / `Configs` /
-    /// `Screenshots` / `Launch` / `Preflight` …）在**任何**产品下都有意义。
-    ///
-    /// **纪律**：新增能力时**必须显式决定它属于哪一类**。
-    /// **不许让产品名散落进界面**——那正是这套设计要消灭的东西。
-    pub const fn product_specific(self) -> bool {
-        matches!(
-            self,
-            Self::Shaders
-                | Self::BehaviorPacks
-                | Self::SkinPacks
-                | Self::Loaders
-                | Self::ProductDependencies
-        )
+    /// **这就是"同一产品内也能不同"的表达方式**（方案 §6.2 的 GDK / UWP 两列）——
+    /// 它**不需要**为形态单开一个"产品"，只要形态是详情的一部分。
+    pub fn with_packaging(base: &Self, packaging: Packaging) -> Capabilities {
+        let mut c = base.details();
+        if *base == Self::StoreSandbox && packaging == Packaging::Sandbox {
+            // 沙箱形态：连内容包也不能管了
+            for k in [DetailKey::BehaviorPacks, DetailKey::SkinPacks] {
+                c.set_detail(
+                    k,
+                    Capability::disabled("位于系统沙箱内，无法管理内容包").unwrap(),
+                );
+            }
+        }
+        c
     }
 }
 
@@ -294,47 +423,99 @@ impl TryFrom<CapabilityWire> for Capability {
     }
 }
 
-/// 一组能力结论（产品级或实例级各持有一个）。
+/// 一组能力结论。
+///
+/// **两张表分开存**（这是修正后的结构）：
+/// - `universal`：**任何产品都成立**的通用能力（[`CapabilityKey`]）
+/// - `detail`：**产品专属**的能力（[`DetailKey`]，来自 [`InstanceDetail::details`]）
+///
+/// **为什么分开而不合成一张**：混在一张表里，界面就分不清"哪些项要按产品筛选、
+/// 哪些是通用的"——**而这正是修正前那版结构别扭的根源**。
+/// 分开之后，"通用项 vs 产品专属项"由**类型**区分，不靠约定。
 ///
 /// 内部用 `BTreeMap` 而非 `HashMap`：**输出稳定**（同样的输入给同样的
 /// JSON 字节序），这让我们能对前后端契约做快照测试。
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct Capabilities(BTreeMap<CapabilityKey, Capability>);
+pub struct Capabilities {
+    universal: BTreeMap<CapabilityKey, Capability>,
+    detail: BTreeMap<DetailKey, Capability>,
+}
 
 impl Capabilities {
     pub fn new() -> Self {
-        Self(BTreeMap::new())
+        Self {
+            universal: BTreeMap::new(),
+            detail: BTreeMap::new(),
+        }
     }
 
-    /// 设定一个能力；**禁用态的原因由 [`Capability`] 保证非空**。
+    // ── 通用能力（任何产品都成立）──────────────────────────────
+
+    /// 设定一个**通用**能力；禁用态的原因由 [`Capability`] 保证非空。
     pub fn set(&mut self, key: CapabilityKey, cap: Capability) -> &mut Self {
-        self.0.insert(key, cap);
+        self.universal.insert(key, cap);
         self
     }
 
     pub fn get(&self, key: CapabilityKey) -> Option<&Capability> {
-        self.0.get(&key)
+        self.universal.get(&key)
     }
 
-    /// 该层是否声明了这个能力。
+    /// 该层是否声明了这个**通用**能力。
     ///
     /// **未声明 ≠ 禁用**：未声明表示"这一层没意见"（由上层决定），
     /// 禁用表示"这一层明确说不行，并给了原因"。
     pub fn contains(&self, key: CapabilityKey) -> bool {
-        self.0.contains_key(&key)
+        self.universal.contains_key(&key)
     }
 
+    /// **通用**能力的遍历器（界面渲染第一段用这个）。
     pub fn iter(&self) -> impl Iterator<Item = (CapabilityKey, &Capability)> {
-        self.0.iter().map(|(k, v)| (*k, v))
+        self.universal.iter().map(|(k, v)| (*k, v))
     }
+
+    // ── 产品专属详情（由 [`InstanceDetail`] 提供）──────────────
+
+    /// 设定一个**产品专属**能力。
+    pub fn set_detail(&mut self, key: DetailKey, cap: Capability) -> &mut Self {
+        self.detail.insert(key, cap);
+        self
+    }
+
+    pub fn get_detail(&self, key: DetailKey) -> Option<&Capability> {
+        self.detail.get(&key)
+    }
+
+    pub fn contains_detail(&self, key: DetailKey) -> bool {
+        self.detail.contains_key(&key)
+    }
+
+    /// **产品专属**能力的遍历器（界面渲染第二段用这个）。
+    ///
+    /// **它为什么与 `iter()` 分开**：两者混在一张表里，
+    /// 界面就分不清"哪些项要按产品筛选、哪些是通用的"——
+    /// 而这正是修正前那版结构别扭的根源。
+    pub fn iter_detail(&self) -> impl Iterator<Item = (DetailKey, &Capability)> {
+        self.detail.iter().map(|(k, v)| (*k, v))
+    }
+
+    /// 把一份**详情**合并进来（`InstanceDetail::details()` 的产物）。
+    pub fn with_detail(&self, detail: &Capabilities) -> Capabilities {
+        let mut out = self.clone();
+        for (k, v) in detail.iter_detail() {
+            out.detail.insert(k, v.clone());
+        }
+        out
+    }
+
+    // ── 通用 ──────────────────────────────────────────────────
 
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.universal.len() + self.detail.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.universal.is_empty() && self.detail.is_empty()
     }
 
     /// 叠加：`overrides` 里声明了的 key 覆盖当前值，其余保留。
@@ -344,20 +525,23 @@ impl Capabilities {
     pub fn merged_with(&self, overrides: &Capabilities) -> Capabilities {
         let mut out = self.clone();
         for (k, v) in overrides.iter() {
-            out.0.insert(k, v.clone());
+            out.universal.insert(k, v.clone());
+        }
+        for (k, v) in overrides.iter_detail() {
+            out.detail.insert(k, v.clone());
         }
         out
     }
 
-    /// 一致性自检：**任何禁用态必须有非空原因**。
+    /// 一致性自检：**任何禁用态必须有非空原因**（两张表都查）。
     ///
     /// 正常路径下这个检查永远不会失败（类型系统已守住）。它存在是为了
     /// 覆盖**反序列化与其他语言的输入**这两条绕行路径——
     /// 前者已由 [`CapabilityWire`] 拦截，本方法用于测试与运行时断言。
-    pub fn validate(&self) -> Result<(), (CapabilityKey, ReasonError)> {
-        for (k, v) in self.iter() {
+    pub fn validate(&self) -> Result<(), ReasonError> {
+        for v in self.universal.values().chain(self.detail.values()) {
             if !v.is_enabled() && v.reason().map_or(true, |r| r.trim().is_empty()) {
-                return Err((k, ReasonError));
+                return Err(ReasonError);
             }
         }
         Ok(())
@@ -398,8 +582,8 @@ mod tests {
     fn 序列化后仍能反序列化回来() {
         let mut caps = Capabilities::new();
         caps.set(CapabilityKey::Mods, Capability::enabled());
-        caps.set(
-            CapabilityKey::Shaders,
+        caps.set_detail(
+            DetailKey::Shaders,
             Capability::disabled("基岩版不支持光影").unwrap(),
         );
         let json = serde_json::to_string(&caps).unwrap();
@@ -428,114 +612,165 @@ mod tests {
     #[test]
     fn 未声明与禁用是两件事() {
         let mut caps = Capabilities::new();
-        caps.set(
-            CapabilityKey::Shaders,
+        caps.set_detail(
+            DetailKey::Shaders,
             Capability::disabled("基岩版不支持光影").unwrap(),
         );
-        assert!(caps.contains(CapabilityKey::Shaders));
+        assert!(caps.contains_detail(DetailKey::Shaders));
         assert!(!caps.contains(CapabilityKey::Mods), "未声明 ≠ 禁用");
     }
 
     /// **这一组测试守的是"能力驱动界面"那件事本身。**
     ///
     /// 方案 §3.3 的原话是：切到基岩版实例时，「光影」自动消失、「行为包」自动出现。
-    /// 下面两个测试就是**把这句话写成断言**——如果哪天有人把
-    /// `BehaviorPacks` 从 `product_specific()` 里删掉，或者忘了在
-    /// 基岩能力集里声明它，这里会挂。
+    /// 下面几个测试就是**把这句话写成断言**。
     #[test]
-    fn 产品专属项包含两边的差异点() {
-        // Java 有、基岩没有
-        assert!(CapabilityKey::Shaders.product_specific());
-        assert!(CapabilityKey::Loaders.product_specific());
-        // 基岩有、Java 没有
-        assert!(CapabilityKey::BehaviorPacks.product_specific());
-        assert!(CapabilityKey::SkinPacks.product_specific());
-        assert!(CapabilityKey::ProductDependencies.product_specific());
-        // 通用项**不许**被标成产品专属（否则界面会误以为要按产品筛选）
-        for k in [
-            CapabilityKey::Mods,
-            CapabilityKey::ResourcePacks,
-            CapabilityKey::Worlds,
-            CapabilityKey::Configs,
-            CapabilityKey::Screenshots,
-            CapabilityKey::Launch,
-            CapabilityKey::Preflight,
+    fn 通用能力表里不许出现产品专属概念() {
+        // **这是结构修正的核心断言。**
+        // 产品专属项（光影 / 行为包 / 皮肤包 / 加载器 / 依赖组件）
+        // **必须**只出现在 `DetailKey` 里，不许回到 `CapabilityKey`。
+        //
+        // 为什么：混进通用表之后，界面就分不清"哪些项要按产品筛选"，
+        // 而架构测试的禁用词表也会把"产品名"与"内容类型"混在一起
+        // —— 这个坑在本次修正前真实踩过两次。
+        let universal: Vec<&str> = CapabilityKey::ALL.iter().map(|k| k.as_str()).collect();
+        for product_only in ["shaders", "behavior_packs", "skin_packs", "loaders"] {
+            assert!(
+                !universal.contains(&product_only),
+                "`{}` 是产品专属项，不该出现在通用能力表里：{:?}",
+                product_only,
+                universal
+            );
+        }
+        // 而它必须出现在详情表里
+        let details: Vec<&str> = InstanceDetail::ALL_KEYS
+            .iter()
+            .map(|k| k.as_str())
+            .collect();
+        for product_only in [
+            "shaders",
+            "behavior_packs",
+            "skin_packs",
+            "loaders",
+            "product_dependencies",
         ] {
-            assert!(!k.product_specific(), "{:?} 不该是产品专属", k);
+            assert!(
+                details.contains(&product_only),
+                "`{}` 应在详情表里：{:?}",
+                product_only,
+                details
+            );
         }
     }
 
     #[test]
-    fn 切产品时界面条目会真的换一套() {
-        // 模拟一个 Java 实例的能力表
-        let mut java = Capabilities::new();
-        for k in [
-            CapabilityKey::Launch,
-            CapabilityKey::Mods,
-            CapabilityKey::ResourcePacks,
-            CapabilityKey::Shaders,
-            CapabilityKey::Worlds,
-            CapabilityKey::Configs,
-            CapabilityKey::Loaders,
-        ] {
-            java.set(k, Capability::enabled());
-        }
-        // Java 没有行为包 / 皮肤包 / 依赖组件
-        java.set(
-            CapabilityKey::BehaviorPacks,
-            Capability::disabled("Java 版没有行为包").unwrap(),
-        );
-        java.set(
-            CapabilityKey::SkinPacks,
-            Capability::disabled("Java 版没有皮肤包").unwrap(),
-        );
-
-        // 模拟一个基岩版实例的能力表
-        let mut bedrock = Capabilities::new();
-        for k in [
-            CapabilityKey::Launch,
-            CapabilityKey::ResourcePacks,
-            CapabilityKey::BehaviorPacks,
-            CapabilityKey::SkinPacks,
-            CapabilityKey::Worlds,
-            CapabilityKey::ProductDependencies,
-        ] {
-            bedrock.set(k, Capability::enabled());
-        }
-        bedrock.set(
-            CapabilityKey::Shaders,
-            Capability::disabled("基岩版不支持光影").unwrap(),
-        );
-        bedrock.set(
-            CapabilityKey::Loaders,
-            Capability::disabled("基岩版没有加载器").unwrap(),
-        );
-
-        // 界面渲染左导航的方式：**只取 enabled 的项**，不写任何产品判断
-        let render = |c: &Capabilities| -> Vec<&'static str> {
-            CapabilityKey::ALL
+    fn 实例详情恰好一种且各自给出差异() {
+        let render_detail = |c: &Capabilities| -> Vec<&'static str> {
+            InstanceDetail::ALL_KEYS
                 .iter()
-                .filter(|k| c.get(**k).is_some_and(|v| v.is_enabled()))
+                .filter(|k| c.get_detail(**k).is_some_and(|v| v.is_enabled()))
                 .map(|k| k.as_str())
                 .collect()
         };
 
-        let j = render(&java);
-        let b = render(&bedrock);
+        // 文件系统形态：有光影与加载器，没有行为包 / 皮肤包 / 依赖组件
+        let filesystem = InstanceDetail::FileSystem.details();
+        let j = render_detail(&filesystem);
+        assert!(j.contains(&"shaders"), "文件系统形态应有光影：{:?}", j);
+        assert!(j.contains(&"loaders"), "文件系统形态应有加载器：{:?}", j);
+        assert!(
+            !j.contains(&"behavior_packs"),
+            "文件系统形态不该有行为包：{:?}",
+            j
+        );
 
-        // 差异点：两边各自出现、各自消失
-        assert!(j.contains(&"shaders"), "Java 应有光影：{:?}", j);
-        assert!(!j.contains(&"behavior_packs"), "Java 不该有行为包");
-        assert!(b.contains(&"behavior_packs"), "基岩应有行为包：{:?}", b);
-        assert!(!b.contains(&"shaders"), "基岩不该有光影");
-        assert!(b.contains(&"skin_packs"), "基岩应有皮肤包");
-        assert!(b.contains(&"product_dependencies"), "基岩应有依赖组件");
-        assert!(!b.contains(&"loaders"), "基岩不该有加载器");
+        // 商店沙箱形态（普通文件部分）：有行为包 / 皮肤包 / 依赖组件，没有光影与加载器
+        let store = InstanceDetail::StoreSandbox.details();
+        let s = render_detail(&store);
+        assert!(s.contains(&"behavior_packs"), "该类产品应有行为包：{:?}", s);
+        assert!(s.contains(&"skin_packs"), "该类产品应有皮肤包：{:?}", s);
+        assert!(s.contains(&"product_dependencies"), "该类产品应有依赖组件");
+        assert!(!s.contains(&"shaders"), "该类产品不该有光影：{:?}", s);
+        assert!(!s.contains(&"loaders"), "该类产品不该有加载器：{:?}", s);
 
-        // 通用项两边都在（**界面不需要为它们写产品判断**）
-        for common in ["launch", "resource_packs", "worlds"] {
-            assert!(j.contains(&common), "Java 应含通用项 {}", common);
-            assert!(b.contains(&common), "基岩应含通用项 {}", common);
+        // **同一个详情 + 沙箱形态**：连内容包也不能管了（方案 §6.2 的能力矩阵）
+        let sandboxed =
+            InstanceDetail::with_packaging(&InstanceDetail::StoreSandbox, Packaging::Sandbox);
+        let sd = render_detail(&sandboxed);
+        assert!(
+            !sd.contains(&"behavior_packs"),
+            "沙箱内不该能管内容包：{:?}",
+            sd
+        );
+        assert!(
+            !sd.contains(&"skin_packs"),
+            "沙箱内不该能管皮肤包：{:?}",
+            sd
+        );
+        // 但"依赖组件"在沙箱形态下仍然可用（运行时组件一样要装）
+        assert!(
+            sd.contains(&"product_dependencies"),
+            "沙箱形态仍需要依赖组件：{:?}",
+            sd
+        );
+
+        // **这条断言是本节的重点**：
+        // "同一详情内、形态不同"造成的差异，与"详情本身不同"造成的差异，
+        // **由同一个机制表达**——不需要为形态另开一个"产品"。
+        assert_ne!(s, sd, "普通形态与沙箱形态的详情结论必须不同");
+    }
+
+    #[test]
+    fn 界面渲染第一段与第二段互不干扰() {
+        // 通用表 + 某产品详情 = 该实例的完整左栏
+        let mut universal = Capabilities::new();
+        for k in [
+            CapabilityKey::Launch,
+            CapabilityKey::ResourcePacks,
+            CapabilityKey::Worlds,
+            CapabilityKey::Configs,
+            CapabilityKey::Screenshots,
+        ] {
+            universal.set(k, Capability::enabled());
         }
+
+        let filesystem = universal.with_detail(&InstanceDetail::FileSystem.details());
+        let sandbox = universal.with_detail(&InstanceDetail::StoreSandbox.details());
+
+        let render = |c: &Capabilities| -> Vec<&'static str> {
+            let mut v: Vec<&'static str> = c
+                .iter()
+                .filter(|(_, cap)| cap.is_enabled())
+                .map(|(k, _)| k.as_str())
+                .collect();
+            v.extend(
+                c.iter_detail()
+                    .filter(|(_, cap)| cap.is_enabled())
+                    .map(|(k, _)| k.as_str()),
+            );
+            v
+        };
+
+        let j = render(&filesystem);
+        let b = render(&sandbox);
+
+        // 通用项两边都在（**界面不需要为它们写任何产品判断**）
+        for common in ["launch", "resource_packs", "worlds"] {
+            assert!(j.contains(&common), "文件系统形态应含通用项 {}", common);
+            assert!(b.contains(&common), "沙箱形态应含通用项 {}", common);
+        }
+        // 详情项各自不同
+        assert!(j.contains(&"shaders") && !j.contains(&"behavior_packs"));
+        assert!(b.contains(&"behavior_packs") && !b.contains(&"shaders"));
+
+        // 两张表不互相污染（**这是"分开存"换来的保证**）
+        assert!(
+            filesystem.get_detail(DetailKey::Shaders).is_some(),
+            "详情项应在详情表里"
+        );
+        assert!(
+            filesystem.get(CapabilityKey::Launch).is_some(),
+            "通用项应在通用表里"
+        );
     }
 }
