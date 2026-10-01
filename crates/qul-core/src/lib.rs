@@ -26,6 +26,7 @@ pub mod download;
 pub mod error;
 pub mod http;
 pub mod identity;
+pub mod inflate;
 pub mod java;
 pub mod migrate;
 pub mod plan;
@@ -35,6 +36,7 @@ pub mod scrub;
 pub mod source;
 pub mod tasks;
 pub mod timeout;
+pub mod zip;
 
 pub use caps::{
     Capabilities, Capability, CapabilityKey, CapabilityKind, DetailKey, DisabledItem,
