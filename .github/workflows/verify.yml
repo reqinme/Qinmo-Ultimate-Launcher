@@ -100,3 +100,13 @@ jobs:
           set -euo pipefail
           git status --porcelain
           test -z "$(git status --porcelain)"
+
+      # 文档结构检查。这不是"文档洁癖"，而是**补上一类自动校验抓不到的故障**：
+      # `edit` 的替换语义会**吃掉标题**（用标题当锚点、忘了抄回 new_string），
+      # 而文档仍然是合法 Markdown —— 旧的"重复标题 = 0 / 围栏成对"两项**测不到它**
+      # （消失的标题不是重复，围栏也不受影响）。本项目已发生 4 次。
+      # 因此加了"标题守恒"：每个文件的标题总数必须等于基线；
+      # 改基线必须是一次显式的、能在 diff 里被看见的动作（-UpdateBaseline 并一起提交）。
+      - name: 文档结构检查（标题守恒 / 重复标题 / 围栏成对）
+        shell: pwsh
+        run: ./tools/check-docs.ps1 -Strict
