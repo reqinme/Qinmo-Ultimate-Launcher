@@ -180,7 +180,37 @@ impl Scrubber {
     }
 
     /// 加一个要折叠的路径。
+    ///
+    /// ## ⚠️ 它自动把**转义形式**也加进去（这条是被测试逼出来的）
+    ///
+    /// 因为**同一个路径在不同承载里的字面量不同**：
+    ///
+    /// | 承载 | 路径实际长什么样 |
+    /// |---|---|
+    /// | 纯文本日志 | `C:\Users\x\AppData` |
+    /// | **JSON** | `C:\\Users\\x\\AppData` |
+    ///
+    /// 而"按已知值替换"是**字面量匹配** —— 不把转义形式也喂进去，
+    /// 就会出现**"日志里抹掉了、JSON 里没抹掉"**：一处泄漏，另一处看起来很正常。
+    ///
+    /// 放在这里而不是让每个调用点自己记得加两次，理由很直接：
+    /// **调用点会忘。** 而遗忘的表现是"某一种承载里静默不脱敏"——
+    /// 那种缺陷不会报错，只会泄漏。
     pub fn path(mut self, s: impl Into<String>, mask: &'static str) -> Self {
+        let s = s.into();
+        if s.trim().is_empty() {
+            return self;
+        }
+        let escaped = s.replace('\\', "\\\\");
+        if escaped != s {
+            self.paths.push((escaped, mask));
+        }
+        self.paths.push((s, mask));
+        self
+    }
+
+    /// 只加**原样**的路径（不加转义形式）。给"确定承载不是 JSON"的场合用。
+    pub fn path_raw(mut self, s: impl Into<String>, mask: &'static str) -> Self {
         let s = s.into();
         if !s.trim().is_empty() {
             self.paths.push((s, mask));
@@ -458,7 +488,21 @@ fn looks_like_version(before: &str, segs: [u16; 4]) -> bool {
     // 于是 `ip=10.0.0.1` 被判成版本号、**真 IP 被漏抹**。
     // 这个缺陷是 `段值大的真_ip_一律抹掉` 那条测试抓出来的。
     // 教训与"检测与匹配必须用不同思路"同源：**过于宽松的铺垫词会吃掉真阳性。**
-    let b = b.trim_end_matches(['=', ':', ' ', '\t', '-']);
+    //
+    // ⚠️ **还要剥掉引号与括号** —— 这是本条规则的第二版才修好的，
+    // 而它的表现与封存项目那个缺陷**一模一样**（版本号被抹成 `<ip>`），
+    // 只是入口从纯文本换成了 JSON：
+    //
+    // | 承载 | 写法 | 剥掉分隔符后 | 还需剥掉 |
+    // |---|---|---|---|
+    // | 纯文本 | `启动器版本=0.1.0.0` | `启动器版本` | — |
+    // | **JSON** | `{"version":"0.1.0.0"}` | `{"version":"` | **引号与花括号** |
+    //
+    // 第二行剥完是 `{"version`，**以 `"` 结尾而不是 `version`**，判据 ① 完全不命中。
+    // 也就是说：**我们并没有"修好"那个缺陷，只是把它在一个承载里修好了。**
+    // 这一条是 `完整生命周期_启动写_退出删_下次干净` 那条测试抓出来的
+    // （崩溃标记是 JSON，于是版本号在写标记时被抹成 `<ip>`）。
+    let b = b.trim_end_matches(['=', ':', ' ', '\t', '-', '"', '\'', '{', '[', '(', ',']);
     if b.ends_with('v') {
         return true;
     }
@@ -727,6 +771,39 @@ mod tests {
         assert!(s.contains(MASK_EMAIL), "{s}");
         assert_eq!(r.emails, 1);
         assert!(r.emails == 1, "a@b 没有点，不算邮箱");
+    }
+
+    #[test]
+    fn 路径的转义形式也会被折叠() {
+        // 同一个路径在不同承载里的字面量不同：
+        //   纯文本日志 → `C:\Users\x`
+        //   JSON       → `C:\\Users\\x`
+        // 而"按已知值替换"是**字面量匹配** —— 不把转义形式也喂进去，
+        // 就会出现"日志里抹掉了、JSON 里没抹掉"：一处泄漏，另一处看起来很正常。
+        //
+        // 这条**放在 `Scrubber::path` 里做**，而不是让调用点自己记得加两次，
+        // 理由很直接：**调用点会忘**，而遗忘的表现是"某一种承载里静默不脱敏"。
+        let sb = Scrubber::new().path(r"C:\Users\x", MASK_USERPROFILE);
+
+        // 纯文本形式
+        let (a, r1) = sb.scrub(r"at C:\Users\x\a.log");
+        assert_eq!(r1.paths, 1, "{a}");
+        assert!(a.contains(MASK_USERPROFILE), "{a}");
+
+        // JSON 形式（反斜杠被转义）
+        let (b, r2) = sb.scrub(r#"{"p":"C:\\Users\\x\\a.log"}"#);
+        assert_eq!(r2.paths, 1, "JSON 里的转义形式也必须命中：{b}");
+        assert!(b.contains(MASK_USERPROFILE), "{b}");
+        assert!(!b.contains("Users"), "JSON 里不该残留路径：{b}");
+    }
+
+    #[test]
+    fn 没有反斜杠的路径不会重复加种子() {
+        // 去重是为了让统计数字有意义：同一个路径被算两次会让
+        // "本次脱敏：路径×2"看起来像抹了两处。
+        let sb = Scrubber::new().path("/home/x", MASK_DATA_ROOT);
+        let (s, r) = sb.scrub("at /home/x/a");
+        assert_eq!(r.paths, 1, "{s}");
     }
 
     #[test]

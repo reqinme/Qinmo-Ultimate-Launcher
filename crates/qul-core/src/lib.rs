@@ -21,6 +21,7 @@
 pub mod caps;
 pub mod layout;
 
+pub mod crash;
 pub mod error;
 pub mod identity;
 pub mod java;

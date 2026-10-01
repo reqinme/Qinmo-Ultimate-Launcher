@@ -9,7 +9,8 @@ publish = false
 
 [dependencies]
 serde = { workspace = true }
+# `serde_json` 由 dev-dependency 提升为**正式依赖**（M1 崩溃标记要序列化成单行）。
+# 提升的理由：标记的读写是**运行时**行为，不是测试行为。
+serde_json = { workspace = true }
 thiserror = { workspace = true }
 
-[dev-dependencies]
-serde_json = { workspace = true }
