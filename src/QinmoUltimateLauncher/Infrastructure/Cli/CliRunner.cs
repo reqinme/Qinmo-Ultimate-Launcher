@@ -1,3 +1,4 @@
+using Qul.Domain.Identity;
 using Qul.Infrastructure.Diagnostics;
 using System;
 using System.Collections.Generic;
@@ -123,6 +124,27 @@ public static partial class CliRunner
             MaxMemoryMb = ResolveMaxMemory(boot, args),
             ServerTarget = OptionValue(args, "--server", null),
         };
+
+        // **离线告知必须在启动之前说出来，且不可跳过。**
+        //
+        // 界面那边有门禁（确认后才能点「启动游戏」），但命令行这条路先前**一个字都不说**——
+        // 实测：`launch` 的输出里"无法进入正版验证"一次都不出现，而 `preflight` 有三次。
+        // 需求写的是"离线账户启动前强制出现告知"，**没有说只管界面**。
+        //
+        // 命令行没有"勾选确认"这种东西，所以"不可默认跳过"在这里的正确形态是
+        // **无条件写出来**：没有任何开关能让它闭嘴。写 stderr，脚本解析 stdout 不受影响。
+        if (mode == LaunchPipelineMode.Launch || mode == LaunchPipelineMode.Prepare)
+        {
+            Console.Error.WriteLine();
+            Console.Error.WriteLine("【离线账户告知】");
+
+            for (int i = 0; i < OfflineIdentityFactory.CapabilityNotices.Count; i++)
+            {
+                Console.Error.WriteLine("  " + OfflineIdentityFactory.CapabilityNotices[i]);
+            }
+
+            Console.Error.WriteLine();
+        }
 
         LaunchPipelineResult result;
 
