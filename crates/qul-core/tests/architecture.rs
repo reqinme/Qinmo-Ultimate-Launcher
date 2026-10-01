@@ -271,15 +271,24 @@ fn 内核代码里不许出现厂商与产品品牌() {
 
 #[test]
 fn 内核代码里不许出现游戏数据目录名() {
+    // **这里必须与 `内核代码里不许出现厂商与产品品牌` 用同一个严格度。**
+    //
+    // 本条原先只做 `strip_comments`，**没有排除 `#[cfg(test)]` 块** ——
+    // 而上面那条同类断言早就解释了为什么必须排除（测试里提到产品是正当的，
+    // 因为测试必须能构造"某个产品的实例"）。
+    //
+    // 两条"防同一种腐化"的断言用不同严格度，本身就是一种腐化：
+    // 它会让人以为"只要放进 mod tests 就安全"。
     let mut violations = Vec::new();
 
     for file in rust_files(&core_src_dir()) {
         let src = fs::read_to_string(&file).expect("源码应为 UTF-8");
-        let code = strip_comments(&src).to_lowercase();
+        let production = strip_cfg_test_blocks(&src);
+        let code = strip_comments(&production).to_lowercase();
         for bad in PATH_FRAGMENT_MARKERS {
             if code.contains(bad) {
                 violations.push(format!(
-                    "{}: 代码中出现 `{}`——内核不许知道某类内容放在哪个目录（那是 Provider 的事）",
+                    "{}: 生产代码中出现 `{}`——内核不许知道某类内容放在哪个目录（那是 Provider 的事）",
                     file.display(),
                     bad
                 ));
@@ -291,7 +300,8 @@ fn 内核代码里不许出现游戏数据目录名() {
         violations.is_empty(),
         "架构约束被违反：\n  {}\n\n\
          内核可以表达\"存在一类内容\"（如 CapabilityKey::Mods），\n\
-         但不许表达\"它在哪个目录\"——否则换个游戏就得改内核。",
+         但不许表达\"它在哪个目录\"——否则换个游戏就得改内核。\n\
+         （测试代码里提到这些名字是允许的——见本测试上方说明。）",
         violations.join("\n  ")
     );
 }

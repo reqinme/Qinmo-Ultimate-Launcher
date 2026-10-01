@@ -137,16 +137,35 @@ jobs:
       - name: 构建
         run: pnpm build
 
-  # 方案 §8.2 的"内核不许出现游戏词汇"——CI 侧的廉价版本。
-  # **权威版本是 crates/qul-core/tests/architecture.rs**（它只看代码、忽略注释）；
-  # 这一步的存在理由是：万一那条测试被误删，CI 仍然会拦。
+  # 方案 §8.2 的"内核不许出现游戏词汇"——CI 侧。
+  #
+  # 这条规则现在有**三层**，而三层各自防的东西不同、都必须留着：
+  #
+  #   1. `crates/qul-core/tests/architecture.rs`（Rust 测试）
+  #      —— 跑在 `cargo test` 里，所以**任何机器**上都会跑。
+  #      它管：品牌词、数据目录名、依赖方向、能力表完整性、文件名纪律。
+  #      它的判据是"去注释 + 去 cfg(test) + 小写 + 子串包含"。
+  #
+  #   2. `tools/scan-core-vocabulary.ps1`（本作业）
+  #      —— 更细的一层：它做**标识符边界**判定（`forget` 不算 `forge`、
+  #      而 `MojangApproval` 算 `mojang`），并且**能认出硬编码主机名**
+  #      （按配置规格，"任何产品端点都不许是内核里的编译期常量"）。
+  #      子串判定做不到第二件事。
+  #
+  #   3. `tools/_probe-scan.ps1`（反证）
+  #      —— **一个从不报警的检查器与一个正常工作的检查器无法区分。**
+  #      它往真实内核文件里注入已知违规、断言被抓到，再注入已知非违规、
+  #      断言保持沉默，然后还原并要求工作区重新变干净。
+  #
+  # 三层都在这里跑，不是冗余：第 1 层在第 2、3 层被误删时仍然拦得住，
+  # 而第 2 层在第 1 层的子串判据太粗时仍能分辨。
   guard:
     name: 纪律 · 内核无游戏词汇 + 工作区清洁
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: 内核源码不许出现游戏专属词汇
+      - name: 内核源码不许出现游戏专属词汇（廉价版，作为第 1 层的旁证）
         shell: bash
         run: |
           set -euo pipefail
@@ -158,6 +177,14 @@ jobs:
             exit 1
           fi
           echo "内核源码干净。"
+
+      - name: 内核词汇扫描（标识符边界 + 硬编码主机）
+        shell: pwsh
+        run: ./tools/scan-core-vocabulary.ps1
+
+      - name: 词汇扫描的反证（检查器必须能被踩红，且还原后重新变干净）
+        shell: pwsh
+        run: ./tools/_probe-scan.ps1
 
       - name: 工作区必须干净（防止生成物被误提交）
         shell: bash

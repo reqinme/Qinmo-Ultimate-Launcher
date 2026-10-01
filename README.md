@@ -2,7 +2,7 @@
 
 **多游戏启动平台**。Minecraft（Java 版 + 基岩版）是第一个产品，架构按"还能长出别的"设计。
 
-> 状态：**M0 · 尖刺与地基（进行中）**。方案已定稿 **v3.13**，代码骨架刚落地（U0）。
+> 状态：**M0 出口条件已全部闭合 · M1 内核通用层只剩一项**（Tauri 安全基线与前端命令层门禁 ⛔ 依赖 M4）。方案已定稿 **v3.14**。
 > 上一轮以 C# / WPF / net48 实现的项目已整体封存于 `_archive/`，**只带走结论，不带走任何约束**。
 
 | 项 | 值 |
@@ -38,7 +38,7 @@
 ## 目录
 
 ```
-docs/                  设计与调研文档（18 份，见下表）
+docs/                  设计与调研文档（19 份，见下表）
 crates/                Rust 内核与各层 crate
 src/                   前端（React + TS）
 src-tauri/             Tauri 命令层（薄壳）—— M4 建立
@@ -60,10 +60,29 @@ SESSION.md             收工状态（三行：做到哪 / 下一步 / 卡在哪
 | 6 | [`SESSION.md`](SESSION.md) | 上次做到哪、下一步第一件事 |
 
 **其余 10 份**：`代码调研笔记` / `参考项目笔记` / `可直接用的资产清单` / `来源记录`（许可台账）/
-`ADR/README`（14 条决策登记）/ 以及 5 份 `*-源码调研.md`（原始证据）。
+`ADR/README`（**15 条**决策登记：ADR-0001 … ADR-0015）/ 以及 **6 份** `*-源码调研.md`（原始证据）。
 **分工原则**：每份只讲一件事，**同一内容不在两处写全文**。
 
 ## 开发
+
+### 一条命令验证（**推荐**）
+
+```powershell
+pwsh -File tools/verify.ps1                   # 跑全部检查
+pwsh -File tools/verify.ps1 -Fast             # 跳过 cargo test（最快的一条路）
+pwsh -File tools/verify.ps1 -AllowDirty       # 提交前自查（跳过"工作区干净"那一项）
+pwsh -File tools/verify.ps1 -List             # 只列出检查项与"它防什么"，不跑
+```
+
+**为什么把它做成一条命令**：需要靠记忆才会跑到的检查，就是会被跳过的检查；
+而被跳过的检查与通过的检查**无法区分**。
+
+**`-AllowDirty` 是一个真实场景而不是便利**："提交前跑一遍"正是验证最有价值的时候，
+而那一刻工作区**按定义就是脏的**。没有这个开关，自然的工作流会变成
+"先提交、再验证" —— 那是反的顺序。它不削弱任何东西：**CI 永远在工作区干净的前提下跑**
+（CI 检出的是一个 commit）。
+
+### 分开跑（需要细看某一项时）
 
 ```bash
 pnpm install            # 前端依赖
@@ -71,13 +90,30 @@ pnpm typecheck          # 类型检查
 pnpm lint               # 含三条纪律规则（禁字面颜色值 / 禁按产品名分支 / 禁 toggle 布尔状态）
 pnpm test               # 前端测试（契约校验 + 渲染）
 
-cargo test --workspace  # Rust 测试（含架构约束：内核零 MC 词汇、能力必须登记进 ALL）
+cargo test --workspace  # Rust 测试（含架构约束：内核零 MC 词汇、依赖方向、能力必须登记进 ALL）
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
+
+pwsh -File tools/scan-core-vocabulary.ps1   # 内核词汇扫描（标识符边界 + 硬编码主机）
+pwsh -File tools/_probe-scan.ps1            # 上一个扫描器的反证（它必须能被踩红）
+pwsh -File tools/check-docs.ps1 -Strict     # 文档结构（标题守恒 / 围栏成对 / 重复标题）
+pwsh -File tools/audit-milestone.ps1        # 里程碑审计（引用 / 承诺 / 许可 / 计数）
 ```
 
-**环境要求**：Rust stable（MSVC 工具链）· Node ≥ 22 · pnpm 10 · **JDK 8 / 17 / 21 三套**（M0 需实测三个 Java 版本）·
-WebView2 运行时（Win11 自带）。Windows 仅此一端（Tauri 2 的 Windows 目标是唯一目标平台）。
+### "内核零 MC 词汇"由**三层**守着（三层都要留）
+
+| 层 | 位置 | 它比别的层多管什么 |
+|---|---|---|
+| 1 | `crates/qul-core/tests/architecture.rs` | 跑在 `cargo test` 里，**任何机器**都会跑；另管依赖方向、能力表完整性、文件名纪律 |
+| 2 | `tools/scan-core-vocabulary.ps1` | **标识符边界**（`forget` 不算 `forge`，而 `MojangApproval` 算 `mojang`）+ **硬编码主机名** |
+| 3 | `tools/_probe-scan.ps1` | **反证**：往真实文件里注入违规、断言被抓到，再注入非违规、断言沉默，然后还原 |
+
+**不冗余的理由**：第 1 层在第 2、3 层被误删时仍拦得住；第 2 层在第 1 层的子串判据太粗时仍能分辨；
+第 3 层是唯一能回答"这个检查器还活着吗"的东西。
+
+**环境要求**：Rust stable（**MSRV 1.89** —— `std::fs::File::lock` 的稳定处）· Node ≥ 22 · pnpm 10 ·
+**JDK 8 / 17 / 21 三套**（M0 需实测三个 Java 版本）· WebView2 运行时（Win11 自带）。
+Windows 仅此一端（Tauri 2 的 Windows 目标是唯一目标平台）。
 
 ## 许可
 
