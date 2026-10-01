@@ -1,3 +1,4 @@
+using Qul.Infrastructure.Processes;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -119,6 +120,12 @@ public sealed class MainViewModel : ObservableObject
     private readonly ObservableCollection<LogLine> _log = new ObservableCollection<LogLine>();
 
     private CancellationTokenSource? _cancellation;
+
+    /// <summary>当前被监视的游戏进程。新的一次启动会替换它，旧的监视随即退出。</summary>
+    private GameProcess? _watched;
+
+    /// <summary>界面线程的调度器。构造时捕获；后台的退出监视靠它回写界面。</summary>
+    private readonly System.Windows.Threading.Dispatcher _ui;
     private string _lastLoggedMessage = string.Empty;
 
     private bool _isBusy;
@@ -163,6 +170,10 @@ public sealed class MainViewModel : ObservableObject
     {
         _initialVersionId = initialVersionId;
         _boot = boot ?? throw new ArgumentNullException(nameof(boot));
+
+        // 构造发生在 UI 线程上，这里捕获的调度器就是界面线程的。
+        // 游戏退出监视在后台线程上跑，回写界面必须经它。
+        _ui = System.Windows.Threading.Dispatcher.CurrentDispatcher;
         _pipeline = new LaunchPipeline(boot);
 
         Versions = new ObservableCollection<VersionSummary>();
@@ -592,6 +603,76 @@ public sealed class MainViewModel : ObservableObject
         }
 
         ApplyResult(request, result);
+
+        // **游戏起来之后要继续看着它。**
+        //
+        // 命令行那边本来就在等进程退出，所以崩溃分析接得上；
+        // 而界面把进程拉起来就返回了——于是"在界面里启动、游戏随后崩了"这条路径上，
+        // 用户什么也看不到。**那才是绝大多数用户走的路径。**
+        if (result.Succeeded && result.Process != null)
+        {
+            _watched = result.Process;
+            _ = WatchGameExitAsync(result.Process, DateTimeOffset.UtcNow);
+        }
+    }
+
+    /// <summary>
+    /// 盯着游戏进程，退出时若异常则给出崩溃结论。
+    ///
+    /// 用 <c>async Task</c> 而不是 <c>async void</c>：本仓库里 <c>async void</c> 是 0 处，
+    /// 不因为"反正是即发即忘"就破例——那正是异常逃逸并终止进程的经典来源。
+    /// 因为是即发即忘，**内部必须把异常全部吃掉**：没有人 await 它。
+    /// </summary>
+    private async Task WatchGameExitAsync(GameProcess process, DateTimeOffset startedAt)
+    {
+        try
+        {
+            while (!process.HasExited)
+            {
+                // 被新的一次启动接管了就退出，不再盯着旧进程。
+                if (!ReferenceEquals(_watched, process))
+                {
+                    return;
+                }
+
+                await Task.Delay(2000).ConfigureAwait(false);
+            }
+
+            int exitCode = process.WaitForExit().ExitCode;
+
+            if (exitCode == 0)
+            {
+                return;   // 正常退出，不是崩溃
+            }
+
+            string? path = CrashReportLocator.FindNewest(_boot.Layout.GameRoot, startedAt);
+            CrashFinding? finding = CrashAnalysis.Analyze(CrashReportLocator.Read(path), exitCode);
+
+            if (finding == null)
+            {
+                return;
+            }
+
+            _ = _ui.BeginInvoke(new Action(() =>
+            {
+                OnProgress(new LaunchProgress(LaunchStage.Failed, "崩溃分析：" + finding.Summary));
+
+                string suggestions = string.Empty;
+                for (int i = 0; i < finding.Suggestions.Count; i++)
+                {
+                    suggestions += " " + (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                                 + ") " + finding.Suggestions[i];
+                }
+
+                StatusText = "游戏异常退出。";
+                ResultSummary = "崩溃分析：" + finding.Summary + suggestions;
+            }));
+        }
+        catch (Exception ex)
+        {
+            // 监视器绝不能让界面崩掉，也绝不改变已经成功的启动结果。
+            _boot.Log.Warn("ui", "game exit watcher stopped: " + ex.GetType().Name);
+        }
     }
 
     private void ApplyResult(LaunchPipelineRequest request, LaunchPipelineResult result)
