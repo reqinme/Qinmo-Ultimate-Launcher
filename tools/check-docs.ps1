@@ -133,7 +133,11 @@ if ($UpdateBaseline) {
         generated_at = (Get-Date).ToString('s')
         files = $current
     }
-    $payload | ConvertTo-Json -Depth 5 | Set-Content -Path $baselinePath -Encoding UTF8
+# 上一行是显式 UTF-8 **无 BOM** 的等价写法（见下），不要改回 Set-Content：
+# Set-Content -Encoding UTF8 的产物**取决于调用者** —— PowerShell 5.1 加 BOM、pwsh 7 不加。
+# 而这些文件**被 git 跟踪**，于是「同一个脚本不同的 shell 调用」会产出不同的字节，
+# 表现为「每次跑都弄脏工作区」+「CI 的 worktree 清洁检查永远失败」。
+[System.IO.File]::WriteAllText($baselinePath, ($payload | ConvertTo-Json -Depth 5), (New-Object System.Text.UTF8Encoding($false)))
     Write-Host "baseline updated: $baselinePath" -ForegroundColor Yellow
     Write-Host "  review the diff and commit it together with the change that caused it." -ForegroundColor Yellow
 } elseif (Test-Path $baselinePath) {

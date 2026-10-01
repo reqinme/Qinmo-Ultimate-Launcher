@@ -323,7 +323,23 @@ $p1 = @($findings | Where-Object { $_.severity -eq 'P1' })
 $p2 = @($findings | Where-Object { $_.severity -eq 'P2' })
 
 $result = [pscustomobject]@{
-    generated_at         = (Get-Date).ToString('s')
+    # NO `generated_at` FIELD. It was here, and its presence was a real defect.
+    #
+    # This artifact is WRITTEN BY A SCRIPT AND TRACKED BY GIT. A wall-clock
+    # timestamp therefore made the file differ on every single run -- which
+    # meant `verify.ps1` dirtied the worktree every time it ran, the `clean`
+    # check was always red, and the CI `guard` job's "worktree must be clean"
+    # step could never pass.
+    #
+    # The obvious "fix" would have been to gitignore this file. That is the
+    # wrong fix: these audit conclusions are a record worth keeping, and
+    # ignoring them would delete the record to silence a symptom.
+    #
+    # Removing the timestamp is the right fix, because the CONTENT of this file
+    # is deterministic -- same docs in, same JSON out. The file now changes only
+    # when the audit's findings change, which is exactly when a diff is
+    # informative. When it was generated lives in the git commit, which is the
+    # only place that can be authoritative about it anyway.
     note                 = 'CANDIDATE LIST, not a verdict. Task-book checks 1-2 need semantic judgement; this script cannot supply it.'
     files_scanned        = $allMd.Count
     section_refs_defined = $headings.Count
@@ -336,7 +352,11 @@ $result = [pscustomobject]@{
     p2                   = $p2
 }
 $jsonPath = Join-Path $OutDir 'audit-candidates.json'
-$result | ConvertTo-Json -Depth 6 | Set-Content -Path $jsonPath -Encoding UTF8
+# 上一行是显式 UTF-8 **无 BOM** 的等价写法（见下），不要改回 Set-Content：
+# Set-Content -Encoding UTF8 的产物**取决于调用者** —— PowerShell 5.1 加 BOM、pwsh 7 不加。
+# 而这些文件**被 git 跟踪**，于是「同一个脚本不同的 shell 调用」会产出不同的字节，
+# 表现为「每次跑都弄脏工作区」+「CI 的 worktree 清洁检查永远失败」。
+[System.IO.File]::WriteAllText($jsonPath, ($result | ConvertTo-Json -Depth 6), (New-Object System.Text.UTF8Encoding($false)))
 
 Write-Output ''
 Write-Output '== candidate summary =='

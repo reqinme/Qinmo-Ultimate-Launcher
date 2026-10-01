@@ -186,7 +186,11 @@ if ($violations.Count -gt 30) { Write-Output ("  ... and {0} more" -f ($violatio
 
 if (-not [string]::IsNullOrWhiteSpace($OutDir)) {
     if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir -Force | Out-Null }
-    $violations | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $OutDir 'copy-paste-violations.json') -Encoding UTF8
+# 上一行是显式 UTF-8 **无 BOM** 的等价写法（见下），不要改回 Set-Content：
+# Set-Content -Encoding UTF8 的产物**取决于调用者** —— PowerShell 5.1 加 BOM、pwsh 7 不加。
+# 而这些文件**被 git 跟踪**，于是「同一个脚本不同的 shell 调用」会产出不同的字节，
+# 表现为「每次跑都弄脏工作区」+「CI 的 worktree 清洁检查永远失败」。
+[System.IO.File]::WriteAllText((Join-Path $OutDir 'copy-paste-violations.json'), ($violations | ConvertTo-Json -Depth 4), (New-Object System.Text.UTF8Encoding($false)))
 }
 
 exit 1
