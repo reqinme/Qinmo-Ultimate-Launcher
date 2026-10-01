@@ -1,6 +1,6 @@
 ﻿{
     "note":  "Heading counts per docs file. Changing a count must be an explicit act (recorded in the commit that changes it).",
-    "generated_at":  "2026-10-01T17:35:53",
+    "generated_at":  "2026-10-01T18:34:41",
     "files":  {
                   "Polymerium-Trident与Portal-源码调研.md":  23,
                   "方案-重新立意版.md":  97,
@@ -12,7 +12,7 @@
                   "身份与授权规格.md":  16,
                   "ADR\\README.md":  8,
                   "可直接用的资产清单.md":  40,
-                  "UI设计规格.md":  70,
+                  "UI设计规格.md":  75,
                   "参考项目笔记.md":  32,
                   "XMCL-源码调研.md":  13,
                   "来源记录.md":  8,

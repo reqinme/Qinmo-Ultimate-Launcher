@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>秦墨 · 主页预设 C（极简）</title>
+<style>
+/* ==========================================================================
+   预设 C · 极简 —— 浅色主题（跟随系统）
+
+   关于"材质"的诚实说明：
+   真实运行时窗口背景由 DWM 的 Mica 提供（S1 已实测可用）。浏览器里做不到，
+   所以这里用**你的真实桌面壁纸 + 模拟的 Mica 处理**（强模糊 + 去饱和 + 提亮）当底。
+     - 我能控制的（层次、不透明度阶梯、1px 描边、排版、间距、颜色）都是真的
+     - 只有"Windows 给的那层底"是模拟的
+   因此本图用于判断**布局与信息架构**，不用来判断材质的最终观感。
+   ========================================================================== */
+:root{
+  /* 第一层·调色板（浅色主题：N 越大 = 对比越强） */
+  --gray-9:#1a1a1c; --gray-7:#4a4a4f; --gray-5:#8e8e93; --gray-3:#d1d1d6; --gray-0:#f5f5f7;
+  --accent-5:#0a66c2; --success-5:#1a7f37; --warning-5:#9a6700; --danger-5:#cf222e;
+
+  /* 第二层·语义令牌（浅色） */
+  --surface-panel:rgb(0 0 0 / 5%);
+  --surface-card:rgb(255 255 255 / 62%);
+  --surface-raised:#ffffff;
+  --surface-hover:rgb(0 0 0 / 5%);
+  --surface-active:rgb(0 0 0 / 8%);
+  --surface-selected:rgb(0 0 0 / 8%);
+  --stroke-subtle:rgb(0 0 0 / 12%);
+  --stroke-strong:rgb(0 0 0 / 24%);
+  --divider:rgb(0 0 0 / 8%);
+
+  --text-primary:#1a1a1c; --text-secondary:#4a4a4f; --text-disabled:#8e8e93;
+  --accent:var(--accent-5); --text-on-accent:#ffffff;
+
+  --radius-md:8px; --radius-lg:12px;
+  --hairline:1px;
+  --elev-2:0 10px 28px rgb(0 0 0 / 18%);
+  --font-ui:"Microsoft YaHei UI","Noto Sans SC",system-ui,sans-serif;
+  --font-mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+
+  /* 表现层令牌（UI 规格 §5.4）：只放不违反约束 6/7 的东西 */
+  --edge-grad:linear-gradient(135deg, rgb(255 255 255 / 85%), rgb(255 255 255 / 35%));
+  --edge-grad-hover:linear-gradient(135deg, rgb(10 102 194 / 34%), rgb(124 92 255 / 16%));
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{ font:14px/1.6 var(--font-ui); color:var(--text-primary); background:#c9c7c4; padding:30px; }
+
+/* 模拟 Mica：真实壁纸强模糊 + 去饱和 + 提亮（浅色主题下 Mica 给出浅面） */
+.mica{ position:fixed; inset:0; z-index:-2; background-image:url('wallpaper.jpg');
+  background-size:cover; background-position:center;
+  filter:blur(50px) saturate(.5) brightness(1.5); transform:scale(1.15); }
+.mica-tint{ position:fixed; inset:0; z-index:-1;
+  background:linear-gradient(180deg, rgb(240 238 235 / 82%), rgb(233 230 227 / 86%)); }
+
+.win{ width:1240px; height:788px; border-radius:10px; overflow:hidden;
+  border:var(--hairline) solid var(--stroke-subtle);
+  display:grid; grid-template-rows:36px 1fr 26px; }
+
+/* ---------- 标题栏 ---------- */
+.tb{ display:flex; align-items:center; gap:12px; padding-left:12px; }
+.brand{ display:flex; align-items:center; gap:8px; font-weight:600; font-size:15px; white-space:nowrap; }
+.brand .mk{ width:18px;height:18px;border-radius:5px;background:linear-gradient(140deg,#0a66c2,#6d4aff);
+  display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff; }
+.search{ display:flex;align-items:center;gap:8px;height:26px;width:180px;padding:0 12px;
+  border:var(--hairline) solid var(--stroke-subtle);border-radius:8px;background:var(--surface-card);
+  color:var(--text-disabled);font-size:13px;white-space:nowrap; }
+.search kbd{ margin-left:auto;font:12px/1 var(--font-mono);border:var(--hairline) solid var(--stroke-subtle);
+  border-radius:3px;padding:2px 4px;color:var(--text-secondary); }
+.island-slot{ flex:1; display:flex; justify-content:center; }
+.island{ display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;
+  border:var(--hairline) solid var(--stroke-strong);border-radius:999px;
+  background:var(--surface-raised);box-shadow:var(--elev-2);white-space:nowrap; }
+.island .dot{ width:7px;height:7px;border-radius:50%;background:var(--success-5); }
+.island .sep{ width:var(--hairline);height:14px;background:var(--stroke-subtle); }
+.island .who{ font-size:13px;color:var(--text-secondary); }
+.wc{ display:flex; }
+.wc div{ width:46px;height:36px;display:grid;place-items:center;color:var(--text-secondary);font-size:11px; }
+
+/* ---------- 左导航（第一级：只有 5 项）---------- */
+.main{ display:grid; grid-template-columns:200px 1fr; min-height:0; }
+.nav{ padding:10px; display:flex; flex-direction:column; gap:2px;
+  border-right:var(--hairline) solid var(--divider); }
+.nav a{ display:flex;align-items:center;gap:12px;height:36px;padding:0 12px;border-radius:8px;
+  color:var(--text-secondary);text-decoration:none;font-size:15px;position:relative; }
+.nav a.on{ background:var(--surface-selected); color:var(--text-primary); }
+.nav a.on::before{ content:"";position:absolute;left:0;top:9px;bottom:9px;width:2px;border-radius:2px;background:var(--accent); }
+.nav a .i{ width:17px;text-align:center; }
+.nav .push{ margin-top:auto; }
+
+.content{ padding:24px 30px; overflow:hidden; position:relative;
+  display:flex; flex-direction:column; justify-content:center; align-items:center; gap:20px; }
+
+/* ---------- 卡片：边缘光（不是投影）---------- */
+.card{ border:var(--hairline) solid transparent; border-radius:var(--radius-lg);
+  background: linear-gradient(var(--surface-card), var(--surface-card)) padding-box, var(--edge-grad) border-box;
+  padding:16px; }
+.panel{ border:var(--hairline) solid transparent; border-radius:var(--radius-lg);
+  background: linear-gradient(var(--surface-card), var(--surface-card)) padding-box, var(--edge-grad) border-box;
+  padding:16px; }
+.chip{ font-size:12px;padding:2px 8px;border-radius:999px;border:var(--hairline) solid var(--stroke-subtle);
+  background:rgb(255 255 255 / 60%);color:var(--text-secondary);white-space:nowrap; }
+.btn{ height:36px;padding:0 22px;border-radius:8px;display:inline-flex;align-items:center;gap:8px;
+  font-size:15px;font-weight:600;border:var(--hairline) solid transparent; }
+.btn--primary{ background:var(--accent);color:var(--text-on-accent); }
+.btn--ghost{ background:rgb(255 255 255 / 55%);color:var(--text-primary);border-color:var(--stroke-subtle);font-weight:500; }
+.statusbar{ display:flex;align-items:center;gap:12px;padding:0 16px;border-top:var(--hairline) solid var(--divider);
+  color:var(--text-secondary);font-size:12px;font-family:var(--font-mono); }
+.statusbar .grow{flex:1}
+.statusbar .pill{border:var(--hairline) solid var(--stroke-subtle);border-radius:999px;padding:1px 8px}
+</style>
+</head>
+<body>
+
+<div class="mica"></div><div class="mica-tint"></div>
+
+<div class="win">
+  <!-- 标题栏 -->
+  <div class="tb">
+    <div class="brand"><span class="mk">秦</span>秦墨</div>
+    <div class="search">⌕ 搜索实例<span>…</span><kbd>Ctrl K</kbd></div>
+    <div class="island-slot">
+      <div class="island"><span class="dot"></span><span class="who">官方源</span><span class="sep"></span><span class="who">reqinme</span></div>
+    </div>
+    <div class="wc"><div>─</div><div>▢</div><div>✕</div></div>
+  </div>
+
+  <!-- 主体 -->
+  <div class="main">
+    <nav class="nav">
+      <a class="on"><span class="i">⌂</span>主页</a>
+      <a><span class="i">↓</span>下载</a>
+      <a><span class="i">▦</span>百宝箱</a>
+      <a><span class="i">◉</span>账户</a>
+      <a class="push"><span class="i">⚒</span>设置</a>
+    </nav>
+
+    <div class="content">
+      <!-- 当前实例：一颗按钮 -->
+      <div class="panel" style="width:620px; padding:26px 28px">
+        <div style="display:flex; gap:18px; align-items:center">
+          <div style="width:64px;height:64px;border-radius:12px;flex:0 0 auto;
+                      background:linear-gradient(150deg,#0a66c2,#6d4aff);display:grid;place-items:center;
+                      font-size:26px;font-weight:700;color:#fff">1</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:baseline;gap:10px">
+              <div style="font-size:26px;font-weight:600">1.20.1 · Fabric</div>
+              <span class="chip">Fabric 0.16.5</span>
+            </div>
+            <div style="margin-top:6px;color:var(--text-secondary);font-size:13px;font-family:var(--font-mono)">
+              上次启动 2 小时前 · 内存 4096 MB · 38 个模组
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:22px">
+          <button class="btn btn--primary" style="height:42px;font-size:16px;padding:0 34px">▶&nbsp; 启动</button>
+          <button class="btn btn--ghost">管理&nbsp;▾</button>
+          <button class="btn btn--ghost">打开目录</button>
+        </div>
+      </div>
+
+      <!-- 其它实例 -->
+      <div style="width:620px">
+        <div style="font-size:12px;color:var(--text-disabled);margin:0 0 8px 2px;letter-spacing:.4px">其它实例</div>
+        <div style="display:flex;gap:10px">
+          <div class="card" style="flex:1;padding:11px 13px">
+            <div style="font-size:14px;font-weight:600">1.21.4 · 原版</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">昨天玩过</div>
+          </div>
+          <div class="card" style="flex:1;padding:11px 13px">
+            <div style="font-size:14px;font-weight:600">1.19.2 · Forge</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">3 天前</div>
+          </div>
+          <div class="card" style="flex:1;padding:11px 13px">
+            <div style="font-size:14px;font-weight:600">基岩版 1.21.120</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">上周</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 抽屉：默认收起。这里只画它的"把手"，表示它存在。
+           "展开态"是另一张图（preset-C-drawer.html）——两个状态混在一个文件里
+           会让"默认长什么样"这件事变模糊，所以刻意分开。 -->
+      <div style="position:absolute;right:0;top:0;bottom:0;width:26px;
+                  border-left:var(--hairline) solid var(--stroke-subtle);
+                  background:linear-gradient(90deg, transparent, rgb(255 255 255 / 45%));
+                  display:flex;align-items:center;justify-content:center;
+                  color:var(--text-secondary);font-size:13px">‹</div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span>v0.1.0</span><span class="pill">MC Java</span><span>官方源</span><span>↓ 12.4 MB/s</span>
+    <span class="grow"></span><span>Java 21 · 内存 118 MB</span>
+  </div>
+</div>
+
+</body>
+</html>
