@@ -20,6 +20,15 @@ namespace Qul;
 public partial class App : System.Windows.Application
 {
     private SessionLog _log = SessionLog.Null;
+
+    /// <summary>
+    /// 本次是命令行运行。
+    ///
+    /// **用来禁掉崩溃对话框**：脚本化运行时弹一个"确定"框，等于把脚本挂死——
+    /// 而且挂死比报错难查得多（要等到超时才发现，还看不出原因）。
+    /// 这正是先前 `--version-check` 写错动词那次卡住 600 秒的同一类问题。
+    /// </summary>
+    private bool _cliMode;
     private BootContext? _boot;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -52,7 +61,26 @@ public partial class App : System.Windows.Application
         {
             if (IsCliVerb(e.Args[0]))
             {
-                int exitCode = CliRunner.Run(_boot, e.Args);
+                _cliMode = true;
+
+                int exitCode;
+
+                try
+                {
+                    exitCode = CliRunner.Run(_boot, e.Args);
+                }
+                catch (Exception ex)
+                {
+                    // **命令行的意外异常不能变成对话框。**
+                    // 先前这里没有 try：异常冒到 dispatcher，被 ReportAndShutdown 接住，
+                    // 然后弹一个 MessageBox——脚本会一直挂着等人点确定。
+                    // 现在改成一句话进 stderr + 非零退出码，脚本能立刻看到并处理。
+                    _log.Failure("cli", ErrorCode.None, ex);
+                    Console.Error.WriteLine(
+                        "QUL 未预期的错误：" + ex.GetType().Name + ": " + ex.Message
+                        + "（详细日志：" + _log.FilePath + "）");
+                    exitCode = CliRunner.ExitFailed;
+                }
 
                 // 命令行跑完且没有失败，同样算这次更新活下来了。
                 if (exitCode == 0)
@@ -196,10 +224,22 @@ public partial class App : System.Windows.Application
         _log.Info(phase, "exception stack: " + (exception?.ToString() ?? "(none)")
             .Replace("\r", " ").Replace("\n", " | ").Replace("\"", "'"));
 
+        // **日志路径要在 Dispose 之前取**：Dispose 之后再问就没了。
+        string logPath = _log.FilePath;
+
         _log.Dispose();
 
+        // 命令行运行绝不弹框：弹了就是挂死脚本。信息已经在日志里，退出码也会非零。
+        if (_cliMode)
+        {
+            Console.Error.WriteLine("QUL 致命错误，错误码 " + ErrorCodes.Id(code) + "。详细日志：" + logPath);
+            Shutdown(CliRunner.ExitFailed);
+            return;
+        }
+
         MessageBox.Show(
-            ErrorCodes.Hint(code) + Environment.NewLine + Environment.NewLine + "错误码：" + ErrorCodes.Id(code),
+            ErrorCodes.Hint(code) + Environment.NewLine + Environment.NewLine + "错误码：" + ErrorCodes.Id(code)
+            + Environment.NewLine + "详细日志：" + logPath,
             "Qinmo Ultimate Launcher",
             MessageBoxButton.OK,
             MessageBoxImage.Error);
