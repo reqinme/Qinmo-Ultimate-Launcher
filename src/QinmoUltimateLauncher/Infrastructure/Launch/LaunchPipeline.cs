@@ -154,7 +154,11 @@ public sealed class LaunchPipeline
             IdentitySource = request.IdentitySource,
             IdentityNotices = NoticesFor(request.IdentitySource),
             IsOnlineVerified = request.IdentitySource != IdentitySource.Offline,
-            ServerTarget = request.ServerTarget,
+            // **调用方给的优先，其次配置里的"服务器快捷连接"。**
+            // P0 定义了 `launch.serverQuickConnect`，路线图写明条件式服务器预检
+            // "仅当用户配置了服务器快捷连接、最近服务器记录，或明确输入了目标地址"。
+            // 先前这里**只**取调用方传来的值，用户在配置里设了服务器是静默无效的。
+            ServerTarget = ResolveServerTarget(request.ServerTarget, _boot.Config.Launch.ServerQuickConnect),
             JavaAvailable = outcome.Succeeded,
             ClientInstalled = clientInstalled,
             FreeDiskBytes = FreeDiskBytes(),
@@ -298,7 +302,11 @@ public sealed class LaunchPipeline
             IdentitySource = request.IdentitySource,
             IdentityNotices = result.Identity.CapabilityNotices,
             IsOnlineVerified = result.Identity.IsOnlineVerified,
-            ServerTarget = request.ServerTarget,
+            // **调用方给的优先，其次配置里的"服务器快捷连接"。**
+            // P0 定义了 `launch.serverQuickConnect`，路线图写明条件式服务器预检
+            // "仅当用户配置了服务器快捷连接、最近服务器记录，或明确输入了目标地址"。
+            // 先前这里**只**取调用方传来的值，用户在配置里设了服务器是静默无效的。
+            ServerTarget = ResolveServerTarget(request.ServerTarget, _boot.Config.Launch.ServerQuickConnect),
             JavaAvailable = true,
             ClientInstalled = File.Exists(AbsoluteCachePath(conventions.ClientJarFile(request.VersionId))),
             FreeDiskBytes = FreeDiskBytes(),
@@ -575,6 +583,25 @@ public sealed class LaunchPipeline
     /// 于是 `java.mode` / `java.manualPath` 两个配置项读写了却从不生效——
     /// 而 P3 规范白纸黑字写着"用户手动指定覆盖"。那是八个死配置里唯一**违反已写下要求**的一个。
     /// </summary>
+    /// <summary>
+    /// 目标服务器：调用方给的优先，其次配置里的"服务器快捷连接"；两者都没有就是 null。
+    ///
+    /// **抽成静态纯函数是为了能直接测。** <see cref="LaunchPipeline"/> 要 <c>BootContext</c>
+    /// 才能实例化，而这段取值逻辑什么都不需要。
+    ///
+    /// 返回 null 的语义很重要：**"用户没说要去哪"**。预检里那条纪律写着
+    /// "没配置就什么都别说，绝不能推断大概是要连正版服务器吧"——
+    /// 一个凭空冒出来的服务器警告，比没有警告更糟。
+    /// </summary>
+    public static string? ResolveServerTarget(string? fromCaller, string? fromConfig)
+    {
+        if (!string.IsNullOrWhiteSpace(fromCaller))
+        {
+            return fromCaller!.Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(fromConfig) ? null : fromConfig!.Trim();
+    }
     public static IReadOnlyList<IJavaRuntimeProvider> BuildJavaProviders(JavaSettings java, SessionLog? log)
     {
         List<IJavaRuntimeProvider> providers = new List<IJavaRuntimeProvider>();

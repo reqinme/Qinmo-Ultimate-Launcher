@@ -1,3 +1,4 @@
+using Qul.Infrastructure.Launch;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -306,5 +307,36 @@ public sealed class PreflightAndDiagnosticTests
         StringAssert.Contains(report, "启动器版本=0.1.0.0", "版本号不该被当成地址抹掉");
         Assert.IsFalse(report.Contains("203.0.113.7"), "来自环境的地址仍必须被脱敏");
         StringAssert.Contains(report, "<ip>");
+    }
+    // ---------- 目标服务器的取值 ----------
+
+    [TestMethod]
+    public void ResolveServerTarget_PrefersTheCallerOverTheConfig()
+    {
+        // 界面上现填的地址应当压过配置里的快捷连接——用户刚输入的就是他的意图。
+        Assert.AreEqual(
+            "play.example.net",
+            LaunchPipeline.ResolveServerTarget("play.example.net", "old.example.net"));
+    }
+
+    [TestMethod]
+    public void ResolveServerTarget_FallsBackToTheConfiguredQuickConnect()
+    {
+        // 这条守的是接线：P0 定义了 launch.serverQuickConnect，路线图写明条件式服务器预检
+        // "仅当用户配置了服务器快捷连接……"才执行。先前它读写了却从不生效，
+        // 于是"配置了快捷连接"这个条件**永远不成立**。
+        Assert.AreEqual("play.example.net", LaunchPipeline.ResolveServerTarget(null, "play.example.net"));
+        Assert.AreEqual("play.example.net", LaunchPipeline.ResolveServerTarget("   ", "  play.example.net  "));
+    }
+
+    [TestMethod]
+    public void ResolveServerTarget_ReturnsNullWhenNobodySaidWhereToGo()
+    {
+        // **null 的语义是"用户没说要去哪"，而不是"没配"。**
+        // 预检里那条纪律：没配置就什么都别说，绝不能推断"大概是要连正版服务器吧"——
+        // 一个凭空冒出来的服务器警告，比没有警告更糟。
+        Assert.IsNull(LaunchPipeline.ResolveServerTarget(null, null));
+        Assert.IsNull(LaunchPipeline.ResolveServerTarget("   ", "   "));
+        Assert.IsNull(LaunchPipeline.ResolveServerTarget(string.Empty, string.Empty));
     }
 }
