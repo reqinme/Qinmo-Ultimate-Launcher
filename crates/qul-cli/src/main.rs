@@ -22,6 +22,7 @@
 //! 却要承担一条新依赖及其许可审查。等到子命令真的多起来再换。
 
 mod i18n_demo;
+mod instance_demo;
 mod launch_demo;
 mod scrub_demo;
 use qul_app::AppService;
@@ -35,6 +36,7 @@ fn main() {
         Some("launch-demo") => std::process::exit(launch_demo::run_launch_demo()),
         Some("scrub-demo") => std::process::exit(scrub_demo::run_scrub_demo()),
         Some("i18n-demo") => std::process::exit(i18n_demo::run_i18n_demo()),
+        Some("instance-demo") => std::process::exit(instance_demo::run_instance_demo()),
         Some("--help") | Some("-h") => print_help(),
         None => run_overview(),
         Some(other) => {

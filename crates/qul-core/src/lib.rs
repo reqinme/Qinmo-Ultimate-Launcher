@@ -28,6 +28,7 @@ pub mod http;
 pub mod i18n;
 pub mod identity;
 pub mod inflate;
+pub mod instance;
 pub mod java;
 pub mod migrate;
 pub mod plan;

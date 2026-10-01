@@ -106,11 +106,50 @@ foreach ($f in $allMd) {
         }
     }
 }
-Write-Output ("  referenced but not found as a heading: {0}" -f $dangling.Count)
-foreach ($k in ($dangling.Keys | Sort-Object)) {
-    $where = (@($dangling[$k]) | Select-Object -Unique) -join ', '
+# ---------------------------------------------------------------------------
+# KNOWN EXEMPTIONS -- read from docs/audit-allow.json, and every entry carries a
+# REASON. This exists because this check genuinely cannot tell a HISTORICAL
+# mention from a LIVE cross-reference (see the note further down), so without a
+# machine-readable list a human has to re-judge the same ten items on every run.
+# That is exactly how an audit stops meaning anything.
+#
+# The discipline for that file: an entry may NOT say "not important". It must
+# say why the reference is correct. Otherwise it is a silent cover-up.
+#
+# And it must never be used to "renumber history to make the audit green".
+# Old section numbers inside changelog rows are historical facts.
+$allowPath = Join-Path $docs 'audit-allow.json'
+$allowed = @{}
+if (Test-Path $allowPath) {
+    try {
+        $aj = Get-Content -LiteralPath $allowPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        foreach ($e in $aj.known_dangling) { $allowed[[string]$e.section] = [string]$e.reason }
+    } catch {
+        Write-Output ("  WARNING: could not read audit-allow.json: {0}" -f $_.Exception.Message)
+    }
+}
+
+$danglingNew = @{}
+$danglingKnown = @{}
+foreach ($k in $dangling.Keys) {
+    if ($allowed.ContainsKey($k)) { $danglingKnown[$k] = $true } else { $danglingNew[$k] = $dangling[$k] }
+}
+
+Write-Output ("  referenced but not found as a heading: {0}  ({1} known-exempt, {2} NEW)" -f $dangling.Count, $danglingKnown.Count, $danglingNew.Count)
+
+if ($danglingKnown.Count -gt 0) {
+    Write-Output '  -- known exempt (docs/audit-allow.json, each with a reason) --'
+    foreach ($k in ($danglingKnown.Keys | Sort-Object)) {
+        $where = (@($dangling[$k]) | Select-Object -Unique) -join ', '
+        Write-Output ("    section {0}  <- {1}" -f $k, $where)
+        Write-Output ("      reason: {0}" -f $allowed[$k])
+    }
+}
+
+if ($danglingNew.Count -gt 0) { Write-Output '  -- NEW (these are the ones that matter) --' }
+foreach ($k in ($danglingNew.Keys | Sort-Object)) {
+    $where = (@($danglingNew[$k]) | Select-Object -Unique) -join ', '
     Add-Finding -Kind 'dangling-section-ref' -Severity 'P1' -Where $where -Detail ("section {0} has no matching heading" -f $k)
-    Write-Output ("    section {0}   <- {1}" -f $k, $where)
 }
 
 # ===================== check 2: dangling promises ============================
