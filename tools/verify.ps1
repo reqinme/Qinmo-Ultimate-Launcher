@@ -84,7 +84,7 @@ $checks = @(
        kind = 'cmd'; run = { cargo clippy --workspace --all-targets -- -D warnings } }
     @{ key = 'test'
        name = 'All tests (unit + integration + architecture guards)'
-       protects = 'everything the 32 test files pin'
+       protects = 'everything the test files pin'
        kind = 'cmd'; skipWhenFast = $true; run = { cargo test --workspace } }
     @{ key = 'vocab'
        name = 'Kernel vocabulary scanner'
@@ -102,6 +102,14 @@ $checks = @(
        name = 'Milestone audit (refs / promises / licences / counts)'
        protects = 'dangling cross-references and licence drift'
        kind = 'ps1'; run = { & (Join-Path $dir 'tools\audit-milestone.ps1') } }
+    @{ key = 'web'
+       name = 'Frontend (typecheck / lint / tests / build)'
+       protects = 'TypeScript strict mode, the three design lint rules, and the component contract tests'
+       kind = 'cmd'; run = { pnpm run --silent verify:web } }
+    @{ key = 'impeccable'
+       name = 'UI anti-pattern detector (repos/impeccable, 61 deterministic rules)'
+       protects = 'the M4 acceptance rule (plan section 8): the five categories must score ZERO hits -- generic AI colouring, purple gradients, glow particles, glassmorphism pile-up, SaaS landing-page cliches'
+       kind = 'cmd'; run = { node repos/impeccable/cli/bin/cli.js detect web/dist } }
     @{ key = 'clean'
        name = 'Worktree is clean'
        protects = 'generated files being committed by accident'

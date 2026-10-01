@@ -243,12 +243,37 @@
   color: var(--text-secondary);
 }
 
+/*
+ * 下拉箭头。
+ *
+ * ⚠️ **它原来是一个 `border` 三角形的 hack** ——
+ * `inline-size: 0` + 两条 `border-inline-*: 4px solid transparent`
+ * + 一条 `border-block-start: 5px solid`。
+ *
+ * **而 `impeccable detect` 把它判成了 `[side-tab]`**：
+ *
+ * ```text
+ *   components.css:249 [side-tab] border-inline-start: 4px solid
+ *     → Thick colored border on one side of a card — the most
+ *       recognizable tell of AI-generated UIs.
+ * ```
+ *
+ * 判据在这里**是误判**（那两条是透明的，它们不构成"一侧的粗色边"）——
+ * **而我没有把它写成一条 ignore 规则。**
+ *
+ * 理由：`repos/impeccable` 的检测是 M4 质感验收的**指定工具**（§8 的 M4 行），
+ * 而"遇到误报就加豁免"会让那条验收**从'零命中'退化成'零命中减我加的那些豁免'**。
+ * 而这里**有一个不需要任何 hack 的做法** —— 那就用它。
+ *
+ * 现在它是一个**旋转 45° 的两条边**：一个真正的折角，零 hack。
+ * 代价是 `transform`，而它只影响合成层（§4.4 纪律允许 `transform`）。
+ */
 .select__chevron {
-  inline-size: 0;
-  block-size: 0;
-  border-inline-start: 4px solid var(--transparent);
-  border-inline-end: 4px solid var(--transparent);
-  border-block-start: 5px solid var(--text-secondary);
+  inline-size: 6px;
+  block-size: 6px;
+  border-inline-end: 1px solid var(--text-secondary);
+  border-block-end: 1px solid var(--text-secondary);
+  transform: rotate(45deg) translateY(-2px);
 }
 
 /* ⚠️ 浮层用 `--surface-raised`（**不透明**）—— 使用纪律 2：
@@ -578,30 +603,35 @@
 }
 
 /**
- * **不确定进度**：一条来回走的条。
+/*
+ * **不确定进度**：一条**不循环**的、低不透明度的整条填充。
  *
- * ⚠️ 它**必须与"0%"看起来不同** —— 一个把 null 当 0 的实现会让
- * 正在探测的进度条**看起来像卡住了**，而那正是用户等待时最会误解的。
+ * ## 🔴 它原来是一个无限横向循环，而 `impeccable detect` 把它拦了下来
+ *
+ * ```text
+ *   web/dist/index.html
+ *     [marquee] .progress__track--indeterminate .progress__fill
+ *       — infinite horizontal loop animation "indeterminate"
+ * ```
+ *
+ * **而这一条是真冲突，不是误报** —— 方案 §2 约束 7 **明确禁止无限循环动画**。
+ *
+ * ## 而"去掉循环"不等于"去掉不确定态"
+ *
+ * 不确定态要回答的问题是"**它在动吗**"，而不是"它到哪了"。
+ * 而答案**已经在文字里**（`Progress` 的 `label`，界面会给"探测中……"）。
+ *
+ * 所以现在的做法是：整条填充 + **低不透明度**（明显区别于一个真实的百分比），
+ * 而"它在动"由**文案**回答。**零动画 ⇒ 也顺带解决了减少动态那一档。**
+ *
+ * ⚠️ **我没有给检测器加一条 ignore 规则。** `repos/impeccable` 是 M4 质感验收的
+ * **指定工具**（§8 的 M4 行），而"遇到命中就加豁免"会让那条验收
+ * **从「零命中」退化成「零命中减我加的那些豁免」**。
  */
 .progress__track--indeterminate .progress__fill {
-  inline-size: 30%;
-  animation: indeterminate 1400ms var(--easing-standard) infinite;
-}
-
-@keyframes indeterminate {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(340%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .progress__track--indeterminate .progress__fill {
-    /* 仍然是动的（信息性），但**慢很多** —— 见 `.spinner` 那段说明。 */
-    animation-duration: 3600ms;
-  }
+  inline-size: 100%;
+  /* ⚠️ 低不透明度是**信息**：它说"这不是一个真实的百分比"。 */
+  opacity: 0.35;
 }
 
 .ring {

@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run --config web/vite.config.ts",
-    "test:watch": "vitest --config web/vite.config.ts"
+    "test:watch": "vitest --config web/vite.config.ts",
+    "//verify:web": "一条命令跑完前端四件事。**顺序有意义**：typecheck 先跑（它最快、也最容易在重构中红），build 最后（它要 typecheck 过）。",
+    "verify:web": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run build"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.11",
