@@ -1,4 +1,29 @@
 /**
+ * @vitest-environment node
+ *
+ * ⚠️ **这个文件刻意跑在 `node` 而不是 `jsdom` 下**，而理由是硬的：
+ *
+ * `web/vite.config.ts` 的全局 environment 是 `jsdom`（门禁②④ 的组件测试要它），
+ * 而 **jsdom 会替换全局的 `TextEncoder`**，于是它的返回值与
+ * esbuild 自己那一侧的 `Uint8Array` **不是同一个 realm**。
+ * esbuild 有一条不变式：
+ *
+ * ```text
+ *   new TextEncoder().encode("") instanceof Uint8Array
+ * ```
+ *
+ * 而在 jsdom 环境下它是 `false` ⇒ **整个文件的 transform 就失败**。
+ * 修不了（setup 文件跑在那个检查之后）。
+ *
+ * ## 而"换个环境"在这里是对的，不是绕过
+ *
+ * 这个文件的测试**本来就是纯逻辑的** —— 它们校验的是
+ * `parseCapabilities` / `assertCapabilitiesValid` 的不变式与
+ * `App` 输出的**结构**，不需要真实的 DOM 事件与布局。
+ *
+ * **跑在它该跑的环境里，比让一个假 DOM 陪着它更有意义。**
+ */
+/**
  * 契约与渲染的测试。
  *
  * 这份文件守四件事：

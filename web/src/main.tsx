@@ -1,42 +1,30 @@
 /**
  * 前端入口。
  *
- * **它只做三件事**：挂载 React、取能力表、把能力表交给 [`App`]。
- * 任何"该显示什么"的判断都不在这里——那是后端的活。
+ * **它只做两件事**：挂载 React、把路由树交给 `RouterProvider`。
+ * 任何"该显示什么"的判断都不在这里 —— 那是后端的活。
+ *
+ * ## M4 之后的形状
+ *
+ * U0 的时候它是"把能力表交给 `App`"；现在它是"把路由交给 `RouterProvider`"，
+ * 而能力表成了**某一页的数据**（`web/src/api/` 的边界层负责取它，
+ * TanStack Query 负责缓存）—— 见门禁④。
+ *
+ * ⚠️ **挂载时一个网络请求都不发**。方案 §8 的 M4 验收有一条：
+ * 「**冷启动期间不等待任何网络请求**（§7 口径）」。
+ * 所以这里没有"启动时预热"、没有"提前拉能力表" —— 那些都让冷启动
+ * 依赖网络，而"网络慢"会变成"窗口白屏很久"。
  */
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { RouterProvider } from "@tanstack/react-router";
+import { QueryClientProvider } from "@tanstack/react-query";
 
-import { App } from "./App.tsx";
-import { parseCapabilities, type Capabilities } from "./api/contract.ts";
+import { router } from "./routes/router.tsx";
+import { queryClient } from "./api/query.ts";
 import "./tokens.css";
 import "./styles.css";
-
-/**
- * 取能力表。
- *
- * **U0 阶段返回夹具数据**，并**刻意留一个真实的禁用态**（带原因）——
- * 这样"禁用必须带原因"这条规则在开发时就能被眼睛看到，而不是等 M1。
- *
- * **M1 起改为调 Tauri 命令**：`invoke<unknown>("instance_capabilities", { id })`
- * 然后交给 [`parseCapabilities`] 校验。接线的位置就是这里，界面组件不用改。
- */
-function loadCapabilities(): Capabilities {
-  return parseCapabilities({
-    launch: { enabled: true },
-    preflight: { enabled: true },
-    mods: { enabled: true },
-    worlds: { enabled: true },
-    configs: { enabled: true },
-    crash_analysis: { enabled: true },
-    log_filtering: { enabled: true },
-    offline_play: { enabled: true },
-    // ↓ 真实的禁用态：原因面向用户，不是错误码
-    shaders: { enabled: false, reason: "该形态不支持光影" },
-    isolation: { enabled: false, reason: "该形态无法隔离实例，与官方启动器共用账户与数据" },
-  });
-}
 
 const host = document.getElementById("root");
 if (!host) {
@@ -45,6 +33,13 @@ if (!host) {
 
 createRoot(host).render(
   <StrictMode>
-    <App capabilities={loadCapabilities()} />
+    {/*
+      ⚠️ **`QueryClientProvider` 在 `RouterProvider` 之外。**
+      反过来的话，路由自己（将来的 loader）就拿不到缓存 ——
+      而那正是"路由是数据的边界"这个结构的意义。
+    */}
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
   </StrictMode>,
 );

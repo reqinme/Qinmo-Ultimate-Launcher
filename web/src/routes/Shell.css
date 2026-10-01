@@ -1,0 +1,191 @@
+/**
+ * 外壳的样式（M4 门禁第 ③ 项）
+ *
+ * ⚠️ **本文件只引用语义令牌**，一个十六进制色值都没有 —— 那是 §2 约束 4
+ * （"界面代码永不写十六进制色值"）的机器版，而 ESLint 会在 TS/TSX 里拦它。
+ * CSS 文件不受那条规则约束，所以**这里的纪律靠人守** ——
+ * 而 `tokens.test.ts` 与 code review 是它的两道网。
+ *
+ * 布局用的是 **CSS Grid 三段**：侧栏（固定）· 二级栏（可缺席）· 主区（弹性）。
+ */
+
+.shell {
+  display: grid;
+  /* ⚠️ **三段，而第二段可以是 `0`** —— 见下面 `--shell-has-secondary`。
+   *
+   * 一个用 `grid-template-columns: 220px 200px 1fr` 的实现在"主页"
+   * （没有二级栏）时会**留下一条 200px 的空缝**。而那正是 §4.6.1.1
+   * 说的"二级栏为空"与"没有二级栏"的区别在**布局上**的样子。 */
+  grid-template-columns: var(--shell-rail-w) var(--shell-secondary-w) 1fr;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--material-backdrop);
+  color: var(--text-primary);
+  font-family: var(--font-family-ui);
+  font-size: var(--font-body);
+}
+
+/* 没有二级栏时，那一段的宽度归 0。
+ * ⚠️ 它是**由 `Shell.tsx` 的条件渲染**决定的（那里根本不渲染那个 nav），
+ * 而这里只是让网格的第二段也跟着收掉 —— 两侧必须一致，否则会留空缝。 */
+.shell:not(:has(.shell__secondary)) {
+  grid-template-columns: var(--shell-rail-w) 0 1fr;
+}
+
+.shell {
+  --shell-rail-w: 196px;
+  --shell-secondary-w: 176px;
+}
+
+/* ── 侧栏 ────────────────────────────────────────────────────────────── */
+
+.shell__rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-2);
+  border-right: var(--hairline) solid var(--stroke-subtle);
+  overflow: hidden;
+}
+
+.shell__account {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+}
+
+.shell__accountBadge {
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: var(--radius-full);
+  background: var(--surface-active);
+  border: var(--hairline) solid var(--stroke-subtle);
+  flex: none;
+}
+
+.shell__accountName {
+  font-size: var(--font-body-sm);
+  color: var(--text-secondary);
+}
+
+.shell__group {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shell__spacer {
+  flex: 1;
+}
+
+.shell__railItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: background var(--duration-fast) var(--easing-standard);
+}
+
+.shell__railItem:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.shell__railItem:active {
+  background: var(--surface-active);
+}
+
+/* 选中态用 `surface.selected`（**不是** accent 实心）——
+ * 因为侧栏项是"当前位置"，不是"要执行的动作"。一个实心蓝的选中态
+ * 会让侧栏读起来像一排按钮。 */
+.shell__railItem--on {
+  background: var(--surface-selected);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.shell__railGlyph {
+  inline-size: 16px;
+  block-size: 16px;
+  border-radius: var(--radius-sm);
+  background: currentColor;
+  opacity: 0.35;
+  flex: none;
+}
+
+/* ── 二级栏 ──────────────────────────────────────────────────────────── */
+
+.shell__secondary {
+  padding: var(--space-3) var(--space-2);
+  border-right: var(--hairline) solid var(--stroke-subtle);
+  overflow-y: auto;
+  min-inline-size: 0;
+}
+
+.shell__secondaryList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shell__secondaryItem {
+  display: block;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-body-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.shell__secondaryItem:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.shell__secondaryItem--on {
+  background: var(--surface-selected);
+  color: var(--text-primary);
+}
+
+/* ── 主区 ────────────────────────────────────────────────────────────── */
+
+.shell__main {
+  overflow: auto;
+  min-inline-size: 0;
+  padding: var(--space-6);
+}
+
+/* ── 占位页 ──────────────────────────────────────────────────────────── */
+
+.page__title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-title);
+  font-weight: var(--font-weight-semibold);
+}
+
+.page__note {
+  margin: 0 0 var(--space-5);
+  color: var(--text-secondary);
+  max-inline-size: 60ch;
+}
+
+.page__stub {
+  padding: var(--space-4);
+  border: var(--hairline) dashed var(--stroke-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-disabled);
+  font-size: var(--font-body-sm);
+}

@@ -115,3 +115,51 @@ body {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
+
+/* ── 数据层三态（门禁④ 的贯通示例）────────────────────────────────────
+ *
+ * 三态**都要有可见的形态** —— 一个只画成功态的示例页会让缓存策略与
+ * 错误处理变成没有地方验证的东西。
+ */
+.datastate {
+  padding: var(--space-3) var(--space-4);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
+  font-size: var(--font-body-sm);
+}
+
+.datastate--pending {
+  background: var(--surface-card);
+  color: var(--text-secondary);
+}
+
+.datastate--ok {
+  /* ⚠️ 状态色**成对**使用：背景用 `-bg`，文字用 `-fg`。
+   * 一个"背景用了就用默认文字"的实现正是 §5.1 禁止的那种。 */
+  background: var(--state-success-bg);
+  color: var(--state-success-fg);
+}
+
+.datastate--error {
+  background: var(--state-danger-bg);
+  color: var(--state-danger-fg);
+}
+
+.datastate__head {
+  margin: 0 0 var(--space-2);
+  font-weight: var(--font-weight-medium);
+}
+
+.datastate__detail {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-family-mono);
+  word-break: break-word;
+}
+
+.caps__key {
+  color: var(--text-disabled);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-caption);
+  margin-left: var(--space-2);
+}

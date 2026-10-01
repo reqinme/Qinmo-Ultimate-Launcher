@@ -67,11 +67,32 @@ export default defineConfig({
     target: "es2022",
     sourcemap: true,
   },
-  test: {
-    // U0 只做纯逻辑测试（契约校验、渲染输出）。
-    // 不引 jsdom / testing-library：那要等 M4 的组件测试再引，
-    // 现在引进来只会多两个依赖和一套没用的配置。
-    environment: "node",
-    include: ["src/**/*.test.{ts,tsx}"],
-  },
+    test: {
+      /**
+       * ⚠️ **M4 起是 `jsdom`，而 U0 时是 `node`。**
+       *
+       * 原来的注释写着"不引 jsdom / testing-library：那要等 M4 的组件测试
+       * 再引，现在引进来只会多两个依赖和一套没用的配置"——那个判断当时是对的，
+       * 而现在已经到了那一步：门禁② 有约 20 个基础组件、门禁④ 要验证
+       * TanStack Query 的三态渲染，**两者都必须在 DOM 里跑**。
+       *
+       * 代价：依赖多了三个（`jsdom` + `@testing-library/react` +
+       * `@testing-library/dom`），而**它们的 postinstall 全是空**
+       * ——所以 `pnpm.onlyBuiltDependencies` 那条白名单不需要放宽。
+       */
+      environment: "jsdom",
+      /**
+       * ⚠️ **一个 setup 文件，而它只修一件跨 realm 的事** ——
+       * 见 `src/test-setup.ts` 的文档。
+       */
+      setupFiles: ["src/test-setup.ts"],
+      include: ["src/**/*.test.{ts,tsx}"],
+      /**
+       * `globals: false` —— **测试里显式 import `describe` / `it` / `expect`。**
+       *
+       * 注入全局会让"这个文件里 `expect` 从哪来"变成一个隐式事实，
+       * 而显式 import 让每个测试文件的依赖自洽（也便于将来搬文件）。
+       */
+      globals: false,
+    },
 });
