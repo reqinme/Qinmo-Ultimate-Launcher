@@ -16,107 +16,59 @@
  * **理由**（那条注释的原文）：*"否则组件不可测（要起网络）、数据来源不唯一
  * （两处各发一次）、错误处理会散落在各处。"*
  *
- * ## ⚠️ 而本文件现在**还没有 Tauri 可调**
+ * 而 §5.8 说得更直白：*"'前端零业务逻辑'是**设计意图**，不是**安全边界**"* ——
+ * 所以这条边界不只是"整洁"，它是**攻击面上的关口**。
  *
- * `src-tauri` 不存在 —— 它是 M1 的剩余项（Tauri 安全基线 + 前端命令层门禁），
- * 而那一项**硬依赖 M4 的前端存在**。所以现在这里是**明确的桩**，
- * 而桩的形状就是真实调用的形状：
+ * ## 四层的依赖方向（**单向**，见 `backend.ts` 里那段）
  *
- * ```ts
- * // 接线的位置（M1 剩余项）：把下面每个 `return` 换成
- * //   const raw: unknown = await invoke("<命令名>", { ... });
- * //   return parseXxx(raw);        // ← 边界校验，先验后用
+ * ```text
+ *   api/contract.ts      契约的形状与校验（零依赖）
+ *   api/backend.ts       Backend 接口 + 桩
+ *   api/tauriBackend.ts  真的后端（invoke + 边界校验）
+ *   api/index.ts         本文件：取数入口
  * ```
- *
- * **一个"等有了后端再抽这一层"的做法会失败**：那时组件里已经到处是
- * `invoke` 了，而把它们收回来是一次全量重写。
  */
 
-import { assertCapabilitiesValid, parseCapabilities, type Capabilities } from "./contract.ts";
+import { assertCapabilitiesValid, type Capabilities } from "./contract.ts";
+import { activeBackend, type InstanceSummary } from "./tauriBackend.ts";
+import { stubBackend, type Backend } from "./backend.ts";
+
+// 让调用点只 import `api/index.ts`（一条入口），而接口与桩的**定义**在
+// `backend.ts` —— 于是"谁依赖谁"是单向的，不会循环。
+export { stubBackend };
+export type { Backend };
+export type { InstanceSummary };
 
 /**
- * Rust 侧的调用接口。
+ * **一个显式的测试覆盖。`undefined` = 按环境判断。**
  *
- * ⚠️ **它是一个接口而不是直接调 `invoke`**，因为：
+ * ## ⚠️ 它为什么存在，以及它为什么**不是**一个可变全局
  *
- * 1. 测试里可以注入一个假实现（**不需要起 Tauri**）；
- * 2. "调用形状"在一处可见；
- * 3. 将来 Tauri 的命令改名时，只有这一个文件要改。
+ * 第一版是 `let current: Backend = stubBackend()` —— 一个**默认就有值**的
+ * 可变全局，而它有一个真实的问题：生产代码也依赖它，于是
+ * **"我改了 Rust 侧而界面没变"时没有人知道现在用的是哪一个。**
+ *
+ * 现在默认是 `undefined`，而 `backend()` 在那时问 `activeBackend()` ——
+ * 那个函数的答案**确定的**（`isTauri()` 的 `true` / `false`）。
+ *
+ * 而测试需要一个"注入假后端"的缝（三条状态各要一种桩），
+ * 所以这个 `setBackend` **留着**，而它的语义明确是**测试用**：
+ * 设了它，环境判断就被跳过；而**生产代码里没有任何地方设它**。
  */
-export interface Backend {
-  /** 取某个实例的能力结论。`id` 为 `null` 表示"当前产品"的默认实例。 */
-  capabilitiesOf(instanceId: string | null): Promise<Capabilities>;
-  /** 取一个实例的摘要（**骨架期只要 id 与显示名**）。 */
-  instanceSummary(instanceId: string): Promise<{ readonly id: string; readonly name: string }>;
+let testOverride: Backend | undefined;
+
+/** **测试用**：注入一个假后端。传 `undefined` 恢复环境判断。 */
+export function setBackend(b: Backend | undefined): void {
+  testOverride = b;
 }
 
 /**
- * **骨架期的假后端。**
+ * **当前生效的后端。**
  *
- * 它刻意保留**真实的禁用态**（带原因）—— 于是"禁用必须带原因"
- * 这条规则在开发时就能被眼睛看到，而不是等 M1。
- *
- * 而它**有一个可观察的延迟**（默认 0）：门禁④ 要证明的是"加载态、
- * 错误态、成功态"三条路都通，所以测试里会注入延迟与失败。
+ * 优先用测试注入的那个（若设了），否则按环境判断。
  */
-export function stubBackend(opts?: {
-  readonly delayMs?: number;
-  readonly fail?: boolean;
-}): Backend {
-  const delay = opts?.delayMs ?? 0;
-  const sleep = async (): Promise<void> => {
-    if (delay > 0) {
-      await new Promise((r) => setTimeout(r, delay));
-    }
-  };
-  return {
-    async capabilitiesOf(): Promise<Capabilities> {
-      await sleep();
-      if (opts?.fail === true) {
-        throw new Error("后端不可用（桩：这是被注入的失败）");
-      }
-      // ⚠️ 这里走的是**契约的解析器**，而不是直接返回对象 ——
-      // 于是"返回脏数据"会在**同一条路**上被抓到，与真实后端一致。
-      return parseCapabilities({
-        launch: { enabled: true },
-        preflight: { enabled: true },
-        mods: { enabled: true },
-        worlds: { enabled: true },
-        configs: { enabled: true },
-        crash_analysis: { enabled: true },
-        log_filtering: { enabled: true },
-        offline_play: { enabled: true },
-        shaders: { enabled: false, reason: "该形态不支持光影" },
-        isolation: {
-          enabled: false,
-          reason: "该形态无法隔离实例，与官方启动器共用账户与数据",
-        },
-      });
-    },
-    async instanceSummary(instanceId: string) {
-      await sleep();
-      if (opts?.fail === true) {
-        throw new Error("后端不可用（桩：这是被注入的失败）");
-      }
-      return { id: instanceId, name: instanceId };
-    },
-  };
-}
-
-/**
- * 当前生效的后端实现。
- *
- * ⚠️ **`let` + 一个 setter 是刻意的**：M1 的接线只需要改这一处，
- * 而所有取数路径（组件、测试、未来的一段后台逻辑）立刻都用上真的那个。
- */
-let current: Backend = stubBackend();
-
-export function setBackend(b: Backend): void {
-  current = b;
-}
-
 export function backend(): Backend {
-  return current;
+  return testOverride ?? activeBackend();
 }
 
 /**
@@ -129,13 +81,14 @@ export function backend(): Backend {
 export async function fetchCapabilities(instanceId: string | null = null): Promise<Capabilities> {
   const raw = await backend().capabilitiesOf(instanceId);
   // 再过一遍不变式：真实后端穿越 IPC 时，Rust 的类型系统管不到 JSON。
+  // ⚠️ 而"真的后端"自己也会过一遍 `parseCapabilities`
+  //（见 `tauriBackend.ts`）—— **两道不是重复**：
+  // 那一道证明"载荷能被解析成契约"，这一道证明"解析结果满足不变式"。
   assertCapabilitiesValid(raw);
   return raw;
 }
 
 /** 取一个实例的摘要。 */
-export async function fetchInstanceSummary(
-  instanceId: string,
-): Promise<{ readonly id: string; readonly name: string }> {
+export async function fetchInstanceSummary(instanceId: string): Promise<InstanceSummary> {
   return backend().instanceSummary(instanceId);
 }
