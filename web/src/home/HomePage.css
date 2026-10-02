@@ -1,0 +1,225 @@
+/**
+ * 主页的样式（M4 主干 · §4.6.8）
+ *
+ * 🔴 **三条"不动"的结构落在这里**：横幅与插件头部**不滚**，只有网格滚。
+ * 零字面颜色值（§2 约束 4）。
+ */
+
+.home {
+  display: flex;
+  flex-direction: column;
+  /* ⚠️ `min-block-size: 0` 是"只有网格滚"能成立的前提 ——
+     没有它，flex 子项会按内容撑开，而滚动会落到外层。 */
+  min-block-size: 0;
+  block-size: 100%;
+  gap: var(--space-4);
+}
+
+/* ── 大横幅（**固定**）────────────────────────────────────────────────── */
+
+.home__hero {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-xl);
+  /* 横幅是**内容卡片那一层**（它离背景比面板远一档）。 */
+  background: var(--surface-card);
+  /* ⚠️ **图形全部自绘**（§4.6.8 的相邻要求：不用官方任何素材）。
+     所以这里没有背景图 —— 而层次完全靠令牌。 */
+}
+
+.home__products {
+  display: flex;
+  gap: var(--space-1);
+  align-self: flex-start;
+}
+
+.home__product {
+  padding: var(--space-1) var(--space-3);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-body-sm);
+  cursor: pointer;
+}
+
+.home__product:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.home__product--on {
+  background: var(--surface-selected);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.home__headline {
+  margin: 0;
+  font-size: var(--font-title);
+  font-weight: var(--font-weight-semibold);
+}
+
+.home__detail {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.home__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* ── 插件头部（**固定在滚动区之外**）────────────────────────────────── */
+
+.home__pluginBar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.home__pluginLabel {
+  font-weight: var(--font-weight-medium);
+}
+
+.home__pluginHint {
+  font-size: var(--font-caption);
+  color: var(--text-disabled);
+}
+
+.home__preset {
+  display: flex;
+  gap: 2px;
+  margin-inline-start: auto;
+}
+
+.home__presetBtn {
+  padding: var(--space-1) var(--space-2);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-caption);
+  cursor: pointer;
+}
+
+.home__presetBtn:hover {
+  background: var(--surface-hover);
+}
+
+.home__presetBtn--on {
+  background: var(--surface-selected);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+/* ── 插件区（**只有这块滚**）────────────────────────────────────────── */
+
+.home__gridWrap {
+  flex: 1;
+  /* 🔴 **滚动在这里** —— 而不是 `.home` 上。 */
+  overflow-y: auto;
+  min-block-size: 0;
+}
+
+.home__grid {
+  display: grid;
+  /* §4.6.8：「**底层是 12 列网格**」 */
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-3);
+  align-content: start;
+}
+
+/* ── 一块插件 ─────────────────────────────────────────────────────────── */
+
+.home__tile {
+  display: flex;
+  flex-direction: column;
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+  min-inline-size: 0;
+}
+
+/* ⚠️ **窄屏下 1/4 档会挤到不可用** —— 而 §3.3 的断点表说最小窗口是
+ * 1140 px，所以这里只在**真的更窄**时才让四档退化成两档。
+ * 一个不做这件事的实现会让 12 列网格在 1140 px 下把 1/4 压成 ~90 px。 */
+@media (max-width: 1140px) {
+  .home__grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  /* 落点决定占宽那套逻辑在 JS 里，所以这里只把**实际跨列**减半 ——
+     ⚠️ 那是 CSS 做不到的事（`span 3` 是内联样式）。所以这一档改成
+     "最小宽度"而不是重排：窄屏下让它们**自动流**。 */
+  .home__tile {
+    grid-column: span 6 / span 6;
+  }
+}
+
+.home__tileBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-2) 0;
+}
+
+.home__grip {
+  color: var(--text-disabled);
+  cursor: grab;
+  font-size: var(--font-caption);
+}
+
+.home__tileTitle {
+  margin: 0;
+  font-size: var(--font-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home__tileActions {
+  display: flex;
+  gap: 2px;
+  margin-inline-start: auto;
+}
+
+.home__tileBtn {
+  inline-size: 20px;
+  block-size: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-disabled);
+  font: inherit;
+  cursor: pointer;
+}
+
+.home__tileBtn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.home__tileBody {
+  padding: var(--space-2);
+  min-block-size: 0;
+}
+
+/* 🔴 **极简形态**（§4.6.8：「只留最关键的一行/一个按钮」）——
+ * 而它**不是"藏起来"**，是"只留一行"。所以这里限高而不是 `display: none`。 */
+.home__tile[data-shape="minimal"] .home__tileBody {
+  max-block-size: 3.5em;
+  overflow: hidden;
+}

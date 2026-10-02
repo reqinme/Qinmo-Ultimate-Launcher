@@ -34,6 +34,7 @@ import { PagePlaceholder } from "./PagePlaceholder.tsx";
 import { CapabilitiesPage } from "./CapabilitiesPage.tsx";
 import { CapabilitiesQueryPage } from "./CapabilitiesQueryPage.tsx";
 import { ComponentsPage } from "./ComponentsPage.tsx";
+import { HomeRoute } from "./HomeRoute.tsx";
 import { LogsPage } from "./LogsPage.tsx";
 
 /** 根路由：外壳（侧栏 + 顶栏 + 内容区）。 */
@@ -62,7 +63,12 @@ function page(path: string, title: string, note: string) {
 
 /* ── 产品相关区 ─────────────────────────────────────────────────────── */
 
-const indexRoute = page("/", "主页", "固定横幅 + 插件磁贴网格（门禁④ 之后接数据）");
+// ⚠️ 主页**不是占位** —— 它是 §4.6.8 的真实落点。
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/",
+  component: HomeRoute,
+});
 
 // 实例：列表 + 详情（详情是动态段，**它证明"跳转到未注册的路由"会编译报错**）
 const instancesRoute = page("/instances", "实例", "全部实例；二级栏切换 全部/最近/收藏");
