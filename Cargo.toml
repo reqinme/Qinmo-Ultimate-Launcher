@@ -5,7 +5,13 @@ members = ["crates/qul-core", "crates/qul-infra", "crates/qul-app", "crates/qul-
 #   - 它的结论会写进文档，代码本身完成使命后即可丢弃
 #   - 若留在 workspace 里，每次 `cargo test` 都会连带构建它（CI 变慢、且引入它自己的依赖）
 # 排除之后它仍是**合法可构建**的独立包（`cargo build --manifest-path spikes/.../Cargo.toml`）。
-exclude = ["spikes"]
+  #
+  # `src-tauri/` 同理，而它的理由**不同**：它要给产品加约 210 个 crate（实测见
+  # `spikes/m1-tauri-tree/结论.md`）。排除之后：
+  #   - 产品的 `Cargo.lock` 仍是 **18 个包**（一份可审计的短清单）
+  #   - `cargo test -p qul-core` 不需要先编那 210 个（秒级 vs 分钟级）
+  # 而 `src-tauri/Cargo.toml` 自己有一份 `[workspace]` 表，于是它自洽。
+exclude = ["spikes", "src-tauri"]
 
 # ── 工作区统一的包元数据 ──────────────────────────────────────
 [workspace.package]

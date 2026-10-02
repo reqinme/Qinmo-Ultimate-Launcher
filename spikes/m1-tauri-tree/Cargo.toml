@@ -1,0 +1,16 @@
+[package]
+name = "tauri-tree-probe"
+version = "0.0.0"
+edition = "2021"
+# ⚠️ **它刻意在 workspace 之外**（`[workspace]` 那一行）——
+# 我们量的是"加 Tauri 会引入什么"，而**不该让这次测量改动产品的 Cargo.lock**。
+[workspace]
+
+[dependencies]
+tauri = { version = "2", features = [] }
+# ⚠️ **`window-vibrancy` 是我们确实要的**（DWM 材质：Mica / Acrylic，
+# 见方案 §3.4 的降级链），而不是"顺手加的"。
+window-vibrancy = "0.8"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

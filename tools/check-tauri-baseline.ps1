@@ -174,7 +174,15 @@ if (Test-Path $html) {
 $cargo = Join-Path $dir 'src-tauri\Cargo.toml'
 if (Test-Path $cargo) {
     $checked++
-    $ct = Get-Content $cargo -Raw -Encoding UTF8
+    # Strip comment lines first.
+    #
+    # A "match the raw file" version of this check is a FALSE POSITIVE waiting to
+    # happen -- and it happened: `src-tauri/Cargo.toml` documents, in a comment,
+    # that it deliberately does NOT depend on `tauri-plugin-fs`, and the check
+    # flagged that comment as a dependency.
+    #
+    # The rule is about what is DEPENDED ON, so it must look at code, not prose.
+    $ct = (Get-Content $cargo -Encoding UTF8 | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
     $bad_crates = @('tauri-plugin-fs', 'tauri-plugin-shell', 'tauri-plugin-http', 'tauri-plugin-process')
     $found = @()
     foreach ($bc in $bad_crates) { if ($ct -match [regex]::Escape($bc)) { $found += $bc } }

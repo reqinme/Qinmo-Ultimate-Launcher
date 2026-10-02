@@ -1,0 +1,44 @@
+[package]
+name = "qul-desktop"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.89"
+# ⚠️ **它有自己的 `[workspace]` 表** —— 见仓库根的 `Cargo.toml` 里的 `exclude`。
+#
+# 那一行不是"绕过"：它买到两件真实的东西 ——
+#   1. **产品的依赖面是一份可审计的短清单**（`Cargo.lock` 仍 18 个包）
+#   2. **内核的测试不需要先编 210 个 crate**（`cargo test -p qul-core` 仍是秒级）
+#
+# 而代价是"`src-tauri` 的依赖要单独看" —— 命令写在 `docs/来源记录.md` 里。
+[workspace]
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+# ⚠️ **它是我们确实要的**，而不是顺手加的：方案 §3.4 的材质降级链
+# （Mica → Acrylic → Tabbed → 纯色）要靠它。
+window-vibrancy = "0.8"
+# 与产品同版本（仓库根 `[workspace.dependencies]` 里那两个）
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# ⚠️ **刻意没有 `tauri-plugin-fs` / `-shell` / `-http` / `-process`。**
+#
+# 方案 §5.8 第 2 条原文："**默认不授予 `fs` / `shell` / `http` 的宽泛能力**；
+# 需要文件操作的功能走**自定义命令**而不是通用 fs 插件"。
+#
+# 这不是"还没加"，而是**永久不加** —— 需要读写文件的每个功能都在下面
+# 写一条自定义命令，而那条路径上有 `qul-infra` 的 `ensure_within`
+# 与原子写（ADR-0013），通用 fs 插件没有那些约束。
+#
+# 由 `tools/check-tauri-baseline.ps1` 强制。
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[profile.release]
+# 与仓库根的发布配置**一致**（方案 §7 的预算：安装包 ≤25 MB 不含运行时）
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
