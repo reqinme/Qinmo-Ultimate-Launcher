@@ -87,8 +87,38 @@ export function TitleBar(): ReactElement {
         if (e.button !== 0) return;
         void windowStartDragging();
       }}
+      // 🔴 **双击空白处 = 最大化 / 还原。**
+      //
+      // 而 `UI设计规格.md:841` 把它标成"**必须支持**"：
+      //
+      // > | 双击 | 标题栏空白处双击 = **最大化/还原**（系统行为，必须支持） |
+      //
+      // ⚠️ **"必须支持"那几个字在这里有一层具体的含义**：
+      // 它是**用户对标题栏的肌肉记忆里最强的一条** —— 比拖动还强。
+      // 一个只有拖动而没有双击的标题栏会让人**反复试而不得**，
+      // 而那不会有人报成 bug（他们会以为"这个应用就是不能双击"）。
+      //
+      // ⚠️ **而"空白处"由子元素自己 `stopPropagation` 保证** ——
+      // 品牌、搜索框、三个控制都各自排除了它。
+      // 一个"在标题栏上无条件处理双击"的实现会让**双击关闭按钮**
+      // 变成"最大化"，而那是用户最难理解的一类行为。
+      onDoubleClick={() => {
+        void windowToggleMaximize().then(setMaximized);
+      }}
     >
-      <span className="titlebar__brand">
+      <span
+        className="titlebar__brand"
+        // ⚠️ **品牌也必须排除交互** —— 而这是 `UI设计规格.md:839` 的原文：
+        //
+        // > **排除交互元素**：**品牌、搜索框、产品切换器、灵动岛、
+        // > 窗口控制按钮都必须排除拖动**（否则点不动）
+        //
+        // 而"点不动"在这里有一个更具体的后果：**双击品牌会最大化窗口** ——
+        // 因为双击由上面那个 `onDoubleClick` 处理。
+        // 而用户双击品牌多半是想**选中它**，或者**什么都不做**。
+        onPointerDown={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+      >
         <span className="titlebar__mark" aria-hidden="true" />
         秦墨
       </span>
@@ -101,6 +131,11 @@ export function TitleBar(): ReactElement {
         className="titlebar__search"
         disabled
         title="全局搜索要等内容索引接上来（M6 之后）"
+        // ⚠️ 而它**也要排除拖动与双击**（见品牌那一段）。
+        // 一个禁用的按钮**仍然会收到 pointerdown** ——
+        // 所以这两个 `stopPropagation` 不是多余的。
+        onPointerDown={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
       >
         <span aria-hidden="true">⌘</span> 搜索
       </button>
@@ -122,6 +157,17 @@ export function TitleBar(): ReactElement {
             aria-label={c.label}
             // ⚠️ **按钮上的按下不该拖窗口** —— 见上面 `onPointerDown` 那段。
             onPointerDown={(e) => e.stopPropagation()}
+            // 🔴 **而 `onDoubleClick` 那一行是必需的，而它曾经缺失。**
+            //
+            // 缺了它的后果：**双击「关闭」会先最大化，再关闭** ——
+            // 因为双击事件冒泡到标题栏那个 `onDoubleClick`。
+            //
+            // ⚠️ 而那是**被 `TitleBar.test.tsx` 抓到的一个真 bug**：
+            // 那条测试断言"双击关闭按钮只关闭、不最大化"，而它第一版红了。
+            //
+            // > 而这一类 bug 的共同形状是：**排除了一种事件，而漏了另一种**。
+            // > 拖动只排除 `pointerdown`；而双击是**另一个事件类型**。
+            onDoubleClick={(e) => e.stopPropagation()}
             onClick={() => {
               if (c.key === "min") void windowMinimize();
               else if (c.key === "close") void windowClose();
