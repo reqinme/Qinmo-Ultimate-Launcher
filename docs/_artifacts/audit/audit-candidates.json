@@ -12,6 +12,7 @@
                           "13.7",
                           "13.8",
                           "13.9",
+                          "5.4.1",
                           "6.5"
                       ],
     "promise_candidates":  [
@@ -188,7 +189,12 @@
 
            ],
     "p1":  [
-
+               {
+                   "kind":  "dangling-section-ref",
+                   "severity":  "P1",
+                   "where":  "SESSION.md",
+                   "detail":  "section 5.4.1 has no matching heading"
+               }
            ],
     "p2":  [
 
