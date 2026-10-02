@@ -110,6 +110,10 @@ $checks = @(
        name = 'UI anti-pattern detector (repos/impeccable, 61 deterministic rules)'
        protects = 'the M4 acceptance rule (plan section 8): the five categories must score ZERO hits -- generic AI colouring, purple gradients, glow particles, glassmorphism pile-up, SaaS landing-page cliches'
        kind = 'cmd'; run = { node repos/impeccable/cli/bin/cli.js detect web/dist } }
+    @{ key = 'tauri'
+       name = 'Tauri security baseline (CSP / capabilities least privilege)'
+       protects = 'plan section 5.8: the WebView is not a security boundary, so "front end has zero business logic" must be ENFORCED -- no unsafe-inline/unsafe-eval, no remote origin, no broad fs/shell/http capability'
+       kind = 'ps1'; run = { & (Join-Path $dir 'tools\check-tauri-baseline.ps1') } }
     @{ key = 'clean'
        name = 'Worktree is clean'
        protects = 'generated files being committed by accident'
