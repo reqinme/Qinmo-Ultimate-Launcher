@@ -1,0 +1,50 @@
+/*
+ * 组件自验页（路由 `/__components`）的**版面**。
+ * ============================================================================
+ *
+ * ⚠️ **为什么这个文件到现在才有。**
+ *
+ * 这一页此前**一条样式都没有**：它在 TSX 里挂着 `.gallery` / `.gallery__row` /
+ * `.gallery__grid` / `.gallery__col` / `.gallery__sidebarDemo` 五个类名，而全仓库
+ * 没有任何一条规则写过它们。所以**没有任何症状** —— 元素只是没有版面而已 ——
+ * 也没有检查看得见，直到 `tools/check-css-classes.ps1` 的 R2 把它们逐个列出来。
+ *
+ * 它只负责**版面**：颜色、描边、圆角、间距一律来自 `tokens.css` 的令牌；
+ * 组件自己的外观由 `web/src/components/components.css` 给。
+ */
+
+.gallery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* 一行示例：横排，允许换行（示例多的时候不挤成一团）。 */
+.gallery__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* 一组示例：宽度够就并排，不够就自己折行。 */
+.gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+/* 竖排一列 —— Toast 那种本来就该占满宽度、又要彼此分开的东西。 */
+.gallery__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* 「⑦ 布局 · Tabs · Sidebar」那一组的演示：左边一条窄侧栏，右边一张说明卡片。 */
+.gallery__sidebarDemo {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: var(--space-3);
+  align-items: start;
+}

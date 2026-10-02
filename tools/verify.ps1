@@ -122,6 +122,14 @@ $checks = @(
        name = 'Material ladder (opacity steps / 1px stroke / 4px whitespace rhythm)'
        protects = 'the M4 acceptance criterion in plan section 8, which says the three-layer material opacity ladder, the 1px stroke, and the whitespace rhythm MUST BE POINTABLE -- not "it looks about right". This prints the actual numbers and checks them against UI spec section 3.1: container panel 8-12%, content card higher than the panel, the overlay opaque, --hairline exactly 1px (and 0.5px at 2x DPI so it stays 1 PHYSICAL pixel), every --space-N a multiple of 4px.'
        kind = 'ps1'; run = { & (Join-Path $dir 'tools\check-material-ladder.ps1') } }
+    @{ key = 'css-classes'
+       name = 'CSS class ownership (one owner per class; every className resolves)'
+       protects = 'two REAL defects found on 2026-10-02, the first time the desktop window was opened. (1) .shell was defined by BOTH web/src/styles.css and web/src/routes/Shell.css, so the whole application shell was laid out by the U0 self-check page: the winner is decided by the import order in main.tsx, the loser does not warn, and the titlebar ended up in a 720px centred column. (2) .panel__title had two owners with DIFFERENT rules, so the self-check page was restyling the component library panel title. It also catches a className that no stylesheet defines -- an unknown class is simply an unstyled element, which is silent in the same way an undefined --token is.'
+       kind = 'ps1'; run = { & (Join-Path $dir 'tools\check-css-classes.ps1') } }
+    @{ key = 'css-grid'
+       name = 'CSS grid (a zero-width track needs explicit placement)'
+       protects = 'the second REAL layout defect of 2026-10-02: Shell.css collapses its middle column (grid-template-columns: var(--shell-rail-w) 0 1fr) while the children carried no grid-column, so the grid auto-placed them in DOM order and the main region landed in the 0-width column -- the home page rendered as one character per line and the right half of the window was empty. jsdom has no layout engine, so no vitest case can see it, and tsc/eslint/token checkers are all blind to it. Only a human looking at the real window caught it.'
+       kind = 'ps1'; run = { & (Join-Path $dir 'tools\check-css-grid.ps1') } }
     @{ key = 'clean'
        name = 'Worktree is clean'
        protects = 'generated files being committed by accident'

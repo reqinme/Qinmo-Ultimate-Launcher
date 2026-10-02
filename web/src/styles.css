@@ -29,7 +29,36 @@ body {
   background: var(--material-backdrop);
 }
 
-.shell {
+/*
+ * 🔴 **这一页的包裹类叫 `capsPage`，不叫 `shell`。**
+ *
+ * ## 为什么改过名（这是一个真缺陷，不是一个口味）
+ *
+ * 它原来叫 `.shell` —— 而"外壳"那个真正的根组件
+ * （`web/src/routes/Shell.tsx`）也把 `.shell` 用在自己的根 `div` 上，
+ * 样式写在 `web/src/routes/Shell.css` 里。
+ *
+ * 于是**同一个类名被两个文件各自定义**，而那两个文件都被打进
+ * 同一个 CSS 包：谁生效**只取决于打包顺序**。而 `main.tsx` 里
+ * `styles.css` 排在后面（`main.tsx:40-41`），所以**活跃的是这一条** ——
+ * 也就是说，整个桌面应用的外壳被这一页的
+ * "720 px 居中、竖排、`padding: space-7 space-6`" **接管**了：
+ *
+ * - 标题栏（连最小化/最大化/关闭）不在窗口右上角，而在一条
+ *   720 px 居中的窄列里；
+ * - 侧栏被竖排在主区**上面**，而不是在它左边；
+ * - 窗口其余部分是材质底色。
+ *
+ * 而**没有任何检查能看见它**：jsdom 没有布局引擎（前端那些测试全绿）、
+ * `check-css-tokens` 只查令牌、`impeccable` 只查反模式。
+ * 它是**被人眼在真实窗口里**发现的（2026-10-02，启动第一次真界面）。
+ *
+ * 教训：**类名是一个全局命名空间**。一个"页面级"的包裹类用了
+ * 与"应用外壳"同名的类，冲突是静默的、而且输赢由打包顺序决定。
+ * 所以这里留一条纪律：**`styles.css` 永不定义 `.shell*`** ——
+ * 那个前缀属于 `routes/Shell.css`。
+ */
+.capsPage {
   max-width: 720px;
   margin: 0 auto;
   padding: var(--space-7) var(--space-6);
@@ -38,37 +67,21 @@ body {
   gap: var(--space-5);
 }
 
-.shell__head {
+.capsPage__head {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
 
-.shell__title {
+.capsPage__title {
   margin: 0;
   font-size: var(--font-title);
   font-weight: 600;
 }
 
-.shell__note {
+.capsPage__note {
   margin: 0;
   color: var(--text-secondary);
-}
-
-.panel {
-  padding: var(--space-4);
-  border: var(--hairline) solid var(--stroke-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--surface-panel);
-}
-
-.panel__title {
-  margin: 0 0 var(--space-3);
-  font-size: var(--font-title-sm);
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
 }
 
 .badge {

@@ -79,7 +79,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       onClick={guardHandler(state, onClick)}
     >
       {state === "loading" ? <Spinner /> : null}
-      <span className="btn__label">{children}</span>
+      <span>{children}</span>
     </button>
   );
 });
@@ -237,7 +237,7 @@ export function Select({
         </RSelect.Trigger>
         <RSelect.Portal>
           <RSelect.Content className="select__content" position="popper" sideOffset={4}>
-            <RSelect.Viewport className="select__viewport">
+            <RSelect.Viewport>
               {options.map((o) => (
                 <RSelect.Item key={o.value} value={o.value} className="select__item">
                   <RSelect.ItemText>{o.label}</RSelect.ItemText>
@@ -278,7 +278,8 @@ export function Checkbox({
         onCheckedChange={(v) => onCheckedChange(v === true)}
         disabled={state !== "default"}
       >
-        <RCheckbox.Indicator className="choice__mark">✓</RCheckbox.Indicator>
+        {/* ✓ 的样式来自 `.choice__box[data-state="checked"]` 的 color，不是这里。 */}
+        <RCheckbox.Indicator>✓</RCheckbox.Indicator>
       </RCheckbox.Root>
       <label className="choice__label" htmlFor={id}>
         {label}
@@ -303,8 +304,27 @@ export function Radio({
   state = "default",
 }: RadioProps): ReactElement {
   const name = useId();
+  /*
+    ⚠️ 这里**故意不再挂 `fieldset--${state}`**（它是被 `tools/check-css-classes.ps1`
+    的 R2 找出来的）。
+
+    它曾经挂过，而 `components.css` 里一个 `.fieldset--*` 都没有 ——
+    一个"发出来但没人写规则"的类，在真机上**完全没有症状**：看不出错，
+    也测不出来。而这个 Radio 的禁用视觉本来就由内层
+    `RRadio.Root disabled` + `.choice__radio:disabled` 表达（这个组没有
+    `<legend>`，可访问名走 `aria-label`，所以外层没有可表达的东西）。
+
+    以后真需要组一级的视觉，就**同时**加类和规则。
+
+    ⚠️ 而且这段说明**必须写在 `return (` 外面**：它第一次写在了 `return (`
+    之后、用花括号包着的 JSX 注释 —— 那是一个 JSX 表达式，于是 `return (`
+    就有两个孩子，tsc 直接报 `TS1005: ')' expected`。
+    `web/src/routes/Shell.tsx:79-81` 早就记着这条，我还是踩了一次。
+    （而写这段注释时我又踩了第二次：注释里原样写出那段符号，它的结尾
+    提前关掉了这一整段块注释。）
+  */
   return (
-    <div className={cls("fieldset", state !== "default" && `fieldset--${state}`)}>
+    <div className="fieldset">
       {/*
         ⚠️ **可访问名用显式的 `aria-label`，而不是 `<legend>`。**
 

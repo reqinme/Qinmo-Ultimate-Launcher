@@ -451,10 +451,25 @@
   background: var(--surface-panel);
 }
 
+/*
+ * ⚠️ **这一条是 `.panel__title` 的唯一所有者。**
+ *
+ * 原先 `web/src/styles.css`（U0 验收页）也定义了 `.panel` / `.panel__title`
+ * —— 同一个类名两个所有者，谁生效只由打包顺序决定，而 `styles.css` 在后面。
+ * 后果是**组件库的面板标题被那一页的样式覆盖**，而且没有任何检查看得见。
+ *
+ * 现在那一页不再定义这两个名字（见 `tools/check-css-classes.ps1` 的 R1）。
+ * 而 `display:flex` 那三行是**从被删掉的那一份搬过来的**：
+ * 面板标题里会放徽标或操作按钮（`web/src/App.tsx` 就在标题里放了计数徽标），
+ * 没有它们，徽标会贴着标题文字。
+ */
 .panel__title {
   margin: 0 0 var(--space-3);
   font-size: var(--font-title-sm);
   font-weight: var(--font-weight-semibold);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .panel__body {

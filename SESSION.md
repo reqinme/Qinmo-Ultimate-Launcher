@@ -1,13 +1,77 @@
-# 上次收工：**M4 界面主干闭合** —— 而 `SESSION.md` 曾落后 HEAD **16 个提交**（这一轮把它补上，并去掉 **96% 的重复**）
+# 上次收工：**第一次真的把窗口打开** —— 人眼抓到两个布局真 bug，而 `verify.ps1` 长出两条能踩红的检查（13 → **15 项**）
 
-> **这一轮做的不是功能，是把一个文件补到 HEAD。** 补的过程中发现它 3697 行里有 **33 份逐字节相同的副本**（见文末「副产物」一节）；**唯一内容一段没丢** —— 四段逐字保留在文末「历史存档」，其余重复件已删除。
+> **这一轮做的不是新功能，是把"界面看起来不对"查成两个可复现的布局缺陷，再给它们各配一条会踩红的检查。** 两个 bug 都不是"样式不好看"：一个是 `.shell` 被两个 CSS 文件定义（整个外壳被 U0 验收页的 720px 居中竖排接管），另一个是网格把**主区放进了 0 宽的那一列**（主页被压成一行一个汉字）。而 **eslint / tsc / vitest(281) / impeccable / tokens / ladder 一个都看不见它们** —— jsdom 没有布局引擎，CSS 检查器只读令牌。只有真窗口里人眼能看见。
+
+## 这一轮（2026-10-02 下半场）：第一次真的打开窗口
+
+### 1. 启动与度量（第一次真跑）
+
+- 跑的是 release：`src-tauri\target\release\qul-desktop.exe`（当时 **3.90 MB**），窗口标题「秦墨」。`DwmGetWindowAttribute(DWMWA_SYSTEMBACKDROP_TYPE)` = **2** ⇒ **Mica 真的生效**（`DWMWA_CLOAKED` = 0，不是被隐藏窗口）。
+- **内存第一次有了真数字**：主进程 **27.5–28.2 MB** + 属于它的 WebView2 **7 个进程 / 428.1 MB** = **455.6 MB**，对照方案 v3.14 定的预算（主进程 80 / WebView2 400 / 合计 480 MB）**在预算内**。
+- ⚠️ **WebView2 的归属不能按进程名算**：本机同时有 **21 个** `msedgewebview2` 合计 **1129.3 MB**，绝大多数属于别的程序。按命令行里的 `--webview-exe-name=qul-desktop.exe` 与 `--user-data-dir=…app.qinmo…` 才筛得出属于自己的那 7 个。
+- ⚠️ **截图必须 DPI 感知**：本机显示器 150% 缩放（虚拟 1707×1067 / 物理 2560×1600），而 PowerShell 是 **DPI 未感知**进程 ⇒ `CopyFromScreen` 拿到的是被系统缩放的合成图，尺寸与位置全错（我第一张"界面不像设计稿"的截图就是这么来的）。先调 `user32!SetProcessDPIAware()`，之后窗口物理矩形是 **1942×1213**。可复用脚本留在 `%TEMP%\cap.ps1`。
+
+### 2. 真 bug ①：`.shell` 被两个 CSS 文件定义
+
+- `web/src/styles.css:32`（U0 验收页的骨架，文件头自己写着"本页只是 U0 的验收页，不是最终界面"）定义了 `.shell { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; … }`；`web/src/routes/Shell.css:12`（真外壳）定义了 `.shell { display: grid; grid-template-columns: var(--shell-rail-w) var(--shell-secondary-w) 1fr; … }`。两条**同权重**，谁赢只由 `web/src/main.tsx:40-41` 的 import 顺序决定 —— 而 `styles.css` 在后面。
+- 症状：整个桌面外壳被那一页的"720px 居中 + 竖排"接管 —— 标题栏（连 ― ☰ ✕）不在窗口右上角、侧栏堆在主区**上面**、窗口其余部分是材质底色。**没有任何报错**：React 渲染了，281 项前端测试全过。
+- **找到它的方式不是读源码，是读打包后的 CSS**（`web/dist/assets/index-*.css` 里 `.shell{max-width:720px…}` 在位置 35615、`.shell{display:grid…}` 在 5653）。
+- 修法：`web/src/styles.css` 里四条 `.shell*` 改名 `.capsPage*`（现在在 `:61` / `:70` / `:76` / `:82`），`web/src/App.tsx:22-25` 跟着改；并写下一条纪律：**`styles.css` 永不定义 `.shell*`** —— 那个前缀属于 `web/src/routes/Shell.css`。
+
+### 3. 真 bug ②：网格把主区放进 0 宽的那一列（① 修好之后才露出来）
+
+- `web/src/routes/Shell.css:61-62` 的 `.shell:not(:has(.shell__secondary)) { grid-template-columns: var(--shell-rail-w) 0 1fr; }` 把第二列**收成 0 宽**（主页本来就没有二级栏），而 `.shell__rail` / `.shell__secondary` / `.shell__main` **都没写 `grid-column`** ⇒ 网格按 DOM 顺序自动落格：标题栏（`:50-52` 有 `grid-column: 1 / -1`）占第一行，侧栏落第 1 列、**主区落进第 2 列（0 宽那一列）** ⇒ 主页正文被压成**一行一个汉字**，窗口右半边空的。
+- `:has()` 在 WebView2 里**是支持的**（实测：主区紧贴 196px 侧栏的右缘，而不是 196+176=372 处）⇒ 第二列真的是 0 宽，诊断成立。
+- 修法：显式落格 —— `web/src/routes/Shell.css:91`（`.shell__rail` 的 `grid-column: 1`）、`:179`（`.shell__secondary` 的 `grid-column: 2`）、`:219`（`.shell__main` 的 `grid-column: 3`），并在 `.shell__rail` 上方写明这个真 bug + "按 DOM 顺序自动落格只在二级栏总是存在时才碰巧是对的"。
+
+### 4. 两条会踩红的检查（用户拍板"先补能踩红的检查，再补主页 UI"）
+
+- **`tools/check-css-classes.ps1`**（两条规则，无 allow-list）：
+  - **R1** 一个类名只能被**一个** `.css` 文件定义（两个所有者 ⇒ 谁生效由打包顺序决定，而没人读打包顺序）；
+  - **R2** TSX 里每个 `className` 里的类名都必须有定义（未知类名 = 没有样式的元素，**静默**，与未定义的 `--token` 同一种失败形状）。
+  - ⚠️ **它自己刚写出来时漏了一整类**：`className="gallery"` 这种**裸字面量**（引号已经被剥掉，而后面那段扫描器又在找引号 ⇒ 什么都没收到，症状是只报得出 `{...}` 里的名字）。已修，并把行号改成指向规则本身而不是上一条规则的 `}`。
+- 它一次报出 **18 个真问题**：
+  - **2 个类名冲突**：`.panel` 与 `.panel__title` 同时被 `web/src/styles.css` 与 `web/src/components/components.css` 定义，而两处**规则不同** ⇒ **组件库的面板标题被 U0 验收页的样式覆盖**（多了一份 flex、字重从 semibold 变 500）。
+  - **16 处"用了但没有任何定义"**：`btn__label` / `select__viewport` / `choice__mark`（`web/src/components/index.tsx:82` / `:240` / `:281`）、`fieldset--${state}`（`:307`，而 `components.css` 里一个 `.fieldset--*` 都没有）、以及 `gallery` / `gallery__row` / `gallery__grid` / `gallery__col` / `gallery__sidebar` / `gallery__sidebarDemo` 九个 —— 也就是说 **M4 门禁第②项的自验页（`/__components`）整页没有任何样式**。
+  - 修法：`web/src/styles.css` 删掉 `.panel` / `.panel__title`（唯一所有者回到组件库，并把 `display:flex;align-items:center;gap` 三行**搬**过去，面板标题里确实要放徽标）；`web/src/components/index.tsx` 删掉三个死钩子 + Radio 的 `fieldset--${state}`（禁用视觉本来就由内层 `:disabled` 表达，外层没有可表达的东西）；新增 `web/src/routes/ComponentsPage.css`（只给版面，颜色/描边/间距全走令牌）。
+- **`tools/check-css-grid.ps1`**：**含 0 宽轨道的 `grid-template-columns`，同一个样式表里必须有显式落格**（`grid-column` / `grid-column-start` / `grid-area`，且条数不少于折叠声明的条数）。它就是钉 bug ② 的。逃生口**写在 CSS 里**（声明上方的注释包含 `qul-grid-auto-ok`）而不是一张 allow-list。
+- **两条都做过人为踩红**（演示完逐字节还原）：
+  - 把 `Shell.css` 里四处 `grid-column` 注释掉 ⇒ `FAIL` 并**指名 `routes\Shell.css:62`**（`grid-template-columns: var(--shell-rail-w) 0 1fr`），exit 1；
+  - 在 `styles.css` 里重新加一条 `.panel` ⇒ R1 报出**两个所有者**（`components\components.css:440` / `styles.css:178`）；
+  - 在 TSX 里写一个 `zzz-not-defined` ⇒ R2 指名 `routes\ComponentsPage.tsx:50`。
+- 两条已注册进 `tools/verify.ps1`（`ladder` 与 `clean` 之间）：**13 → 15 项**。
+
+### 5. 两条如实记下的话
+
+- 我先前说过"这两个 bug 这条检查都能拦"，**那是过头话**：类名检查拦得住 bug ①，**拦不住 bug ②**（网格自动落格）—— 所以才有第二条检查。
+- **"检查全绿"与"界面是对的"是两件事。** 这两个 bug 恰好穿过我们全部的自动化：jsdom 没有布局引擎，`tsc`/`eslint` 只解析不排版，`tokens`/`ladder` 只读令牌数字，`impeccable` 只认反模式。**只有人眼看真窗口能发现它们** —— 这正是用户说"我觉得应该先确立界面"的实证。
+
+### 6. 本轮的收尾数字（逐项单独跑，绕开 `pnpm run`）
+
+`tsc --noEmit` **0** · `eslint .` **0** · **vitest 281 项 / 18 个文件全过** · `vite build` **1.41 s** · `impeccable` **零命中** · `tokens` OK（9 文件 / 128 个定义）· `ladder` OK · `docs -Strict` OK（22 文件 / 634 条标题）· `audit` **P0 / P1 / P2 全 0**（27 条 promise 候选留给人看）· 两条新检查 OK。
+
+⚠️ **没有跑整个 `verify.ps1`**：在本机它会让 `web` 项失败**并把 `node_modules` 拆成半个**（下节的环境事实），所以这一轮按项单跑。
+
+⚠️ 又踩了两次项目早就记过的纪律：写 JSX 注释时在 `return (` 之后用 `{/* … */}` ⇒ 两个孩子 ⇒ `TS1005: ')' expected`（`web/src/routes/Shell.tsx:79-81` 早就记着这条）；而写这段说明的注释时又踩了第二次 —— **注释里原样写出块注释的结束符号，提前关掉了整段注释**。
+
+### 7. 这一轮还没做的
+
+- **主页按设计稿补纯 UI 缺口**（`docs/_artifacts/home-final.png` / `docs/UI设计规格.md:730` §4.6.8）：插件头部的 **`＋添加插件` / `⚙插件设置`** 两个按钮（`web/src/home/HomePage.tsx` 自己的 ASCII 图与"三条不动"表都写着它们，JSX 里没有）、横幅缺"画面"层、插件清单只有 5 件（规格是七件，缺**我的分组**与**产品状态**）。
+- **`Win + ←/→/↑` 贴靠仍待人验**（M4 第四条验收，规格 `docs/UI设计规格.md:850` 的降级线）。
+- `docs/UI设计规格.md:373` 的 §4.5 正文（空标题）与 L842 右键系统菜单的处置，**待用户拍板**。
+
+---
+
+# 上一轮（2026-10-02 上半场）：把 `SESSION.md` 补到 HEAD
+
+> **那一轮做的不是功能，是把一个文件补到 HEAD。** 补的过程中发现它 3697 行里有 **33 份逐字节相同的副本**（见文末「副产物」一节）；**唯一内容一段没丢** —— 四段逐字保留在文末「历史存档」，其余重复件已删除。
 >
-> 另外两件如实记下的事：① 本机 pnpm 12 会让 `verify.ps1` 的 `web` 项失败，**并且把 `node_modules` 拆成半个**（原因不在代码，见「环境事实」）；② 顺着 `audit` 的一条 P1 查出 `docs/UI设计规格.md` §5.4 的子节**编号撞了真正的 §5.5**（已修，见「这一轮顺手修掉的一个真缺陷」）。**在修 ② 之前，`audit` 的 P1 是 2；修完是 0。**
+> 另外两件如实记下的事：① 本机 pnpm 12 会让 `verify.ps1` 的 `web` 项失败，**并且把 `node_modules` 拆成半个**（原因不在代码，见「环境事实」）；② 顺着 `audit` 的一条 P1 查出 `docs/UI设计规格.md` §5.4 的子节**编号撞了真正的 §5.5**（已修，见「那一轮顺手修掉的一个真缺陷」）。**在修 ② 之前，`audit` 的 P1 是 2；修完是 0。**
 
-- HEAD = `faa7fa1`「标题栏的两条规格：**双击最大化**（而它抓出一个真 bug）+ **排除交互元素**」（2026-10-02，`main` 已推送）。
-- 本文件上次更新停在 `20a5098`（"M4 主干五块完成 + Tauri 安全基线已强制（verify 11 项）"）。它当时说的三件事——"`src-tauri/` 还不存在""灵动岛未接线""verify 11 项"——**现在全部已被推翻**；落后期间落地 **16 个提交**，而它们**只动了代码与工具**，没有动这个文件。
+- 那一轮结束时的 HEAD = `a7232ca`（`SESSION.md` 重写 + §5.4 编号修正，143 增 / 3435 删，**未推送**）；它下面那个提交是 `faa7fa1`「标题栏的两条规格：**双击最大化**（而它抓出一个真 bug）+ **排除交互元素**」。
+- 本文件上次更新曾停在 `20a5098`（"M4 主干五块完成 + Tauri 安全基线已强制（verify 11 项）"）。它当时说的三件事——"`src-tauri/` 还不存在""灵动岛未接线""verify 11 项"——**现在全部已被推翻**；落后期间落地 **16 个提交**，而它们**只动了代码与工具**，没有动这个文件。
 
-## 上次做到哪（本轮之后）
+## 上一轮做到哪：M4 那 16 个提交
 
 这 16 个提交（旧 → 新）分四组：**M1 收尾 → 编排层搬家 → M4 主链路 → M4 四条验收**。
 
@@ -30,9 +94,9 @@
 | 15 | `ec183e8` | M4 验收 ②：**键盘与读屏**（`web/src/routes/Shell.a11y.test.tsx` 6 项 + `scrollTo` 桩） | ⚠️ **`Win + ←/→/↑` 贴靠要人验**（测试只能钉住前提：`resizable === true` / `decorations === false` / `maximizable !== false`）；教训：**探测桩不能靠名字或字符串**——jsdom 确实装了 `scrollTo` 且它是**真函数**，只在运行时报 `Not implemented` |
 | 16 | `faa7fa1` | 标题栏两条规格：**双击最大化/还原**（而它抓出一个真 bug）+ 排除交互元素 | 三个窗口控制只排除了 `pointerDown`、**没排除 `doubleClick`** ⇒ 双击「关闭」冒泡到标题栏 ⇒ **先最大化再关闭**（**排除了一种事件、漏了另一种**）；`disabled` 的搜索框**仍会收到 `pointerdown`**（disabled 拦的是 click 与 focus） |
 
-**测试与构建的当前位置**（这一轮在本机逐项重跑过）：前端 **281 项 / 18 个文件** 全过（5.60 s）· `tsc --noEmit` 0 · `eslint .` 0 · `vite build` 1.56 s（CSS **37.61 kB**、JS **526.11 kB** / gzip 172.44 kB）· Rust **717** 项 · `clippy -D warnings` 0 · `impeccable` **零命中** · `docs` / `audit` / `tokens` / `ladder` / `tauri` / `vocab` / `vocab-probe` / `fmt` 全 OK · 产品 `Cargo.lock` **18** 包 · `src-tauri/Cargo.lock` **420** 包 · 应用 `qul-desktop.exe` **3.90 MB** / 安装包 `秦墨_0.0.0_x64-setup.exe` **1.85 MB**。
+**测试与构建的当前位置**（上一轮在本机逐项重跑过）：前端 **281 项 / 18 个文件** 全过（5.60 s）· `tsc --noEmit` 0 · `eslint .` 0 · `vite build` 1.56 s（CSS **37.61 kB**、JS **526.11 kB** / gzip 172.44 kB）· Rust **717** 项 · `clippy -D warnings` 0 · `impeccable` **零命中** · `docs` / `audit` / `tokens` / `ladder` / `tauri` / `vocab` / `vocab-probe` / `fmt` 全 OK · 产品 `Cargo.lock` **18** 包 · `src-tauri/Cargo.lock` **420** 包 · 应用 `qul-desktop.exe` **3.90 MB**（这一轮重建后是 **4,088,320 字节**）/ 安装包 `秦墨_0.0.0_x64-setup.exe` **1.85 MB**。`verify.ps1` 现在是 **15 项**（这一轮加了 `css-classes` 与 `css-grid`）。
 
-⚠️ **但 `tools/verify.ps1` 现在的实测是 `11 ok, 1 failed, 1 skipped`（exit 1）** —— 失败的是 `web`，而**原因不在代码**（见下面「环境事实」里的 pnpm 版本那条）；`skip` 是 `clean`（因为 `-AllowDirty`）。另外 `test` 一项是**第二次才过**（脚本自己标 `OK*` 并警告 *"A retry that succeeds is a transient failure, not a passing test"*）——**本机 Rust 套件那次瞬时失败的原因还没查**，这条不该被忘掉。
+⚠️ **`tools/verify.ps1` 的整跑在本机有两个独立麻烦**：上一轮（13 项时）实测 `11 ok, 1 failed, 1 skipped`（exit 1），**失败的是 `web` 而原因不在代码**（见下面「环境事实」里的 pnpm 版本那条），而且**跑它会把 `node_modules` 拆成半个**（要靠 `pnpm dlx pnpm@10 install --frozen-lockfile` 修回来）——所以这一轮**没有整跑**，两条新检查是按项单跑 + 人为踩红的。另外 `test` 一项是**第二次才过**（脚本自己标 `OK*` 并警告 *"A retry that succeeds is a transient failure, not a passing test"*）——**本机 Rust 套件那次瞬时失败的原因还没查**，这条不该被忘掉。
 
 ## M4 的四条验收条件（方案 §8 逐条）
 
@@ -78,7 +142,7 @@
 
 - **本机没有 PowerShell 7**：`$PSVersionTable` = **5.1.26100.9444 Desktop**，`pwsh` 不存在（`C:\Program Files\PowerShell\7\pwsh.exe`、`WindowsApps\pwsh.exe` 都没有）。README 与各里程碑里写的 `pwsh -File tools/verify.ps1` **在本机跑不了**，要用：
   `powershell -NoProfile -ExecutionPolicy Bypass -File tools\verify.ps1 -AllowDirty`
-  （`-List` 已在 5.1 下验过：正常解析、exit 0、列出 13 项，每项都带 "protects:" 说明。）
+  （`-List` 已在 5.1 下验过：正常解析、exit 0、每项都带 "protects:" 说明；现在列 **15 项**。）
 - **`clean` 项现在必然失败**：工作区有一个未跟踪的 `docs/_artifacts/qinmo-layout.png` ⇒ 要么先 `-AllowDirty`，要么把它提交 / 加进 `.gitignore`。（`diag.pdb` 在仓库根但**已被忽略**，`git status --porcelain` 看不到它。）
 - 工具链坑：本机 .NET Framework 的 `[System.Security.Cryptography.SHA256]` **没有 `HashData` 方法**，要用 `::Create().ComputeHash(bytes)`；`Get-FileHash` 也不接受从管道传进来的字符串。
 - 探索坑：在仓库根 `glob *`（不带路径分隔符）会返回 **72634 条**（`target/`、`repos/`、`_archive/` 的构建产物），没有信息量——要看目录就用目录列举。

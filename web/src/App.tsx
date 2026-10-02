@@ -19,10 +19,18 @@ export function App({ capabilities }: { readonly capabilities: Capabilities }): 
   const blocked = entries.filter(([, c]) => !c.enabled);
 
   return (
-    <main className="shell">
-      <header className="shell__head">
-        <h1 className="shell__title">秦墨 · 外壳骨架</h1>
-        <p className="shell__note">
+    // ⚠️ **包裹类不能叫 `.shell`** —— 那是应用外壳的类名
+    // （`routes/Shell.css`）。两个文件定义同一个类名时，谁生效只由
+    // 打包顺序决定，而这一页曾经把整个外壳的布局接管掉。
+    // 详见 `styles.css` 里 `.capsPage` 那一段。
+    //
+    // ⚠️ 而这段说明**必须是 `//` 而不是 `{/* */}`**：后者是一个 JSX
+    // 表达式，于是 `return (` 后面就有两个根节点 —— 那是语法错误
+    // （而报错信息指向 `)`，指不到这一行）。
+    <main className="capsPage">
+      <header className="capsPage__head">
+        <h1 className="capsPage__title">秦墨 · 外壳骨架</h1>
+        <p className="capsPage__note">
           U0 验收页：证明 Rust 契约能流到界面，且禁用态**必须**带原因。
         </p>
       </header>

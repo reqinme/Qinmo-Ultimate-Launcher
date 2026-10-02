@@ -20,6 +20,7 @@ import {
   Toast,
   Tooltip,
 } from "../components/index.tsx";
+import "./ComponentsPage.css";
 
 /**
  * 基础组件展示（**M4 门禁第 ② 项的自验页**）
@@ -176,7 +177,7 @@ export function ComponentsPage(): ReactElement {
           ]}
         />
         <div className="gallery__sidebarDemo">
-          <Sidebar label="示例侧栏" className="gallery__sidebar">
+          <Sidebar label="示例侧栏">
             <ul className="shell__group">
               <li className="shell__railItem">项目一</li>
               <li className="shell__railItem shell__railItem--on">项目二（选中）</li>
