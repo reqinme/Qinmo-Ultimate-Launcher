@@ -8,8 +8,17 @@ description = '编排层：把内核的判断组装成「界面与 CLI 都能调
 publish = false
 
 [dependencies]
-# ⚠️ **只依赖内核**。这一条是结构性的：编排层不许直接碰 IO、网络、界面框架，
-# 也不许直接调 provider——那些都在 `qul-infra` / `qul-provider-*` 里，
-# 由本层在需要时调用（M1 起）。
+# ⚠️ **产品（provider）是注入的，不是一个依赖** —— `ProductRegistry` 是一个参数，
+# 而编排层直接依赖某个具体 provider 会把"支持哪个产品"写死在它里面。
+#
+# 🔴 **`qul-infra` 是有意加进来的**（M4 期间），而理由在
+# `tests/layering.rs` 的 `FORBIDDEN_APP_DEPS` 那段写全了。
+#
+# 一句话：**安装编排必须做 IO，而 IO 只存在于 `qul-infra`。**
+# 而"让编排留在 CLI 里"的后果是界面要再写一遍 —— 那正是分层要防的分叉。
+#
+# ⚠️ 而界面框架（`tauri` / `wry` / `tao`）**仍然不许**：依赖它们之后
+# 命令行就用不了这一层，而那条理由是成立的。
 qul-core = { path = "../qul-core" }
+qul-infra = { path = "../qul-infra" }
 serde = { workspace = true }

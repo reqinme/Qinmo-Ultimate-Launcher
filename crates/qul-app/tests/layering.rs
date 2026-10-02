@@ -21,10 +21,56 @@ use std::path::{Path, PathBuf};
 /// **为什么界面框架在名单里**：编排层要能被 CLI 复用。
 /// 依赖 `tauri` 之后，命令行想用同一份逻辑就得把 Tauri 也拖进去——
 /// 那条路走不通，于是"两边各写一套"就开始了。
-const FORBIDDEN_APP_DEPS: &[&str] = &["tauri", "wry", "tao", "tokio", "reqwest", "qul-infra"];
+///
+/// ---
+///
+/// ## 🔴 `qul-infra` 曾经在这个名单里，而它**被有意移除了**（M4 期间）
+///
+/// 那条禁令的理由是**具体的**：
+///
+/// > 依赖 `tauri` 之后，**命令行想用同一份逻辑就得把 Tauri 也拖进去**。
+///
+/// 而**那条理由对 `qul-infra` 不成立** —— 实测：
+///
+/// ```text
+///   qul-cli → qul-app, qul-core, qul-infra, qul-provider-mock
+/// ```
+///
+/// **命令行本来就依赖 `qul-infra`。** 所以"拖进去"这句话对它没有内容。
+///
+/// ### 而真正把这条禁令撞破的是**安装编排**
+///
+/// 安装要做 IO（下载 / 校验 / 解压），而那些**只存在于 `qul-infra`**。
+/// 于是二选一：
+///
+/// | 做法 | 后果 |
+/// |---|---|
+/// | **让编排留在 `qul-cli` 里**（当时的状态） | 界面要用同一条链时**只能再写一遍** —— 而那正是本文件要防的分叉 |
+/// | **让 `qul-app` 依赖 `qul-infra`** | 编排有一份，而两个调用方共享它 |
+///
+/// **第二条是唯一不制造分叉的那个。** 而它正是本文件开头那句
+/// "编排层是'界面与命令行共用的那一份逻辑'的落点"的字面要求。
+///
+/// ### 而"不许依赖界面框架"那一条**没有被放松**
+///
+/// `tauri` / `wry` / `tao` 仍在名单里 —— 因为**那条理由是成立的**：
+/// 编排层若依赖 Tauri，命令行就用不了它。
+///
+/// `tokio` / `reqwest` 也留着：本仓库的 http 是**零依赖**的 WinHTTP 实现
+/// （见 `docs/来源记录.md` §5.1），所以它们进树会是一个**不该有的决定**，
+/// 而在这里拦住它是**便宜**的。
+const FORBIDDEN_APP_DEPS: &[&str] = &["tauri", "wry", "tao", "tokio", "reqwest"];
 
 /// 编排层源码里不许出现的路径。
-const FORBIDDEN_APP_PATHS: &[&str] = &["qul_infra::", "qul_provider_", "tauri::"];
+///
+/// ⚠️ `qul_infra::` **曾经在这里，而现在允许了** —— 理由见 [`FORBIDDEN_APP_DEPS`]。
+///
+/// 而另两条仍然不许：
+///
+/// - `tauri::` —— 同上（命令行要能复用它）
+/// - `qul_provider_` —— **产品是注入的**（`ProductRegistry` 是一个参数），
+///   而编排层直接 `use` 一个具体 provider 会把"支持哪个产品"**写死在它里面**
+const FORBIDDEN_APP_PATHS: &[&str] = &["qul_provider_", "tauri::"];
 
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

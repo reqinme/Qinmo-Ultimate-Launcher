@@ -39,7 +39,9 @@
 //! 本机缓存（官方启动器写下的）是**权威且离线可用**的。
 //! 联网取只在缓存没有那个版本时才发生 —— 而那时它会**如实说它在联网**。
 
-use qul_core::descriptor::{Descriptor, Env, PlatformTarget, VersionManifest};
+// ⚠️ `Descriptor` 曾经在这里，而在 `descriptor_for` 被搬进编排层之后
+// 这一层不再直接用它 —— 于是它成了未用的 import。
+use qul_core::descriptor::{Env, PlatformTarget, VersionManifest};
 use qul_core::retry::CancelToken;
 use std::path::PathBuf;
 
@@ -112,61 +114,30 @@ impl qul_infra::install::StageSink for CliSink {
     }
 }
 
-/// 取版本详情：**先本机缓存，再联网**。
+/// **它现在是 `qul_app::install_plan::descriptor_for` 的薄调用。**
+///
+/// ⚠️ 这里**曾经有一份 55 行的"先缓存再联网"实现** —— 而它被搬进了
+/// 编排层，因为**界面也要它**。详见 `crates/qul-app/src/install_plan.rs` 的模块文档。
+///
+/// 那件事的证据是：这一层现在只提供"本机的 .minecraft 在哪"与
+/// "清单 URL 是什么"，而**判断完全在编排层**。
 fn descriptor_for(
     version_id: &str,
     transport: &dyn qul_core::http::Transport,
     allow_network: bool,
-) -> Result<(Descriptor, String), String> {
-    // ① 本机缓存（官方启动器写下的那份）
-    let mc = std::path::Path::new(&std::env::var("APPDATA").unwrap_or_default()).join(".minecraft");
-    let cached = mc
-        .join("versions")
-        .join(version_id)
-        .join(format!("{version_id}.json"));
-    if cached.is_file() {
-        let text = std::fs::read_to_string(&cached).map_err(|e| format!("读不到缓存：{e}"))?;
-        let d = Descriptor::parse(&text).map_err(|e| format!("缓存那份解析失败：{e}"))?;
-        return Ok((d, format!("本机缓存 {}", cached.display())));
-    }
-
-    if !allow_network {
-        return Err(format!(
-            "本机没有 `{version_id}` 的详情（{}），而 `--offline` 不许联网。\n  \
-             要拿到它，用官方启动器启动一次那个版本，或去掉 `--offline`。",
-            cached.display()
-        ));
-    }
-
-    // ② 联网：先取清单，再按 url 取详情
-    println!("  （本机没有 `{version_id}` 的详情 —— **正在联网取**）");
-    let m = transport
-        .fetch(&qul_core::http::FetchRequest::get(MANIFEST_URL))
-        .map_err(|e| format!("取清单失败：{e}"))?;
-    if !m.is_success() {
-        return Err(format!("取清单得到状态码 {}", m.status));
-    }
-    let text = String::from_utf8_lossy(&m.body).to_string();
-    let manifest = VersionManifest::parse(&text).map_err(|e| format!("清单解析失败：{e}"))?;
-    let entry = manifest
-        .find(version_id)
-        .ok_or_else(|| format!("清单里没有 `{version_id}`"))?;
-    let r = transport
-        .fetch(&qul_core::http::FetchRequest::get(&entry.url))
-        .map_err(|e| format!("取详情失败：{e}"))?;
-    if !r.is_success() {
-        return Err(format!("取详情得到状态码 {}", r.status));
-    }
-    let t2 = String::from_utf8_lossy(&r.body).to_string();
-    let d = Descriptor::parse(&t2).map_err(|e| format!("详情解析失败：{e}"))?;
-    Ok((
-        d,
-        format!(
-            "联网 {}（清单声明的 sha1 {}）",
-            entry.url,
-            &entry.sha1[..8.min(entry.sha1.len())]
-        ),
-    ))
+) -> Result<(qul_core::descriptor::Descriptor, String), String> {
+    // ⚠️ 这两样是**调用方该给的**：本机缓存的位置是环境事实，
+    // 而清单 URL 是方案 §11.5 那条纪律的**唯一例外**（它是入口）——
+    // 而那个例外**由 CLI 持有**，不由编排层硬编码。
+    let cache_root =
+        std::path::Path::new(&std::env::var("APPDATA").unwrap_or_default()).join(".minecraft");
+    qul_app::install_plan::descriptor_for(
+        version_id,
+        &cache_root,
+        transport,
+        allow_network,
+        MANIFEST_URL,
+    )
 }
 
 pub struct InstallArgs {

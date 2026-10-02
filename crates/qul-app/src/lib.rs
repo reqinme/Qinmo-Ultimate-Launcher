@@ -11,13 +11,18 @@
 //!
 //! ## 它不许做什么（靠测试强制，不靠自觉）
 //!
-//! - **不许直接 `use qul_infra::` 或 `qul_provider_*`**：
-//!   那会绕开编排、让两层逻辑分叉。真实调用要走本层的公开函数。
+//! - **不许 `use qul_provider_*`**：**产品是注入的**（`ProductRegistry` 是参数），
+//!   而直接依赖一个具体 provider 会把"支持哪个产品"写死在它里面。
+//! - ⚠️ **`qul_infra` 曾经也在这条禁令里，而它被有意移除了**（M4 期间）——
+//!   理由在 `tests/layering.rs` 的 `FORBIDDEN_APP_DEPS` 那段写全了。
+//!   一句话：**安装编排必须做 IO，而 IO 只存在于 `qul_infra`。**
 //! - **不许碰界面类型**（`tauri::`）：编排层要能被 CLI 复用，
 //!   一旦依赖 Tauri 就复用了不了。
 //!
 //! 这两条由 `tests/layering.rs` 检查，并且**那个测试自己也被证明过能红**
 //! （见 `qul-core` 的 `tests/guardrails.rs`）。
+
+pub mod install_plan;
 
 use qul_core::{Capabilities, Overview};
 

@@ -28,6 +28,7 @@ name = "qul-app"
 version = "0.0.0"
 dependencies = [
  "qul-core",
+ "qul-infra",
  "serde",
 ]
 
