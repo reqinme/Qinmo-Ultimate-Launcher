@@ -34,6 +34,7 @@ import { PagePlaceholder } from "./PagePlaceholder.tsx";
 import { CapabilitiesPage } from "./CapabilitiesPage.tsx";
 import { CapabilitiesQueryPage } from "./CapabilitiesQueryPage.tsx";
 import { ComponentsPage } from "./ComponentsPage.tsx";
+import { LogsPage } from "./LogsPage.tsx";
 
 /** 根路由：外壳（侧栏 + 顶栏 + 内容区）。 */
 const rootRoute = createRootRoute({
@@ -99,7 +100,12 @@ const accountsRoute = page("/accounts", "账号管理", "离线 / 微软 / 统�
 const accountsAuth = page("/accounts/auth", "授权状态", "**账户层与授权层拆开**（M5）");
 
 const toolboxRoute = page("/toolbox", "百宝箱 · 内建帮助", "可点击操作卡片");
-const toolboxLogs = page("/toolbox/logs", "百宝箱 · 日志与诊断", "按来源过滤（CONSOLE / LOG4J）");
+// ⚠️ 日志页**不是占位** —— 它是 §5.5 的真实落点（组件已存在）。
+const toolboxLogs = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/toolbox/logs",
+  component: LogsPage,
+});
 const toolboxSpeedtest = page("/toolbox/speedtest", "百宝箱 · 测速", "官方源 vs 镜像");
 const toolboxComponents = page("/toolbox/components", "百宝箱 · 依赖与组件检查", "");
 const toolboxCleanup = page("/toolbox/cleanup", "百宝箱 · 磁盘清理", "");

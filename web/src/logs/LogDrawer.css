@@ -1,0 +1,188 @@
+/**
+ * 日志抽屉的样式（M4 主干 · §5.5）
+ *
+ * ⚠️ **零字面颜色值** —— 分级色走 `tokens.css` 里的 `--console-log-*`
+ *（§5.5 那张表逐行对应）。
+ */
+
+.logdrawer {
+  display: flex;
+  flex-direction: column;
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+  overflow: hidden;
+  min-block-size: 0;
+}
+
+.logdrawer__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-block-end: var(--hairline) solid var(--stroke-subtle);
+  background: var(--surface-card);
+  flex-wrap: wrap;
+}
+
+.logdrawer__filter {
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* 筛选钮：**选中态用 `surface.selected`**（它是"当前位置"，不是动作） */
+.logdrawer__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-caption);
+  cursor: pointer;
+}
+
+.logdrawer__chip:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.logdrawer__chip--on {
+  background: var(--surface-selected);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.logdrawer__count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-disabled);
+}
+
+.logdrawer__chip--on .logdrawer__count {
+  color: var(--text-secondary);
+}
+
+.logdrawer__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: auto;
+  flex-wrap: wrap;
+}
+
+/* 二次确认那一块：**用状态色成对**（背景 `-bg` + 文字 `-fg`） */
+.logdrawer__confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--state-danger-bg);
+  color: var(--state-danger-fg);
+  font-size: var(--font-caption);
+}
+
+/* ── 分享面板 ─────────────────────────────────────────────────────────── */
+
+.logdrawer__share {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-block-end: var(--hairline) solid var(--stroke-subtle);
+  background: var(--surface-card);
+}
+
+.logdrawer__shareNote {
+  margin: 0;
+  font-size: var(--font-caption);
+  color: var(--text-secondary);
+}
+
+.logdrawer__shareText {
+  inline-size: 100%;
+  padding: var(--space-2);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-caption);
+  resize: vertical;
+}
+
+.logdrawer__shareText:read-only {
+  color: var(--text-disabled);
+}
+
+.logdrawer__shareActions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* ── 日志行 ───────────────────────────────────────────────────────────── */
+
+.logdrawer__lines {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2) 0;
+  overflow: auto;
+  min-block-size: 0;
+  flex: 1;
+  font-family: var(--font-family-mono);
+  /* §5.5：`Console.fontSize = 12` */
+  font-size: var(--console-font-size);
+}
+
+.logdrawer__line {
+  display: flex;
+  gap: var(--space-2);
+  padding: 1px var(--space-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  /* 默认色：`Console.LogType.default = @foreground` */
+  color: var(--console-log-default);
+}
+
+/* §5.5 的五档分级色 —— **逐行对应那张令牌表** */
+.logdrawer__line[data-level="debug"] {
+  color: var(--console-log-debug);
+}
+.logdrawer__line[data-level="info"] {
+  color: var(--console-log-info);
+}
+.logdrawer__line[data-level="warn"] {
+  color: var(--console-log-warn);
+}
+.logdrawer__line[data-level="error"] {
+  color: var(--console-log-error);
+}
+
+/* 来源标记：**一个极窄的左边线** —— 它让"这一行是谁写的"在
+ * 混排时也能一眼看出来，而不需要每次去读行首的标签。 */
+.logdrawer__line[data-source="log4j"] {
+  border-inline-start: 2px solid var(--stroke-strong);
+}
+.logdrawer__line[data-source="console"] {
+  border-inline-start: 2px solid var(--accent);
+}
+
+.logdrawer__level {
+  flex: none;
+  inline-size: 2.5em;
+  color: var(--text-disabled);
+}
+
+.logdrawer__text {
+  min-inline-size: 0;
+}
+
+.logdrawer__empty {
+  padding: var(--space-4);
+  color: var(--text-disabled);
+  text-align: center;
+  list-style: none;
+}
