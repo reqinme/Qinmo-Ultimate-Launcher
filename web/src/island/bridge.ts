@@ -306,5 +306,26 @@ export function toIslandContent(s: IslandState): IslandContent {
         fraction: null,
         hints: [],
       };
+    default: {
+      // 🔴 **这个 `default` 是必需的，而它曾经不存在。**
+      //
+      // TypeScript 的类型系统让"所有 `kind` 都被处理了"看起来成立 ——
+      // 而那是**编译期**的保证。运行期还有一条路：**这个函数是一个边界**，
+      // 而边界上的输入可以是任何东西。
+      //
+      // 没有 `default` 时，一个认不出的 `kind` 会**静默地返回 `undefined`**
+      //（函数体走完而没有 `return`），于是 `setContent(undefined)` ——
+      // 而 React 的 `useState` **接受它**，界面随后炸在一个**指不到这里**的地方。
+      //
+      // 而这条**是被 `useIslandQueue.test.ts` 抓到的** ——
+      // 那条测试第一版"通过"了，因为我用 `try/catch` 吞掉了校验的抛出，
+      // 于是 `onState(undefined)` 走到的正是这里。**一个吞掉的异常
+      // 会让下一个 bug 更难找**，而不只是少一条断言。
+      const never: never = s;
+      throw new TypeError(
+        `灵动岛状态认不出：${JSON.stringify(never)} —— ` +
+          `内核加了一个状态而这边的翻译表没跟上`,
+      );
+    }
   }
 }

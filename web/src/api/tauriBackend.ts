@@ -40,9 +40,10 @@
  * 所以这里显式用 `isTauri()`（Tauri 2 官方就为"浏览器或单元测试"提供了它）。
  */
 
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri, Channel } from "@tauri-apps/api/core";
 import { parseCapabilities, type Capabilities } from "./contract.ts";
 import { stubBackend, type Backend } from "./backend.ts";
+import { parseIslandState, type IslandState } from "../island/bridge.ts";
 
 /** 一个实例的摘要（**与 Rust 侧 `InstanceSummary` 一一对应**）。 */
 export interface InstanceSummary {
@@ -150,4 +151,120 @@ export function activeBackend(): Backend {
   //   ② 而**这条消息确实值得被看到** —— 它说的是"你在看夹具数据"。
   console.warn("[qinmo] 不在 Tauri 环境里 —— 用桩后端。界面照旧可用，而数据是夹具。");
   return stubBackend();
+}
+
+// ============================================================================
+// 流式：一次安装的进度
+// ============================================================================
+
+/** 一次安装的结局（**与 Rust 侧 `InstallSummary` 一一对应**）。 */
+export interface InstallSummary {
+  readonly version: string;
+  /** 这个版本一共需要几个文件 */
+  readonly needed: number;
+  /** 其中磁盘上已有且 sha1 正确的 */
+  readonly present: number;
+  /** 这一次真的下了几个 */
+  readonly downloaded: number;
+  /** 其中从已有安装迁移过来的 */
+  readonly migrated: number;
+}
+
+/** 用户停下来的理由。 */
+export class CancelledError extends Error {
+  constructor() {
+    super("这次安装被用户停下来了");
+    this.name = "CancelledError";
+  }
+}
+
+/**
+ * **开始一次安装，并把每条进度交给 `onState`。**
+ *
+ * ## 🔴 它用 `Channel` 而**不是**全局事件监听
+ *
+ * | | 全局事件（`listen`） | **`Channel`** |
+ * |---|---|---|
+ * | 作用域 | 所有窗口 | **这一次调用的这一个前端** |
+ * | 两次安装同时跑 | 事件**混在一起** | 各自一条流 |
+ *
+ * §7.1 的硬规则是「**任意时刻只有一个岛、一个主状态**」——
+ * 而"两个安装的进度混在一条全局事件流里"会让那条规则**在消息层就被破坏**，
+ * 而内核那 22 条队列测试**管不到消息层**。
+ *
+ * ## ⚠️ 而每一条载荷**都过 `parseIslandState`**
+ *
+ * Rust 的类型系统**管不到穿越 IPC 的 JSON**（§5.8 说的那条攻击面）。
+ * 所以这里逐字段核对 —— 而坏载荷会抛，且**抛在边界上**，
+ * 不是在组件的某一行。
+ *
+ * ## 而它**不 catch** `onState` 的异常
+ *
+ * 因为"翻译不过来"是一个**真实的问题**（见 `bridge.ts` 里那条
+ * "认不出的 `kind` 抛"），而把它吞掉会让内核加了一个状态而前端没跟上时
+ * **静默地什么都不显示**。
+ *
+ * @returns 安装的结局；失败时抛一个 `Error`（消息是**给人看的那一句**）。
+ *          而**失败也已经在 `onState` 里报过一次**（`kind: "error"`）——
+ *          那是 §7.2 的形状：`Error` 是**灵动岛的一个状态**。
+ */
+export async function startInstall(
+  versionId: string,
+  onState: (s: IslandState) => void,
+): Promise<InstallSummary> {
+  if (!isTauri()) {
+    // ⚠️ **桩在后端里不存在的那个意义上也不存在。**
+    //
+    // 一个"用桩假装装一遍"的实现会让"浏览器里点启动"看起来**成功了** ——
+    // 而那是这个项目最该避免的一类错：**看起来能用而其实没有**。
+    //
+    // 所以它明确地抛，而消息说清为什么。
+    throw new Error(
+      "安装只能从桌面应用里发起（现在是浏览器 / 测试环境，没有后端）。",
+    );
+  }
+  const ch = new Channel<unknown>();
+  ch.onmessage = (raw) => {
+    // 校验在边界上做 —— 见上面那段。
+    onState(parseIslandState(raw));
+  };
+  // 📌 命令层的参数名是 **camelCase**（Rust 侧的 `version_id` 会被 Tauri
+  //    转成 `versionId`）—— 而一个用 `version_id` 去调的实现在运行期会得到
+  //    "missing required key versionId"，而那是一条**只说了一半**的错误。
+  const raw: unknown = await invoke("install", { versionId, onEvent: ch });
+  return parseInstallSummary(raw);
+}
+
+/** 请后端停下来（用户点了"停止"）。 */
+export async function cancelInstall(): Promise<boolean> {
+  if (!isTauri()) return false;
+  const raw: unknown = await invoke("cancel_install");
+  return raw === true;
+}
+
+/** 边界校验：一次安装的结局。 */
+export function parseInstallSummary(raw: unknown): InstallSummary {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new TypeError(`安装结局应当是一个对象，收到 ${describe(raw)}`);
+  }
+  const o = raw as Record<string, unknown>;
+  const out: Record<string, number | string> = {};
+  for (const k of ["needed", "present", "downloaded", "migrated"]) {
+    const v = o[k];
+    if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
+      throw new TypeError(`安装结局的 ${k} 必须是非负有限数，收到 ${describe(v)}`);
+    }
+    out[k] = v;
+  }
+  const version = o["version"];
+  if (typeof version !== "string" || version === "") {
+    throw new TypeError(`安装结局的 version 必须是非空字符串，收到 ${describe(version)}`);
+  }
+  return {
+    version,
+    needed: out["needed"] as number,
+    present: out["present"] as number,
+    downloaded: out["downloaded"] as number,
+    migrated: out["migrated"] as number,
+  };
 }

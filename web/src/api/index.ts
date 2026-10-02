@@ -30,14 +30,23 @@
  */
 
 import { assertCapabilitiesValid, type Capabilities } from "./contract.ts";
-import { activeBackend, type InstanceSummary } from "./tauriBackend.ts";
+import {
+  activeBackend,
+  cancelInstall,
+  startInstall,
+  type InstallSummary,
+  type InstanceSummary,
+} from "./tauriBackend.ts";
 import { stubBackend, type Backend } from "./backend.ts";
 
 // 让调用点只 import `api/index.ts`（一条入口），而接口与桩的**定义**在
 // `backend.ts` —— 于是"谁依赖谁"是单向的，不会循环。
 export { stubBackend };
 export type { Backend };
-export type { InstanceSummary };
+export type { InstanceSummary, InstallSummary };
+// ⚠️ **流式那两条也走这个入口** —— 于是"组件只 import `api/index.ts`"
+// 这条纪律在"进度"这条路上同样成立（`boundary.test.ts` 会核对它）。
+export { cancelInstall, startInstall };
 
 /**
  * **一个显式的测试覆盖。`undefined` = 按环境判断。**

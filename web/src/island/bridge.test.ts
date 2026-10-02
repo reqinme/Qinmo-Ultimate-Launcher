@@ -133,6 +133,28 @@ describe("🔴 三条「不许编数」的纪律", () => {
     expect(c.fraction).toBeNull();
     expect(c.headline).toBe("服务器返回 503");
   });
+
+  it("🔴 认不出的 kind **抛** —— 而不是返回 `undefined`", () => {
+    // ## 这条是**一个真实 bug 的回归测试**，而它值得单独说
+    //
+    // `toIslandContent` 的 `switch` 原本**没有 `default`**。于是一个认不出的
+    // `kind` 会让函数体走完而**静默地返回 `undefined`** ——
+    // 然后 `setContent(undefined)`，而 React 的 `useState` **接受它**，
+    // 界面随后炸在一个**指不到这里**的地方。
+    //
+    // 而抓到它的**不是**这条测试（它当时还不存在），而是
+    // `useIslandQueue.test.ts` 里那条"翻译不过来时保留上一态" ——
+    // 而那条测试的**第一版还"通过"了**（因为我用 `try/catch` 吞掉了
+    // 校验的抛出，于是 `onState(undefined)` 走到了这里）。
+    //
+    // **两条教训：**
+    // ① `never` 那个赋值让 TypeScript 保证"所有分支都处理了" ——
+    //    而它**只在编译期**成立；运行期还需要那个 `throw`。
+    // ② **一个被吞掉的异常会让下一个 bug 更难找**，而不只是少一条断言。
+    expect(() =>
+      toIslandContent({ kind: "teleporting" } as unknown as IslandState),
+    ).toThrow(/认不出/);
+  });
 });
 
 describe("五阶段的下标来自那张表（与内核的 Ord 一致）", () => {
