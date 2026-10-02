@@ -29,11 +29,12 @@ describe("§4.6.1.1 二级栏内容由当前一级决定", () => {
     expect(secondaryOf("about")).toBeNull();
   });
 
-  it("有下级的一级返回**非空**数组", () => {
+  it("有下级的一级返回**非空**区域（区与项都非空）", () => {
     for (const k of ["instances", "downloads", "accounts", "toolbox", "settings"] as const) {
-      const s = secondaryOf(k);
-      expect(s, `${k} 应当有二级内容`).not.toBeNull();
-      expect(s?.length ?? 0, `${k} 的二级内容不该是空数组`).toBeGreaterThan(0);
+      const area = secondaryOf(k);
+      expect(area, `${k} 应当有二级内容`).not.toBeNull();
+      expect(area?.sections.length ?? 0, `${k} 的二级区不该是空的`).toBeGreaterThan(0);
+      expect(area?.items.length ?? 0, `${k} 的二级项不该是空的`).toBeGreaterThan(0);
     }
   });
 
@@ -42,13 +43,48 @@ describe("§4.6.1.1 二级栏内容由当前一级决定", () => {
     // 这里逐项核对：每个二级项都只属于它自己那一级。
     const seen = new Map<string, PrimaryKey>();
     for (const p of PRIMARY) {
-      for (const s of p.secondary ?? []) {
+      for (const s of p.secondary?.items ?? []) {
         const prev = seen.get(s.key);
         // 允许不同一级用同名 key（如 `list`），所以这里只断言
         // "同一级里 key 唯一"。
         expect(prev === undefined || prev === p.key, `${p.key} 的二级 key 重复`).toBe(true);
         seen.set(s.key, p.key);
       }
+    }
+  });
+
+  it("🔴 **每一项都落在它那一页真实存在的区里**", () => {
+    // ⚠️ 这条是这一版新加的，而它拦的是一类**静默失踪**：
+    // `Shell.tsx` 是**按区分组**渲染的（`itemsOf()` 用 `item.section` 过筛），
+    // 所以一个 `section` 写错（或指向另一个页面的区）的项**一个字都不会出现** ——
+    // 没有异常、没有 lint、没有类型错误（`section` 是 `string`）。
+    //
+    // 而"二级栏里少了一项"是一个**只能靠人眼**发现的缺陷，除非这里钉住它。
+    for (const p of PRIMARY) {
+      const area = p.secondary;
+      if (area === null) continue;
+      const keys = new Set(area.sections.map((s) => s.key));
+      for (const item of area.items) {
+        expect(keys.has(item.section), `${p.key}/${item.key} 的 section「${item.section}」不在区表里`).toBe(
+          true,
+        );
+      }
+      // 而静态区的项**就在表里**（动态区 —— `products` / `instances` ——
+      // 的行来自产品表与实例表，所以它们在 `items` 里可以一项都没有）。
+      for (const section of area.sections) {
+        if (section.source !== "static") continue;
+        const n = area.items.filter((i) => i.section === section.key).length;
+        expect(n, `${p.key}/${section.key} 是静态区，却一项都没有`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("每一级的区 key **互不相同**（同一个 nav 里不许有两个同名区）", () => {
+    // `aria-labelledby` 与 `<h2 id>` 都是按区 key 生成的（`Shell.tsx`），
+    // 于是两个同名区在 HTML 里会指向同一个 id —— 那是无效文档。
+    for (const p of PRIMARY) {
+      const keys = (p.secondary?.sections ?? []).map((s) => s.key);
+      expect(new Set(keys).size, `${p.key} 有两个同名区`).toBe(keys.length);
     }
   });
 });
@@ -62,11 +98,12 @@ describe("§4.6.1.2 「当前产品」不进导航", () => {
 
   it("导航表里**没有**任何产品名字面量", () => {
     // 与门禁⑤ 的 lint 规则同源（那些规则只看 TSX/TS 的字面量，
-    // 而这里额外核对**渲染出来的标签**）。
+    // 而这里额外核对**渲染出来的标签** —— 区的名字也是渲染出来的文字）。
     const banned = ["java", "bedrock", "forge", "fabric", "neoforge", "quilt", "mojang", "minecraft"];
     const labels = [
       ...PRIMARY.map((p) => p.label),
-      ...PRIMARY.flatMap((p) => (p.secondary ?? []).map((s) => s.label)),
+      ...PRIMARY.flatMap((p) => (p.secondary?.sections ?? []).map((s) => s.label)),
+      ...PRIMARY.flatMap((p) => (p.secondary?.items ?? []).map((s) => s.label)),
     ].map((s) => s.toLowerCase());
     for (const b of banned) {
       const hit = labels.filter((l) => l.includes(b));
@@ -143,10 +180,13 @@ describe("导航表的完整性", () => {
     }
   });
 
-  it("每一项都有**非空**标签", () => {
+  it("每一项都有**非空**标签（一级 / 区 / 项三层都算）", () => {
     for (const p of PRIMARY) {
       expect(p.label.length, `${p.key} 的标签是空的`).toBeGreaterThan(0);
-      for (const s of p.secondary ?? []) {
+      for (const section of p.secondary?.sections ?? []) {
+        expect(section.label.length, `${p.key}/${section.key} 的区名是空的`).toBeGreaterThan(0);
+      }
+      for (const s of p.secondary?.items ?? []) {
         expect(s.label.length, `${p.key}/${s.key} 的标签是空的`).toBeGreaterThan(0);
       }
     }

@@ -1,0 +1,173 @@
+/**
+ * 页面级三态容器的样式（`docs/UI设计规格.md` §7.6）
+ * ============================================================================
+ *
+ * ## 三个态共用一套骨架，只在三处分开
+ *
+ * §7.6 的要求是"三态**共用同一个容器**"，而共用不等于"长得一样"。
+ * 这里的分工是：**排布、间距、字号、描边归 `.pageState`**（三态一致），
+ * 只有下面三件事按态分家：
+ *
+ * | 只有它不同 | Loading | Empty | Error |
+ * |---|---|---|---|
+ * | 内容的排布方向 | 左对齐（骨架屏要"暗示布局"） | 居中（引导卡） | 居中（阻断卡） |
+ * | 图形颜色 | 无图形 | `--text-secondary`（§4.3.1：**不用彩色插画**） | `--state-danger-fg`（§7.6） |
+ * | 描边 | 虚线（"这里在建"） | 虚线（"这里还没东西"） | 实线（"这里现在不能用"） |
+ *
+ * ## ⚠️ 没有一处颜色是字面值
+ *
+ * 项目的 lint 规则之一就是"无字面颜色值"，而**令牌层与组件层的边界**
+ * 就划在这里：这个文件里出现的每个颜色都是 `var(--…)`。
+ *
+ * ## ⚠️ 没有 `!important`、没有 `box-shadow`、没有无限循环动画
+ *
+ * 前两条是仓库的硬规矩（材质纪律：层次靠描边与填充，不靠投影），
+ * 第三条是 §8.2 的禁止项 —— 而**骨架屏也不该有"呼吸"效果**：
+ * 一个来回渐隐的骨架屏会让人以为"界面在忙"，但真正在忙的是数据，
+ * 而且 §8.3 明写骨架屏"不是动效，是加载指示"。所以它**是静止的**。
+ * 于是在 `prefers-reduced-motion: reduce` 下**不需要为它写第二条规则** ——
+ * 它本来就没有动效可降级（§8.3 的表里"骨架屏 → 保留"）。
+ */
+
+.pageState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  /* 空态 / 错误态是"这块区域现在没有内容"，所以要占住它，
+     否则容器塌成一行高，用户看到的是页面塌陷而不是一个状态。 */
+  min-block-size: var(--space-8);
+  padding: var(--space-6) var(--space-4);
+  border: var(--hairline) dashed var(--stroke-subtle);
+  border-radius: var(--radius-md);
+  /* 底色透明：这个容器会被放进 panel / card 里，
+     自己再上一层底色会变成"卡里的卡"（§5.3 的层次纪律）。 */
+  background: var(--transparent);
+  color: var(--text-primary);
+  font-family: var(--font-family-ui);
+  font-size: var(--font-body);
+  line-height: var(--line-height-normal);
+  text-align: center;
+}
+
+/* ── 图形（48 px，§4.3.1 / §7.6 都写死了这个尺寸）──────────────────── */
+.pageState__icon {
+  display: block;
+  inline-size: 48px;
+  block-size: 48px;
+  color: var(--text-secondary);
+}
+
+/* ── 文案 ─────────────────────────────────────────────────────────── */
+.pageState__title {
+  margin: 0;
+  /* 错误态用 `<p>`，而标题级字号要压过正文 —— 两处都由这一条给 */
+  font-size: var(--font-title-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--text-primary);
+}
+
+.pageState__body {
+  /* §4.3.1：说明文字"最多 2 行" */
+  max-inline-size: 42ch;
+  margin: 0;
+  font-size: var(--font-body);
+  color: var(--text-secondary);
+}
+
+/* ── 错误码：**等宽**，因为它是给人抄进反馈里的字符串，不是句子 ────── */
+.pageState__code {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--state-danger-bg);
+  color: var(--state-danger-fg);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-body-sm);
+}
+
+/* ── 建议：与"原因"分开，因为它们是两件事（为什么失败 / 怎么办）──── */
+.pageState__advice {
+  max-inline-size: 42ch;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+/* ── 操作区 ───────────────────────────────────────────────────────── */
+.pageState__action,
+.pageState__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  /* 操作按钮与说明文字之间要多一口气，不然读起来像同一段 */
+  margin-block-start: var(--space-1);
+}
+
+/* ==========================================================================
+ * 态
+ * ======================================================================== */
+
+/* ── Loading ──────────────────────────────────────────────────────── */
+.pageState--loading {
+  /* 骨架屏是"内容还没到"，所以它**不摆引导卡那副居中的样子**：
+     左对齐 + 顶格，读起来才像"这里马上会有一列东西"。 */
+  align-items: stretch;
+  text-align: start;
+}
+
+.pageState__skeleton {
+  display: block;
+}
+
+/**
+ * 骨架行的容器。
+ *
+ * ⚠️ 每行的高与宽**写在行元素自己身上**（`--pageState-line-*` 自定义属性），
+ * 而不是在容器上用 `:nth-child()`：这样"这一行多宽"与"它是什么"挨在一起，
+ * 而调 `lines` 也不会让形状跟着乱（`nth-child` 只在行数固定时才凑巧对）。
+ */
+.pageState__lines {
+  display: grid;
+  row-gap: var(--space-3);
+  inline-size: 100%;
+}
+
+.pageState__skeletonLine {
+  display: block;
+  block-size: 1em;
+  inline-size: var(--pageState-skeleton-width, 100%);
+  border-radius: var(--radius-sm);
+  /* 与既有 `.skeleton`（`components.css`）同一档填充：那是本项目
+     "占位块"的唯一取值，这里再发明一个灰会让两条骨架屏对不上。 */
+  background: var(--surface-active);
+}
+
+/** 最后一行短一截 —— 形状上说明"这是一段正文，不是一张表格"。 */
+.pageState__skeletonLine--short {
+  --pageState-skeleton-width: 62%;
+}
+
+/* ── Empty ────────────────────────────────────────────────────────── */
+.pageState--empty {
+  /* 引导卡（§4.3.1）：垂直居中偏上 —— "偏上"靠的是给下方留出更多空白，
+     而这件事由外层的 `margin-block-end` 决定，不由容器自己决定
+     （容器不知道自己被放在页面还是被放进一个卡片里）。 */
+  justify-content: center;
+}
+
+/* ── Error ────────────────────────────────────────────────────────── */
+.pageState--error {
+  justify-content: center;
+  /* 实线而不是虚线：虚线读作"还没建好"，而错误态是"建好了但不通"。
+     危险色只用在图形与错误码上，**容器本身不整块变红**——
+     整块变红会把"这里失败"放大成"整页崩了"，与规则 5 的初衷相反。 */
+  border-style: solid;
+}
+
+.pageState--error .pageState__icon {
+  color: var(--state-danger-fg);
+}

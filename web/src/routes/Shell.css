@@ -44,7 +44,27 @@
  * 使用纪律 2（"浮在最上层"）与 §4.5 那张图（岛在标题栏中间）的共同要求。
  */
 .shell--has-titlebar {
-  grid-template-rows: var(--shell-titlebar-h) 1fr;
+  grid-template-rows: var(--shell-titlebar-h) 1fr var(--shell-status-h);
+}
+
+/*
+ * 🔴 **三块的行号也写出来，理由与列号那条一模一样**（见 `.shell__rail`）。
+ *
+ * `grid-row: 2` / `grid-row: 3` 是**只在有标题栏时才成立**的事实 ——
+ * 所以它们挂在 `.shell--has-titlebar` 下，而不是写进 `.shell`：
+ * 一个"没有标题栏"的外壳里，内容行就是第一行。
+ *
+ * ⚠️ 而状态条跨满三列（它是一条**通栏的脚**，不是某一列的一部分）——
+ * 与标题栏同一形状，理由也同一个：那是 Windows 应用既有的样子。
+ */
+.shell--has-titlebar .shell__rail,
+.shell--has-titlebar .shell__secondary,
+.shell--has-titlebar .shell__main {
+  grid-row: 2;
+}
+
+.shell--has-titlebar .shell__status {
+  grid-row: 3;
 }
 
 .shell__titlebar {
@@ -66,8 +86,24 @@
   /* ⚠️ **36 px 是规格值**（`UI设计规格.md` §4.5 / L288 / L1389）——
      两处都写 36，而它不是一个"看着合适"的数。 */
   --shell-titlebar-h: 36px;
-  --shell-rail-w: 196px;
+  /* ⚠️ **26 px 是规格值**（`UI设计规格.md` §4.1 的底部状态条那一行）。
+     与标题栏同一个道理：它不是"看着合适"的数，是量出来的。 */
+  --shell-status-h: 26px;
+  /* 🔴 **侧栏两态：窄 56 / 宽 200**（§4.6.2）。
+   *
+   * ⚠️ 这里给的是**宽栏**那一档；窄栏由下面的 `[data-rail="narrow"]` 覆盖。
+   * 而"用哪个"是 `Shell.tsx` 从 `useRailPref()` 读出来写在 `data-rail` 上的 ——
+   * CSS 不猜状态，它只认那个属性（一个用媒体查询或 `:has(…)` 猜的实现
+   * 会让"用户选了宽栏"和"窗口很宽"变成同一件事）。
+   *
+   * ⚠️ 此前这里是 `196px` —— 那是**我自己量的一个数**，而规格写的是 200。
+   * 今天改成规格值：`check-shell-contract.ps1` 会逐格核对这两个数与 §4.6.2。 */
+  --shell-rail-w: 200px;
   --shell-secondary-w: 176px;
+}
+
+.shell[data-rail="narrow"] {
+  --shell-rail-w: 56px;
 }
 
 /* ── 侧栏 ────────────────────────────────────────────────────────────── */
@@ -94,7 +130,18 @@
   gap: var(--space-2);
   padding: var(--space-3) var(--space-2);
   border-right: var(--hairline) solid var(--stroke-subtle);
-  overflow: hidden;
+  /* 🔴 **这里是 `visible`，不是 `hidden` —— 那是窄栏气泡的必要条件。**
+   *
+   * 窄栏（56 px）里文字是 `display: none`，名字靠悬停/聚焦时从**栏外**
+   * 浮出的那个气泡（见文件末尾 `[data-rail="narrow"]` 那一段）。
+   * 一个 `overflow: hidden` 会把它**整条裁掉** —— 于是"窄栏也能看见名字"
+   * 这件事在真窗口里永远不成立，而 jsdom 里一切正常（没有布局引擎）。
+   *
+   * ⚠️ 而 `visible` 不会让别的东西漏出来：侧栏的子元素都是 `inline-size: 100%`，
+   * 而可能过长的那两种文字（`.shell__railLabel` / `.shell__secondaryLabel`）
+   * 各自带 `overflow: hidden; text-overflow: ellipsis`。
+   */
+  overflow: visible;
 }
 
 .shell__account {
@@ -135,6 +182,9 @@
 }
 
 .shell__railItem {
+  /* ⚠️ `relative` 是给两样绝对定位的东西当锚：选中态左侧那条 2 px 强调条，
+     与窄栏里从栏外浮出的名字气泡。 */
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -143,6 +193,24 @@
   color: var(--text-secondary);
   text-decoration: none;
   transition: background var(--duration-fast) var(--easing-standard);
+}
+
+/* 🔴 **这个类是"两种元素"共用的：`<a>`（导航）与 `<button>`（产品行）。**
+ *
+ * `<button>` 不像 `<a>` 那样继承字体与颜色，也不像它那样天然是行内可伸展的
+ * 块 —— 于是"同一个类名，两种元素长得不一样"这件事必须在这里抹平。
+ *
+ * ⚠️ 而它是**一个真实的坑**：一个只给 `<a>` 写样式的实现里，产品行会是
+ * "系统默认按钮"的样子（灰底、系统字体、不占满宽度），而 `check-css-classes`
+ * 与全部 jsdom 测试对此**一无所知**（jsdom 不加载 CSS）。
+ */
+button.shell__railItem {
+  inline-size: 100%;
+  border: 0;
+  background: var(--transparent);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
 }
 
 .shell__railItem:hover {
@@ -163,12 +231,76 @@
   font-weight: var(--font-weight-medium);
 }
 
-.shell__railGlyph {
-  inline-size: 16px;
-  block-size: 16px;
-  border-radius: var(--radius-sm);
+/* ⚠️ **选中态的左侧 2 px 强调条**（§4.6.2 ③）。
+ *
+ * 它是一条**绝对定位的伪元素**，而不是 `border-inline-start: 2px` ——
+ * 后者会把整行的内容挤右 2 px（于是"选中"这个动作会**移动文字**），
+ * 而 `impeccable` 那条检查也把这种"边框当装饰条"的写法判为 side-tab
+ * （`Shell.css` 的 `.page__error` 上已经踩过一次，见那里的注释）。
+ *
+ * ⚠️ 颜色是 `--accent`：整条侧栏只有这一处用到强调色 ——
+ * 因为"我在哪一页"是这一栏**唯一**的强信息（§4.6.2 ③ 的原话）。
+ */
+.shell__railItem--on::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block: 20%;
+  inline-size: 2px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+/* 🔴 **这里原本是 `.shell__railGlyph`：一个 16×16 的实心方块。**
+ *
+ * 那是"图标还没有"的时候的一个占位（一个半透明的方点，`opacity: .35`）——
+ * 而它在真窗口里读起来**像一个坏掉的图标**。今天七个图形都是自绘的
+ * （`web/src/icons/rail.tsx`），于是这一类名**没有主人了 ⇒ 删掉**。
+ * （`check-css-classes.ps1` 不会报"定义了没人用"，它只拦"一个类名两个主人"
+ * 与"用了一个没定义的类名" —— 所以删除这件事**只能靠人**。）
+ */
+.shell__railIcon {
+  /* 20 px 的盒子：图标本身由 `RailIcon` 的 `size` 决定（默认 20），
+     而这里把它**居中**并禁止它被压扁（flex 里 `flex: none` 是必需的，
+     否则一个长标签会把图标挤成一条线）。 */
+  inline-size: 20px;
+  block-size: 20px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+/* 产品行的点：**实心 = 当前产品，空心 = 其它**（§4.6.1 的 ASCII 里就是 `● / ○`）。
+ *
+ * ⚠️ 它是**状态**，不是"每种产品一个颜色"——那种着色属于实例列表与横幅徽标
+ *（§4.6.6），两件事不能混在一个小点上。 */
+.shell__productDot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: var(--radius-full);
+  border: var(--hairline) solid currentColor;
+  box-sizing: border-box;
+}
+
+.shell__productDot--on {
   background: currentColor;
-  opacity: 0.35;
+}
+
+.shell__railLabel {
+  /* ⚠️ `min-inline-size: 0` 是 flex 里让 `text-overflow` 真的生效的前提 ——
+     没有它，一个过长的名字会把整行撑开（而不是显示省略号）。 */
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell__railCount {
+  /* 行尾的小字（宽栏）；窄栏里它变成角标 —— 见文件末尾那一段。 */
+  margin-inline-start: auto;
+  font-size: var(--font-caption);
+  color: var(--text-disabled);
   flex: none;
 }
 
@@ -193,12 +325,77 @@
 }
 
 .shell__secondaryItem {
-  display: block;
+  /* ⚠️ `flex` 而不是 `block`：产品行是"标签 + 实例数"两段，
+     而静态项只有一段 —— 单段在 flex 里同样铺满整行。 */
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-sm);
   font-size: var(--font-body-sm);
   color: var(--text-secondary);
   text-decoration: none;
+}
+
+/* 与 `button.shell__railItem` 同一件事：`<button>` 不继承字体、默认带边框与底色。
+ * 二级栏里的产品行（「产品」区 / 「按产品」区）就是按钮。 */
+button.shell__secondaryItem {
+  inline-size: 100%;
+  border: 0;
+  background: var(--transparent);
+  font: inherit;
+  font-size: var(--font-body-sm);
+  text-align: start;
+  cursor: pointer;
+}
+
+.shell__secondaryItem:focus-visible,
+.shell__railItem:focus-visible,
+.shell__statusMore:focus-visible {
+  /* 与标题栏的按钮同一个形状（§4.5：`outline: 2px solid var(--focus-ring)`，
+     偏移 -2 px 让焦点环留在控件内部，不撑动布局）。 */
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+/* 🔴 **二级栏是"分区"的，不是一张平铺的列表**（§4.6.1.1）。
+ *
+ * 区的标题是**真标题**（`<h2>`，在 `Shell.tsx` 里），所以这里只管样子：
+ * 小一号、弱一档色 —— 它是**这一段的标签**，不是一个可点的东西。
+ * 而"这一段是什么"对读屏用户同样重要，所以它在可访问树里（没有 `aria-hidden`）。 */
+.shell__secondarySection + .shell__secondarySection {
+  margin-block-start: var(--space-4);
+}
+
+.shell__secondaryTitle {
+  margin: 0 0 var(--space-1);
+  padding-inline: var(--space-3);
+  font-size: var(--font-caption);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-disabled);
+}
+
+/* ⚠️ **"这一区为什么是空的"必须写出来**（§4.2：不适用 = 禁用态 + 一句原因）。
+ * 一个空 `<ul>` 会让"没有实例"与"这一栏坏了"长得一样。 */
+.shell__secondaryNote {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-body-sm);
+  color: var(--text-disabled);
+}
+
+.shell__secondaryLabel {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell__secondaryCount {
+  font-size: var(--font-caption);
+  color: var(--text-disabled);
+  flex: none;
 }
 
 .shell__secondaryItem:hover {
@@ -304,4 +501,238 @@
   translate: 0 1px;
   border-radius: 50%;
   background: var(--state-danger);
+}
+
+/* ── 侧栏的产品段与版本号（§4.6.1 / §4.6.2） ─────────────────────────── */
+
+/**
+ * 产品段（`Shell.tsx` 的 `ProductSegment`）。
+ *
+ * ⚠️ **它与主页横幅上那排胶囊是同一个状态源**（`web/src/product/product.tsx`，
+ * §4.6.1.2 的方案 A：三处都能切、三处联动）。所以这一段里**没有**"当前产品是
+ * 哪个"的副本 —— 它读的就是那份状态。
+ *
+ * ⚠️ 而它上下各有一条 `--divider` 细线：那是最弱的那个分隔令牌，
+ * 用来把"产品"与"导航"分开，而不画出一个卡片（侧栏里画卡片
+ * 会让一段变成"一个可以点的东西"）。
+ */
+.shell__segment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-block: var(--space-2);
+  border-block: var(--hairline) solid var(--divider);
+}
+
+.shell__segmentTitle {
+  padding-inline: var(--space-3);
+  font-size: var(--font-caption);
+  color: var(--text-disabled);
+}
+
+.shell__segmentNote {
+  margin: 0;
+  padding-inline: var(--space-3);
+  font-size: var(--font-caption);
+  color: var(--text-disabled);
+}
+
+/**
+ * 版本号（§4.6.2 里"侧栏底部是版本"那一格）。
+ *
+ * 🔴 **它读的是 `web/src/app/version.ts` 的 `APP_VERSION`**，而那个常量
+ * 必须与 `package.json` 和 `src-tauri/tauri.conf.json` 逐字相同 ——
+ * `tools/check-shell-contract.ps1` 钉着这件事。
+ *
+ * 一个把版本号**写死在 JSX 里**的实现会让三处里的两处悄悄漂移，
+ * 而那时"关于页写的版本"与"安装包名字里的版本"会不一样。
+ */
+.shell__version {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-caption);
+  color: var(--text-disabled);
+  font-family: var(--font-family-mono);
+}
+
+/* ── 状态条（§4.1：底部常驻一条） ────────────────────────────────────── */
+
+/**
+ * 底部状态条。
+ *
+ * ⚠️ **它在网格里是第三行**（见文件开头 `.shell--has-titlebar` 那一段），
+ * 而不是一个浮在内容上的东西 —— 于是"下面被盖住 26 px"这件事
+ * 每一页都不需要知道。
+ *
+ * 🔴 **四项常驻，另外两项藏在「更多」里。** 而"藏起来"这件事
+ * 必须**能展开**（`aria-expanded` + `aria-controls` 在 `Shell.tsx` 里）——
+ * 一个只能看不能开的 disclosure 是一道假门。
+ *
+ * ⚠️ 而没有来源的格子写的是 `—`（`Shell.tsx` 的 `UNKNOWN`），**不是 0**：
+ * "网速是 0 B/s"与"网速不知道"在屏幕上长得一样、意思完全相反。
+ */
+.shell__status {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-inline: var(--space-3);
+  border-top: var(--hairline) solid var(--stroke-subtle);
+  background: var(--surface-panel);
+  min-block-size: var(--shell-status-h);
+  font-size: var(--font-caption);
+  color: var(--text-secondary);
+  /* ⚠️ 这里**可以**裁：状态条里没有任何需要越出边界的东西
+     （气泡只在窄栏侧栏里，见文件末尾）。 */
+  overflow: hidden;
+}
+
+.shell__statusList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.shell__statusItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  white-space: nowrap;
+  flex: none;
+}
+
+.shell__statusLabel {
+  color: var(--text-disabled);
+}
+
+.shell__statusValue {
+  color: var(--text-secondary);
+}
+
+/* 展开出来的那两项（运行时 / 内存占用）—— 用一个更弱的竖线接在常驻项后面，
+ * 让"这一组是另一层信息"在**形状**上也读得出来（不只靠位置）。 */
+.shell__statusList--details {
+  border-inline-start: var(--hairline) solid var(--stroke-subtle);
+  padding-inline-start: var(--space-3);
+}
+
+.shell__statusMore {
+  /* `margin-inline-start: auto` ⇒ 它总是贴最右，不管左边有几项。 */
+  margin-inline-start: auto;
+  flex: none;
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--transparent);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-caption);
+  padding: 1px var(--space-2);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--easing-standard);
+}
+
+.shell__statusMore:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+/* ── 窄栏（§4.6.2） ─────────────────────────────────────────────────── */
+
+/**
+ * 🔴 **窄栏（56 px）里文字被藏起来，而名字靠两样东西兜住。**
+ *
+ * | 谁 | 怎么拿到名字 |
+ * |---|---|
+ * | 读屏用户 | `aria-label`（`Shell.tsx` 的每个 rail 项都带）—— **不是**被藏起来的文字 |
+ * | 看着屏幕的用户 | 悬停/聚焦时从栏外浮出的那个气泡（下面 `::after`） |
+ *
+ * ⚠️ **两样都要有**，而它们各自解决一件对方做不到的事：
+ * `display: none` 的文字**在可访问树里也没有**（所以必须有 `aria-label`），
+ * 而 `aria-label` **在屏幕上不显示**（所以必须有那个气泡）。
+ * 只做一样，就是"窄栏在某些人眼里/耳朵里是空的"。
+ *
+ * ⚠️ 而气泡能从栏里出来，靠的是 `.shell__rail` 的 `overflow: visible`
+ * （那里写着为什么）—— jsdom 没有布局引擎，这件事**测不出来**。
+ */
+.shell[data-rail="narrow"] .shell__railItem {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.shell[data-rail="narrow"] .shell__railLabel,
+.shell[data-rail="narrow"] .shell__segmentTitle,
+.shell[data-rail="narrow"] .shell__accountName {
+  display: none;
+}
+
+/* 账户卡在窄栏里只剩那个圆点（24 px 的徽标 + 12 px 的左右内边距 = 38 px，
+ * 正好落在 56 - 16（侧栏内边距）里）。 */
+.shell[data-rail="narrow"] .shell__account {
+  justify-content: center;
+  padding: var(--space-1);
+}
+
+/* 角标：宽栏里它是行尾的小字，窄栏里它是右上角的一个小胶囊。
+ * ⚠️ 同一个元素、同一个文本 —— 变的只是位置与字号（**不是两份数据**）。 */
+.shell[data-rail="narrow"] .shell__railCount {
+  position: absolute;
+  inset-block-start: var(--space-1);
+  inset-inline-end: var(--space-1);
+  max-inline-size: calc(100% - var(--space-2));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-inline: 3px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: var(--font-caption);
+  line-height: var(--line-height-tight);
+}
+
+.shell[data-rail="narrow"] .shell__version {
+  padding-inline: 0;
+  text-align: center;
+}
+
+/**
+ * 那个气泡（悬停与键盘聚焦都会出来）。
+ *
+ * ⚠️ **只有 `::after` 这一个槽位可用**：`::before` 已经被选中态那条
+ * 2 px 强调条占了。所以这里没有那个"小尖角"（它需要第三个伪元素）——
+ * 一个带细边框 + 一层高程的矩形同样读得出"这是浮在上面的一层"，
+ * 而尖角在这个尺寸上只是一团抗锯齿。
+ *
+ * ⚠️ 值与可访问名同源：`content: attr(data-tip)`，而 `data-tip` 在 JSX 里
+ * 就是那个名字 —— 于是"气泡里写的是什么"在源码里读得出来，
+ * 而不是在 CSS 里又写一遍中文。
+ */
+.shell[data-rail="narrow"] .shell__railItem::after {
+  content: attr(data-tip);
+  position: absolute;
+  inset-inline-start: calc(100% + var(--space-2));
+  inset-block-start: 50%;
+  translate: 0 -50%;
+  z-index: var(--z-panel);
+  padding: var(--space-1) var(--space-2);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-sm);
+  /* ⚠️ `surface.raised` 是**不透明**的（§5.3 使用纪律 2）：一个半透明的气泡
+     会让底下的导航文字透出来，于是名字与背景混在一起。 */
+  background: var(--surface-raised);
+  box-shadow: var(--elev-2);
+  color: var(--text-primary);
+  font-size: var(--font-body-sm);
+  font-weight: var(--font-weight-regular);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--easing-standard);
+}
+
+.shell[data-rail="narrow"] .shell__railItem:hover::after,
+.shell[data-rail="narrow"] .shell__railItem:focus-visible::after {
+  opacity: 1;
 }

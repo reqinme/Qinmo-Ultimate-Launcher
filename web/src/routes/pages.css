@@ -1,0 +1,214 @@
+/**
+ * 页面层共用的样子（七个页面骨架）
+ * ============================================================================
+ *
+ * ## 🔴 为什么这里有第二个文件，而不是把东西都塞进 `Shell.css`
+ *
+ * `Shell.css` 属于**外壳**（侧栏 / 二级栏 / 状态条 / 标题栏那一行）——
+ * 它是"每一个页面外面那一圈"。而这个文件属于**页面自己**
+ *（标题下面那块地方长什么样）。
+ *
+ * ⚠️ 而**标题那三个类名不在这里**（`.page__title` / `.page__note` /
+ * `.page__stub` 都在 `Shell.css` 里）—— 它们是 M4 骨架期留下的，
+ * 现在被七个页面共用，**移动它们是一次没有收益的改名**
+ *（而 `tools/check-css-classes.ps1` 只认"谁定义"，不认"定义在哪个文件里"）。
+ *
+ * ## ⚠️ 这个文件里一个色值都没有
+ *
+ * 与全仓同一条纪律（§2 约束 4）：只用 `var(--token)`。
+ * 而 `tools/check-css-tokens.ps1` 会核对每一个 `var()` 都解析得到。
+ */
+
+/* ── 事实表（「关于」页与各页的"这一页靠什么"） ─────────────────────── */
+
+/**
+ * 一张 `dl` 排成的键值表。
+ *
+ * ⚠️ **用 `dl` 而不是一排 `div`**：这些格子真的是"术语 → 值"，
+ * 而读屏用户靠 `dl` 才能听出"版本 = 0.0.0"里的那个等号。
+ *
+ * ⚠️ 而**没有来源的格子写 `—`**（`Shell.tsx` 的 `UNKNOWN` 那套口径），
+ * 不写 `0`、不写"暂无"。
+ */
+.page__facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-5);
+  max-inline-size: 60ch;
+}
+
+.page__factTerm {
+  color: var(--text-disabled);
+  font-size: var(--font-body-sm);
+}
+
+.page__factValue {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-body-sm);
+}
+
+/* ── 小节标题（「设置」页里的"侧边栏" / "主题与材质"） ───────────────── */
+
+/**
+ * 一页里的第二层标题。
+ *
+ * ⚠️ **用 `h2` 而不是加粗的 `p`**：读屏用户靠标题层级跳读一页
+ *（§7.5 那条"标题层级不能断"）。一个加粗正文在视觉上一模一样，
+ * 而在标题导航里等于不存在。
+ */
+.page__subtitle {
+  margin: var(--space-5) 0 var(--space-2);
+  color: var(--text-primary);
+  font-size: var(--font-body);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ── 卡片清单（「下载」页的六个分类、「百宝箱」页的六件工具） ─────────── */
+
+.page__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18em, 1fr));
+  gap: var(--space-3);
+}
+
+/**
+ * 一张卡片 —— **它是一个链接**（`<a>`），因为"点它去那一页"就是它的全部作用。
+ *
+ * ⚠️ 一个 `<div>` + `onClick` 的实现会丢掉：中键新开、右键复制链接、
+ * 键盘 Tab 到它、以及读屏的"链接"角色。那一类实现看起来一样，
+ * 而它是**把网页的功能退化成图片**。
+ */
+.page__card {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: background var(--duration-fast) var(--easing-standard);
+}
+
+.page__card:hover {
+  background: var(--surface-hover);
+}
+
+.page__card:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.page__cardTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--font-weight-medium);
+}
+
+.page__cardNote {
+  display: block;
+  margin-block-start: var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--font-body-sm);
+}
+
+/**
+ * 卡片右上角的那个小标注（「可用」/「等 M8」）。
+ *
+ * ⚠️ **它不是装饰**：一页里既有能点的又有不能点的时，区别必须在
+ * **文字**上说清楚 —— 一个"看起来一样、点了才知道"的清单
+ * 会让用户以为整个产品都坏了。
+ */
+.page__cardBadge {
+  margin-inline-start: auto;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--surface-active);
+  color: var(--text-secondary);
+  font-size: var(--font-caption);
+  font-weight: var(--font-weight-regular);
+  flex: none;
+}
+
+/* ── 空态里那一个"去看别的"的锚点（`PageState` 的 `action`） ───────────── */
+
+/**
+ * ⚠️ 它**是一条链接，不是按钮**：`<Link>` 会走浏览器的链接语义
+ *（中键新开、右键复制链接、Tab 到它、读屏说"链接"）。
+ * 一个做成 `<button onClick={navigate}>` 的实现看起来一样，
+ * 而它把"去日志页"变成"调用一个函数"。
+ */
+.page__action {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font-size: var(--font-body-sm);
+  text-decoration: none;
+  transition: background var(--duration-fast) var(--easing-standard);
+}
+
+.page__action:hover {
+  background: var(--surface-hover);
+}
+
+.page__action:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+/* ── 分段控件（「设置 · 外观」里的窄栏/宽栏） ─────────────────────────── */
+
+/**
+ * 🔴 **这是一个真的能用的控件**（不是骨架）：两段按钮直接读写
+ * `web/src/shell/railPref.tsx` 的那一份状态，而外壳的 `data-rail`
+ * 由它驱动 —— 点一下就换栏宽。
+ *
+ * ⚠️ §4.6.2 明确允许"这里的分段控件"，而 §4.6.1.4 拦的是
+ * "同一件事在两处各有一个开关"（今天只有这一处）。
+ */
+.page__segmented {
+  display: inline-flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+}
+
+.page__segment {
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--transparent);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-body-sm);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--easing-standard);
+}
+
+.page__segment:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+/* ⚠️ 选中态用 `surface.selected` + 中等字重，与侧栏的选中态同一个形状语言 ——
+ * 一个用强调色实心的实现会让"我在哪一页"与"这个开关开着"变成同一种样子。 */
+.page__segment--on {
+  background: var(--surface-selected);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.page__segment:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}

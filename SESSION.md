@@ -1,4 +1,68 @@
-# 上次收工：**右上角那个"最大化"按钮终于画的是方形** —— 它此前画的是汉堡菜单 ☰（用户一眼看出来的），而现在"图形 ↔ 状态"也是可踩红的
+# 上次收工：**壳与七页页面骨架立起来了** —— 而这一轮的两个真缺陷指向同一个根因（`secondaryHref()` 返回 `string`，于是"路径指着一条不存在的路由"没有任何东西看得见）
+
+> 用户定的方向是「**先界面骨架**」（m01688），被问范围时选了「**壳 + 七页页面骨架**」（m01716）：不是只补壳里最缺的几件，而是**壳 + 七个一级页各自的骨架**。
+>
+> 第一件是**壳**：网格从两行变三行（标题栏 36 / 内容 / **状态条 26 px**）、侧栏两态（**窄 56 px / 宽 200 px** —— 在真窗口的第 y=600 行上按像素量过，与规格表逐字一致）、账户卡 · **产品段** · 七项导航 · 版本号四段、窄栏靠 `::after` 气泡（`content: attr(data-tip)`）显示名字而**可访问名由 `aria-label` 兜住**（`display: none` 会把文字移出可访问树，那条 46 px 的栏宽会顺手把读屏用户也一起关掉）、状态条 **4 项常驻 + 2 项进「更多」详情**（没有来源的格子写 `—`，不写 `0`）。
+>
+> 第二件是**七页骨架**（实例 / 下载 / 账号管理 / 百宝箱 / 设置 / 关于 / 实例详情）：每页按 §7.6 铺三态容器 `PageState`（**骨架屏 · 空态 · 错误态**；300 ms 最短骨架由容器自己落实 —— 调用方改掉 `kind` 之后就没有机会补那几百毫秒了），文案只写**这台机器上的事实**（不写问候语、不写"暂无数据"、不编数字）。设置页的「外观 → 侧边栏」分段控件是**真的能用**的：点「宽栏」当场把侧栏切成 200 px 带名字。
+>
+> ⚠️ **这一轮的两个真缺陷都是"屏幕上看得见、检查看不见"**：① **有七个二级入口点了什么都不发生** —— `web/src/routes/Shell.tsx` 的 `secondaryHref(primary, key)` 拼出 `一级路径 + "/" + key`，而**返回类型是 `string`**（不是路由字面量联合），于是"路径指着一条没注册的路由"在类型系统里完全合法；真窗口点「游戏版本」得到的是 **`Not Found`**（截图 `%TEMP%\deadlink-versions.png`、58,694 字节）。② 规格 §4.4 与 §4.6.6 对"标题栏产品切换器"**互相矛盾**（§4.4 说要有，§4.6.6 说"不做"）—— 待用户拍，我按更晚的 §4.6.6 走。
+
+## 这一轮（2026-10-02 下午）：壳 + 七页骨架 + 一张能核对导航的机器表
+
+### 1. 规格：多了三处"机器可核对"的表（v2.4）
+
+- **§4.1.1（新，`docs/UI设计规格.md:293`）** 两张表：① 状态条六格 `| key | 界面名 | 常驻 |`（`version/版本/yes` · `product/当前产品/yes` · `source/源/yes` · `speed/网速/yes` · `runtime/运行时/no` · `memory/内存占用/no`）；② 尺寸 `| 变量 | 作用域 | 值 |`（`--shell-rail-w` **narrow 56px** / default 200px、`--shell-titlebar-h` 36px、`--shell-status-h` 26px）。**作用域 = 那条声明写在哪个选择器里** ⇒ 钉住的是"声明的位置"，不是"文件里出现过这两个数字"。
+- **§4.6.1 的一级导航表**（`:568` `| key | 界面名 | 段 | 路径 |` 七行）与 **§4.6.1.1 的两张表**（`:624` 区表 8 行 `| 一级 key | 区 key | 区名 | source | 落点是一级页的项 |` + 项表 **22 行**）。原先写"账号管理 / 百宝箱 / 关于 | 各自的下级（**暂未设计**）"的那一行拆成三行并逐项落进机器表 —— 那句"暂未设计"的问题正是**代码落地之后它就变成"只有代码知道"**。
+- 枚举值一律 **ASCII**（`yes/no` · `product/tool` · `narrow/default` · `static/products/instances` · `none`），因为脚本要读它们，而 PowerShell 5.1 按代码页 936 解析 `.ps1` ⇒ 脚本里不许出现中文。
+- 顺带一处 v2.4 修正：状态条那一项此前叫「**Java 版本**」，现在叫「**运行时**」（语言中立），规格跟着改。
+- `docs/.heading-baseline.json`：`check-docs -Strict` 先报 `HEADING COUNT CHANGED 83 -> 84`，用 `-UpdateBaseline` 显式更新 ⇒ **636 条标题 / 22 个文件**。
+
+### 2. 壳（`web/src/routes/Shell.tsx` 整文件重写 + `Shell.css`）
+
+- 两个 Provider **挂在外壳自己那一层**（`<RailPrefProvider><ProductProvider>`）而不是 `web/src/main.tsx` —— 三处消费者都在外壳子树里，挂在 `main.tsx` 会让每个"只渲染外壳"的测试都要补两层与外壳无关的 Provider。`web/src/main.tsx` 因此**一行未改**。
+- 新模块（都带"为什么"的长注释）：`web/src/product/product.tsx`（§4.6.1.2 的**单一状态源**：侧栏产品段、状态条、主页横幅胶囊共用它；`instanceCount === null` ⇒ **不渲染计数**，`0` 才渲染 `0 个实例`）· `web/src/shell/railPref.tsx`（`"narrow" | "wide"` **联合类型不是布尔**；今天只活在内存里、**刻意不用 localStorage** —— 那会假装"记住选择"已经做完，而且不随配置备份迁移）· `web/src/app/version.ts`（`APP_VERSION = "0.0.0"`，必须与 `package.json` 与 `src-tauri/tauri.conf.json` 逐字相同）· `web/src/icons/rail.tsx`（七个**自绘** 24 格线性图标，含一条"没有三条等距横线"的回归断言）· `web/src/components/PageState.tsx`（三态容器）。
+- 侧栏四段：账户卡（头像圆 + 「未登录」）· 产品段（`●/○` 点 + 名字 + 计数）· `PRODUCT_KEYS` 三项 / `TOOL_KEYS` 四项两段（中间 `flex: 1` 留白）· 版本号 `v0.0.0`。
+- **状态条**：`STATUS_ITEMS` 六行（`resident: true/false`），值表 version `v${APP_VERSION}` · product `active?.label` · source `官方源`（夹具）· speed/runtime/memory = `—`；「更多 / 收起详情」是 `aria-expanded` + `aria-controls="shell-status-details"` 的真 disclosure。
+
+### 3. 七页骨架 + 路由接线
+
+- 七个一级页真组件：`InstancesPage`（空态：`[列出实例]` 那条命令今天还没有 —— 内核只给单个实例的摘要）· `DownloadsPage`（六类卡片目录，每张带「清单未接」徽标）· `AccountsPage` · `ToolboxPage`（六件工具，徽标 `本页 / 今天可用 / 等 M6 / 等 M8 / 等 M9`）· `SettingsPage`（**能用的**侧栏宽度分段控件 + 外观/材质/强度的只读事实）· `AboutPage`（`.page__facts` 事实表）· `InstanceDetailPage`（`$instanceId`）。
+- 🔴 路由工厂的类型洞（**这一轮顺手补的**）：`page("/x/y", …)` 的路径参数原本是 `string` ⇒ 二级路径**从没进过 `to=` 的合法值联合** ⇒ 编译得过、运行时 404。改成 `page<const P extends string>(path: P, …)`，理由写在 `web/src/routes/router.tsx` 里 `page()` 上方。
+
+### 4. 检查：`tools/check-shell-contract.ps1`（verify **16 → 17 项**）
+
+- 规格三处表 ↔ 代码四张表逐格核对：**A** 六个状态格（含 `常驻` 必须是 `yes|no`）· **B** 七个一级（key 序列 / 名字 / 段映射 / `hrefOf()` 的路径；另查 `PrimaryKey` 成员数 == 一级数 == `PRODUCT_KEYS + TOOL_KEYS`）· **C** 八个区（含"没有区的一级在规格里必须零行"双向核对）· **D** 22 个项（每个项所属的区必须在该页真实存在）· **E** 尺寸（每个变量在 narrow/default 两个作用域**各恰好一条**声明，且**反向**要求 CSS 里的声明条数 == 规格行数）· **F** 版本三处一致（`version.ts` / `package.json` / `tauri.conf.json`）。
+- **检查 G（这一轮加的）**：每个 `source === "static"` 的二级项，其路径（= 一级路径 + `/` + 项 key，与 `secondaryHref` 同一条机械规则）必须出现在 `web/src/routes/router.tsx` 的字面量路由集合里 ⇒ **死链接从此可踩红**。
+- 漂移守卫：解析块里任何"以 `{` 开头却看不懂的行"**FAIL 而不是跳过**；解析出的行数必须等于规格行数；`Shell.css` 里"含 `--x:` 却没被解析的行"也 FAIL。
+- 实测输出：`Shell contract: 6 status cell(s) x 7 nav item(s) x 8 section(s) x 22 sub-item(s) x 4 size(s) x 22 routed item(s) -- version 0.0.0` + `OK: …`。
+- **人为踩红三次**（都已还原、文件 SHA-256 逐字节相同）：① CSS 的 `--shell-rail-w: 56px` → `58px` ⇒ `'--shell-rail-w' in [data-rail=narrow]: spec '56px' vs Shell.css '58px'`；② 删掉 `const instancesRecent = page("/instances/recent", …)` ⇒ `'instances/recent' (nav.ts:174) links to '/instances/recent', but no route with that path exists`；③ 规格区的 `rootItem` 列改错 ⇒ `section 'instances/group': spec root item '…' vs code 'all'`。
+- ⚠️ **踩红才发现的洞**：第一版 CSS 解析器只认"以 `{` 结尾的整行"与"独占一行的声明"，于是**一整条紧凑规则**（`.shell[data-rail="narrow"] .shell__railItem { --shell-rail-w: 60px; }`）被**静默忽略**、检查照样绿。加固后加了"含 `--x:` 而没被解析 ⇒ FAIL"。同一件事这一轮又发生一次 ⇒ **"静默跳过的检查比没有检查更糟"**。
+- ⚠️ 脚本里的坑：`$root` 是脚本自己算出的**仓库根**，我一开始把解析出的 `rootItem` 变量也命名为 `$root` ⇒ 当场 `Join-Path : Cannot bind argument to parameter 'Path' because it is null.`。
+
+### 5. 死链接：一个模型改动 + 三条路由
+
+- **模型**：`web/src/routes/nav.ts` 的 `SecondarySection` 新增 `readonly rootItem: string | null` —— 值 = 这一区里**落在一级页本身**的那一项的 key（`instances/group → "all"` · `accounts/account → "list"` · `toolbox/tool → "help"` · `settings/category → "appearance"`，其余四个区 `null`）。`secondaryHref(primary, section, item)` 因此多一个参数：`rootItem` 那一项直接返回一级路径。
+- **为什么不给那四项各加一条路由**：「账户列表 / 内建帮助 / 外观与材质 / 全部实例」的正确落点**就是一级页**（`/accounts` 是账户列表、`/toolbox` 的标题本来就叫「百宝箱 · 内建帮助」、`/settings` 的标题就叫「设置 · 外观与材质」）——再给它们各加一张占位页会与真页重复。
+- 新路由三条（`page()` 工厂）：`/instances/recent`、`/instances/favorites`、`/downloads/versions`。
+- 另外两处顺带修掉：`DownloadsPage` 的 h1 从「下载 · 游戏版本」改成「**下载**」（一级页是六类目录，不该用子项的名字）、它的「游戏版本」卡片原来 `to: "/downloads"`（**指向自己**）改成 `/downloads/versions`；`AboutPage` 里两处把反引号当普通字符画在界面上的文案改成中文破折号写法。
+- **行为侧测试**：`web/src/routes/Shell.test.tsx` 新增 `describe("二级项的落点（检查 G 的行为侧）")` —— 断言 `全部实例 → /instances`、`最近使用 → /instances/recent`、`收藏 → /instances/favorites`、`游戏版本 → /downloads/versions`、`加载器 → /downloads/loaders`（直接读 `a.shell__secondaryItem` 的 `href`）。
+
+### 6. 收尾数字（2026-10-02 下午，逐项单跑）
+
+`tsc --noEmit` **0** · `eslint web/src` **0** · **vitest 24 个文件 / 380 项全过** · `vite build` **1.46 s**（CSS 49.90 kB / gzip 8.13 kB、JS **529.89 kB** / gzip 171.06 kB）· `impeccable` **零命中** · `css-classes` OK（**11 文件 / 381 定义 / 235 个类名**）· `css-grid` OK · `tokens` OK · `ladder` OK · **`titlebar` OK（24 格 + 4 图形名）** · **`shell` OK（6 × 7 × 8 × 22 × 4 + 22 routed）** · `docs -Strict` OK（22 文件 / **636** 条标题）· `audit` **P0 / P1 / P2 全 0**（27 条 promise 候选留给人看）· Rust **717 项** / `fmt` 0 / `clippy -D warnings` 0 · 应用重建 **4,098,048 字节**（`Finished 'release' profile in 53.18s` @ 14:19:06）。
+- 真窗口取证（`SetProcessDPIAware` + `MoveWindow(150,40,1600,1000)` ⇒ `屏幕坐标 = 截图坐标 + 窗口左上角`）：侧栏**窄 56 px / 宽 200 px 都在像素上量过**；截图 `%TEMP%\shell-narrow.png`（窄栏全貌）· `shell-wide.png`（宽栏）· `shell-settings-clean.png`（分段控件 + 两段二级栏）· `page-instances.png` / `page-downloads.png` / `page-toolbox.png` / `page-accounts.png` / `page-about.png` · **`fix-versions.png`（死链接修好之后：二级栏「游戏版本」选中 + 主区「下载 · 游戏版本」+ 骨架占位块）**。
+- ⚠️ 本机屏幕是 **1920×1080 物理、150% 缩放** ⇒ 应用默认窗口 1942×1213 物理**放不下**，取证时必须先 `MoveWindow` 缩到 1600×1000。
+
+### 7. 这一轮之后的状态
+
+- ✅ 用户 m01688 / m01716 要的范围（**壳 + 七页页面骨架**）**做完了**：七个一级页都有骨架，壳的四个新机制（窄/宽栏、产品段、状态条、二级栏分区）都在真窗口里验过，并且其中三件有机器核对（尺寸表 / 状态格 / 导航树 + 路由存在性）。
+- ⚠️ **三件待用户拍**：① `MorphGlyph` / `morphicons` 的去留（上一轮起它**没有使用者**）② 规格 §4.4 与 §4.6.6 的"标题栏产品切换器"矛盾 ③ **第四条 eslint 纪律（禁 toggle 布尔状态）是死的** —— 选择器写的是 `useState` 的**字面量**参数而 `value` 是布尔、正则却在匹配字符串，所以 `web/src/logs/LogDrawer.tsx:153`、`web/src/routes/ComponentsPage.tsx:43,45`、`web/src/titlebar/TitleBar.tsx:110` 里的 `useState(false/true)` 从来没被拦过。
+- 下一块（按用户 m01089 的顺序）：**流程和数据** —— 把 `capabilities` / `instance_summary` 接上真内核 + 一张数据口径表（验收 = 主页横幅上是真数字），然后才是用真数据填这些骨架。
+
+---
+
+# 上一轮（2026-10-02 深夜）：**右上角那个"最大化"按钮终于画的是方形** —— 它此前画的是汉堡菜单 ☰（用户一眼看出来的），而现在"图形 ↔ 状态"也是可踩红的
 
 > 用户验完贴靠之后说（m01393）：「**in + ←/→/↑这个没问题，但是它界面右上角的缩放按钮不对吧？**」——这是**人眼抓到的第四个真 bug**，而当时所有自动检查（`tsc` / `eslint` / `vitest` 328 项 / `impeccable` / `css-tokens` / `css-classes` / `css-grid`）**一个都看不见它**。
 >
