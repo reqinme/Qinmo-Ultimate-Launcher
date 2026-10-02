@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   PRIMARY,
@@ -8,6 +8,8 @@ import {
   secondaryOf,
   type PrimaryKey,
 } from "./nav.ts";
+import { Island, IslandLayer, idleContent } from "../island/Island.tsx";
+import { IslandView } from "../island/islandMath.ts";
 import "./Shell.css";
 
 /**
@@ -46,6 +48,14 @@ export function Shell(): ReactElement {
   // 都不会经过"点击侧栏"那条路。一个用 state 记当前项的实现
   // 在那些入口下会**高亮错的那一项**。
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // ⚠️ **队列在 M4 主干里还没有真实来源**（那要等安装/启动的进度上报接进来）。
+  // 所以现在挂的是**空闲态** —— 而它的形状与真实数据一样，
+  // 于是接上真数据时只换这一行。
+  //
+  // 而"收起"是一个**本地 UI 状态**（它是用户的选择），不是队列状态 ——
+  // 所以由外壳持有，而内核的队列一个字节都不受影响（§7.3 约束 4）。
+  const [islandCollapsed, setIslandCollapsed] = useState(false);
+  const islandContent = idleContent("离线账户", "官方源");
   const current = primaryFromPath(pathname);
   const secondary = secondaryOf(current);
 
@@ -99,6 +109,20 @@ export function Shell(): ReactElement {
       <main className="shell__main">
         <Outlet />
       </main>
+      {/*
+        ⚠️ **灵动岛挂在网格之外**（`position: fixed`）—— 它不是三段布局的一员。
+        放进网格会挤出一个格子，而它是"浮在最上层"的（§5.3 使用纪律 2）。
+
+        而它在**外壳里**而不是某一页里，正因为 §7.1 的定位：
+        "把此刻唯一值得看的事**提到顶层**" —— 它的作用域是整个应用。
+      */}
+      <IslandLayer>
+        <Island
+          content={islandContent}
+          onCollapse={() => setIslandCollapsed(true)}
+          view={islandCollapsed ? IslandView.Collapsed : IslandView.Compact}
+        />
+      </IslandLayer>
     </div>
   );
 }

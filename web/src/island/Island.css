@@ -1,0 +1,304 @@
+/**
+ * 灵动岛的样式（M4 主干 · §7）
+ * ============================================================================
+ *
+ * ## 零字面颜色值（§2 约束 4）
+ *
+ * 全部走语义令牌 —— 于是主题四态、材质三档、视觉强度两档**都只改令牌文件**。
+ *
+ * ## 🔴 两态切换**只用 `transform` + `opacity`**（§7.3 约束 2）
+ *
+ * 没有一个 `height` 过渡 —— 那会逐帧触发布局。而高度本身是**离散的**
+ *（32 px / ≤220 px），所以用 `grid-template-rows: 0fr → 1fr` 那条技巧
+ * 也**不行**（它仍然是布局动画）。
+ *
+ * 现在的做法：`max-block-size` 一步到位，而**视觉上的变化来自 opacity
+ * 与 translate** —— 于是眼睛看到的是一个淡入上滑，而布局只算一次。
+ */
+
+.islandLayer {
+  position: fixed;
+  inset-block-start: var(--space-3);
+  inset-inline: 0;
+  display: flex;
+  justify-content: center;
+  /* ⚠️ 它**不吃事件** —— 否则岛周围那一大片会挡住主区。 */
+  pointer-events: none;
+  z-index: var(--z-island);
+}
+
+.island {
+  pointer-events: auto;
+  display: grid;
+  /* 岛体 · 展开面板 · 操作按钮 */
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "body actions"
+    "panel panel";
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  /* 浮层用**不透明**底色（§5.3 使用纪律 2），靠描边 + 单层投影分离。 */
+  background: var(--surface-raised);
+  border: var(--hairline) solid var(--stroke-strong);
+  border-radius: var(--radius-full);
+  box-shadow: var(--elev-2);
+  color: var(--text-primary);
+  font-size: var(--font-body-sm);
+  /* 拖拽时不要选中文字 */
+  user-select: none;
+}
+
+/* ── 形态 ────────────────────────────────────────────────────────────── */
+
+/* `Compact`：高 32 px（§7.3 约束 2 的数） */
+.island[data-view="compact"] {
+  block-size: 32px;
+  max-inline-size: 420px;
+}
+
+/* `Expanded`：高 ≤220 px */
+.island[data-view="expanded"] {
+  max-block-size: 220px;
+  border-radius: var(--radius-xl);
+  inline-size: min(520px, calc(100vw - var(--space-8)));
+  grid-template-areas:
+    "body actions"
+    "panel panel";
+}
+
+/* `Collapsed`：一行状态条。**而它的数据仍然是完整的**（§7.3 约束 4）。 */
+.island[data-view="collapsed"] {
+  block-size: 20px;
+  max-inline-size: 260px;
+  opacity: 0.7;
+}
+
+.island[data-view="collapsed"] .island__detail,
+.island[data-view="collapsed"] .island__pct,
+.island[data-view="collapsed"] .island__actions {
+  display: none;
+}
+
+/* ── 岛体 ────────────────────────────────────────────────────────────── */
+
+.island__body {
+  grid-area: body;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  min-inline-size: 0;
+  text-align: start;
+}
+
+.island__text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-inline-size: 0;
+  line-height: var(--line-height-tight);
+}
+
+.island__headline {
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.island__detail {
+  font-size: var(--font-caption);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.island__pct {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  font-size: var(--font-caption);
+  flex: none;
+}
+
+/* ── 图形 ────────────────────────────────────────────────────────────── */
+
+.island__ring {
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: var(--radius-full);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.island__ringHole {
+  inline-size: 14px;
+  block-size: 14px;
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+}
+
+.island__dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: var(--radius-full);
+  background: var(--text-disabled);
+  flex: none;
+}
+
+.island__dot--live {
+  background: var(--state-success);
+}
+
+.island__dot--danger {
+  background: var(--state-danger);
+}
+
+/**
+ * **转鼓**（`probe` / `launch` / `install` 态）。
+ *
+ * ⚠️ 它是 §7.3 约束 6 里**唯一被允许的无限循环**：
+ * *"不做：多任务并排、随动波形、无限循环动画（**转鼓除外且需可静止**）"*。
+ *
+ * 而"需可静止"这三个字是**必须兑现的** —— 见下面
+ * `prefers-reduced-motion` 那一段：它把动画**停住**（而不是放慢），
+ * 因为规格说的就是"可静止"。
+ */
+.island__drum {
+  inline-size: 14px;
+  block-size: 14px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--stroke-strong);
+  border-block-start-color: var(--accent);
+  animation: island-drum 900ms linear infinite;
+  flex: none;
+}
+
+@keyframes island-drum {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .island__drum {
+    /* ⚠️ **停住，而不是放慢。** 规格原文是"转鼓除外且**需可静止**"——
+       而"可静止"在这里由系统偏好兑现。 */
+    animation: none;
+    border-block-start-color: var(--stroke-strong);
+  }
+}
+
+/* ── 展开面板 ────────────────────────────────────────────────────────── */
+
+.island__panel {
+  grid-area: panel;
+  /* ⚠️ 只用 `opacity` + `transform`（§7.3 约束 2）——
+     没有 `height` 过渡。 */
+  animation: island-panel var(--duration-base) var(--easing-enter);
+  border-block-start: var(--hairline) solid var(--divider);
+  padding-block-start: var(--space-2);
+  margin-block-start: var(--space-1);
+  overflow: auto;
+  max-block-size: 160px;
+}
+
+@keyframes island-panel {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.island__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.island__field {
+  min-inline-size: 0;
+}
+
+.island__fieldLabel {
+  font-size: var(--font-caption);
+  color: var(--text-secondary);
+}
+
+.island__fieldValue {
+  margin: 0;
+  font-size: var(--font-body-sm);
+  overflow-wrap: anywhere;
+}
+
+/* ── 操作 ────────────────────────────────────────────────────────────── */
+
+.island__actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+.island__action {
+  inline-size: 20px;
+  block-size: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-caption);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--easing-standard);
+}
+
+.island__action:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+/* ── 八态的语气（**用状态色令牌，不新开一套**）─────────────────────── */
+
+.island[data-kind="error"] {
+  /* ⚠️ 状态色**成对**使用（背景 `-bg` + 文字 `-fg`）—— 一个"背景用了
+     就用默认文字"的实现正是 §5.1 禁止的那种。 */
+  background: var(--state-danger-bg);
+  color: var(--state-danger-fg);
+  border-color: var(--state-danger);
+}
+
+.island[data-kind="error"] .island__dot {
+  background: var(--state-danger-fg);
+}
+
+.island[data-kind="error"] .island__ringHole {
+  background: var(--state-danger-bg);
+}
+
+.island[data-kind="update"] {
+  background: var(--state-info-bg);
+  color: var(--state-info-fg);
+  border-color: var(--state-info);
+}
+
+.island[data-kind="running"] .island__ringHole {
+  background: var(--surface-raised);
+}
