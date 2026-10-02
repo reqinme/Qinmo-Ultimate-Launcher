@@ -23,12 +23,25 @@ import { QueryClientProvider } from "@tanstack/react-query";
 
 import { router } from "./routes/router.tsx";
 import { queryClient } from "./api/query.ts";
+import { useAppearance } from "./appearance/useAppearance.ts";
 import "./tokens.css";
 import "./styles.css";
 
 const host = document.getElementById("root");
 if (!host) {
   throw new Error("找不到 #root 挂载点");
+}
+
+/**
+ * 外观接线层。
+ *
+ * ⚠️ **它必须是一个组件**，因为 `useAppearance` 是钩子（要订阅
+ * `matchMedia` 的变化）。一个在 `main.tsx` 顶层调用解析函数的实现
+ * 会**只在启动时读一次**系统偏好 —— 而用户切主题之后我们不会跟上。
+ */
+function AppearanceBoot({ children }: { readonly children: React.ReactNode }): React.ReactElement {
+  useAppearance();
+  return <>{children}</>;
 }
 
 createRoot(host).render(
@@ -38,8 +51,10 @@ createRoot(host).render(
       反过来的话，路由自己（将来的 loader）就拿不到缓存 ——
       而那正是"路由是数据的边界"这个结构的意义。
     */}
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <AppearanceBoot>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </AppearanceBoot>
   </StrictMode>,
 );
