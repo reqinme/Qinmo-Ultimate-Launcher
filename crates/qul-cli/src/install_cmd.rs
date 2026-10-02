@@ -53,17 +53,18 @@ const MANIFEST_URL: &str = "https://piston-meta.mojang.com/mc/game/version_manif
 
 /// 默认数据根。
 ///
-/// **它不是用户可见的概念** —— 用户看到的是"实例"。
-/// 放在 `%LOCALAPPDATA%` 而不是 `%APPDATA%`：
-/// 后者会随域账户漫游，而几十 GB 的游戏文件**不该被同步**。
-pub fn default_data_root() -> PathBuf {
-    std::path::Path::new(&std::env::var("LOCALAPPDATA").unwrap_or_default()).join("qinmo")
-}
-
-/// 一个实例的目录。
-pub fn instance_dir(data_root: &std::path::Path, version_id: &str) -> PathBuf {
-    data_root.join("instances").join(version_id)
-}
+// ⚠️ `default_data_root` 与 `instance_dir` **搬进编排层了** ——
+// 因为**布局是一个决策**，而界面（Tauri 命令层）与 CLI 必须给出同一个答案。
+// 见 `qul_app::install_plan::{default_data_root, instance_dir}`。
+//
+// 而这一层现在只做一件事：**把编排层的答案转成 CLI 的参数**。
+// ⚠️ **`pub use` 而不是 `use`** —— 而那不是随手加的：
+// `launch_cmd.rs` 一直是通过 `crate::install_cmd::{default_data_root, instance_dir}`
+// 拿到它们的（那是搬迁前的形状）。
+//
+// 而这里有一个选择：**改成让 launch_cmd 直接找编排层**，还是**保留这条再导出**。
+// 选后者，因为"布局在哪"这件事**只该有一个入口**。
+pub use qul_app::install_plan::{default_data_root, instance_dir};
 
 /// 一个会打印进度的 `StageSink`。
 struct CliSink {
@@ -82,8 +83,8 @@ impl CliSink {
     }
 }
 
-impl qul_infra::install::StageSink for CliSink {
-    fn stage(&self, stage: qul_infra::install::Stage, message: &str) {
+impl qul_app::install_plan::StageSink for CliSink {
+    fn stage(&self, stage: qul_app::install_plan::Stage, message: &str) {
         let mut s = self.last_stage.lock().expect("锁没被毒化");
         let line = format!("  [{}] {message}", stage.key());
         if *s != line || self.verbose {
@@ -286,21 +287,22 @@ pub fn run_install(args: &InstallArgs) -> i32 {
 
     // ── ②③④ 五阶段流水线 ──
     println!("【2-4】下载 · 校验 · 解压");
-    let cfg = qul_infra::install::InstallConfig {
-        offline_only: args.offline,
-        include_assets: args.with_assets,
-        migrate_from: args.migrate_from.clone(),
-        ..Default::default()
-    };
+    // ⚠️ **配置的组装搬进了编排层。**
+    //
+    // `offline_only` / `include_assets` / `migrate_from` 这三条"参数到策略"的绑定
+    // 必须有**一个**地方做 —— 因为界面也要它。
+    // 见 `qul_app::install_plan::install_to_instance`。
     let sink = CliSink::new(args.verbose);
     let cancel = CancelToken::new();
     let started = std::time::Instant::now();
-    let out = match qul_infra::install::install(
+    let out = match qul_app::install_plan::install_to_instance(
         &d,
         &env,
         &version_id,
         &inst,
-        &cfg,
+        args.offline,
+        args.with_assets,
+        args.migrate_from.clone(),
         transport.as_ref(),
         &cancel,
         &sink,
@@ -309,7 +311,7 @@ pub fn run_install(args: &InstallArgs) -> i32 {
         Err(e) => {
             println!();
             println!("  ✗ 安装失败：{e}");
-            if let qul_infra::install::InstallError::Checksum { want, got, .. } = &e {
+            if let qul_app::install_plan::InstallError::Checksum { want, got, .. } = &e {
                 println!(
                     "     期望 {}…  实际 {}…",
                     &want[..8.min(want.len())],

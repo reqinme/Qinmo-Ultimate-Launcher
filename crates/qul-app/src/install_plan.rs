@@ -266,6 +266,94 @@ pub fn ensure_asset_index(
     )))
 }
 
+/// **一个实例的目录。**
+///
+/// ⚠️ **它是编排层的，不是 CLI 的。** 理由：**布局是一个决策**，
+/// 而界面（Tauri 命令层）与 CLI 必须给出**同一个答案**。
+/// 一个"两边各拼一次路径"的做法会在某一次改动后**指向两个不同的目录**，
+/// 而症状是"CLI 装完了而界面说没装"。
+pub fn instance_dir(data_root: &std::path::Path, version_id: &str) -> std::path::PathBuf {
+    data_root.join("instances").join(version_id)
+}
+
+/// **本机的数据根目录。**
+///
+/// ## 它为什么是 `%LOCALAPPDATA%` 而不是 `%APPDATA%`
+///
+/// **后者会随域账户漫游**，而几十 GB 的游戏文件**不该被同步** ——
+/// 一次登录会把它们全部推上网络。
+///
+/// ## ⚠️ 而"它读环境变量"这件事是被接受的，而 `descriptor_for` 的 `cache_root` 不是
+///
+/// 区别在于**哪一边是事实**：
+///
+/// | | 谁的事实 |
+/// |---|---|
+/// | **我们自己的数据根** | **本机的** —— 它就该由这一层决定，而调用方不该关心 |
+/// | **官方启动器那个 `.minecraft`** | **别人的** —— 它可能在任何地方（多账户、便携版、测试夹具），所以是**参数** |
+///
+/// ⚠️ 而环境变量缺失时**回退是显式的**，而且仍然落在用户目录下。
+/// 一个 `Path::new(&env::var(..).unwrap_or_default())` 的写法会拼出**相对路径**，
+/// 于是数据落在**进程的 cwd** —— 而那实测发生过一次
+///（`qul install` 之后 `logs/` 出现在仓库根目录）。
+pub fn default_data_root() -> std::path::PathBuf {
+    if let Ok(p) = std::env::var("LOCALAPPDATA") {
+        if !p.is_empty() {
+            return std::path::Path::new(&p).join("qinmo");
+        }
+    }
+    let home = std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_owned());
+    std::path::Path::new(&home).join(".qinmo")
+}
+
+/// **一次完整的安装：五阶段流水线，而配置由本层的三条策略从参数推出。**
+///
+/// ## 🔴 它把三件东西绑在一起，而绑的理由是它们**必须一致**
+///
+/// | 绑定 | 不一致会怎样 |
+/// |---|---|
+/// | `offline_only ← offline` | 一次"离线却仍在下载"的运行 —— 而用户以为它没联网 |
+/// | `include_assets ← with_assets` | 界面装了资产而 CLI 没装（或反过来） |
+/// | `migrate_from ← migrate_from` | 迁移来源由调用方选，而**它是一次性的**（迁完就该空） |
+///
+/// ## 而它**不在失败时自己报** —— 那件事由 `install()` 做
+///
+/// `install()`（`qul-infra`）在失败前会经 `sink` 报一次。
+/// 所以这里**不重复报** —— 一个"这里再报一次"的实现会让用户看到**两条一样的错误**。
+///
+/// ⚠️ 而它**不搬运 `stage_ms`**：那个字段在返回的 `InstallOutcome` 里，
+/// 由调用方按需读。搬运它会产生一个"要么全带、要么全丢"的投影。
+#[allow(clippy::too_many_arguments)]
+pub fn install_to_instance(
+    descriptor: &Descriptor,
+    env: &Env,
+    version_id: &str,
+    instance_root: &std::path::Path,
+    offline: bool,
+    with_assets: bool,
+    migrate_from: Option<std::path::PathBuf>,
+    transport: &dyn Transport,
+    cancel: &CancelToken,
+    sink: &dyn StageSink,
+) -> Result<InstallOutcome, InstallError> {
+    let cfg = InstallConfig {
+        offline_only: offline,
+        include_assets: with_assets,
+        migrate_from,
+        ..Default::default()
+    };
+    install(
+        descriptor,
+        env,
+        version_id,
+        instance_root,
+        &cfg,
+        transport,
+        cancel,
+        sink,
+    )
+}
+
 /// **进度去掉噪的一个包装。**
 ///
 /// ## 它解决什么
@@ -495,5 +583,48 @@ mod tests {
         let _ = std::fs::remove_dir_all(&tmp);
         let r = ensure_asset_index(&d, &tmp, &Boom, false, &CancelToken::new());
         assert_eq!(r.expect("离线时该跳过而不是失败"), None);
+    }
+    // ───────────────── 布局（`instance_dir` / `default_data_root`）─────────────────
+
+    #[test]
+    fn 实例目录的形状是_data_root_instances_版本() {
+        // ⚠️ 这条钉的是**布局**，而布局是一个**决策**：
+        // 换一次形状（例如改成按 id 哈希分子目录）会让已装好的实例
+        // **全部"消失"** —— 而界面的表现是"我的实例没了"，不是"路径变了"。
+        let d = instance_dir(std::path::Path::new(r"C:\data"), "26.3");
+        assert_eq!(d, std::path::Path::new(r"C:\data\instances\26.3"));
+    }
+
+    #[test]
+    fn 数据根落在本地应用数据目录而不是漫游目录() {
+        // ⚠️ **这不是风格问题。** `%APPDATA%` 会随域账户**漫游**，
+        // 而几十 GB 的游戏文件不该被同步 —— 一次登录会把它们全部推上网络。
+        //
+        // 而这条测试的写法要小心：它**不改环境变量**（那会与并行跑的别的测试打架）。
+        // 所以它断言的是**包含关系**：结果必须在 LOCALAPPDATA 之下。
+        let got = default_data_root();
+        match std::env::var("LOCALAPPDATA") {
+            Ok(la) if !la.is_empty() => {
+                assert!(
+                    got.starts_with(&la),
+                    "数据根 {} 应当在 LOCALAPPDATA {} 之下",
+                    got.display(),
+                    la
+                );
+            }
+            // 环境变量缺失 ⇒ 走显式回退，而**回退也必须在用户目录下**
+            //（不是 cwd —— 那个错实测发生过一次）。
+            _ => {
+                let home = std::env::var("USERPROFILE").unwrap_or_default();
+                assert!(
+                    got.is_absolute(),
+                    "回退路径必须是**绝对**的，否则数据会落在进程的 cwd：{}",
+                    got.display()
+                );
+                if !home.is_empty() {
+                    assert!(got.starts_with(&home), "回退应当在用户目录下");
+                }
+            }
+        }
     }
 }
