@@ -16,6 +16,18 @@
  * 依赖网络，而"网络慢"会变成"窗口白屏很久"。
  */
 
+// 🔴 **这一个必须排在所有别的业务 import 之前。**
+//
+// ESM 的求值顺序保证"被 import 的模块先于 import 它的模块求值"，
+// 所以这一行让记录器在任何别的模块的顶层代码之前装上 ——
+// 而"冷启动零网络"这条验收**只有**那样才成立。
+//
+// ⚠️ 而"它排在第一"是一个**容易后人破坏**的前提（往上面加一行 import
+// 就破坏了它）。`coldStart.ts` 里那段说明了为什么它仍然可验：
+// 兜底通道是 `PerformanceResourceTiming`，而它**能看见**记录器之前
+// 已经发生的资源加载。
+import { assertNoColdStartNetwork, installColdStartRecorder } from "./boot/coldStart.ts";
+
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
@@ -27,6 +39,23 @@ import { useAppearance } from "./appearance/useAppearance.ts";
 import { IslandProvider } from "./island/IslandProvider.tsx";
 import "./tokens.css";
 import "./styles.css";
+
+/*
+ * 🔴 **装上记录器 —— 而它必须在 `createRoot` 之前。**
+ *
+ * `createRoot(...).render(...)` 是**第一件真的会引发副作用**的事
+ *（它跑 effect、它挂组件）。所以记录器要排在它前面。
+ *
+ * ⚠️ 而**这一条顺序依赖是可以被后人破坏的**（把这两行挪到 `render` 之后
+ * 就破坏了它，而界面照旧正常）。所以：
+ *
+ * - `installColdStartRecorder()` 内部有 `PerformanceObserver` 兜底，
+ *   它带 `buffered: true` ⇒ **它能看见**记录器装上之前已经发生的资源加载；
+ * - 而 `assertNoColdStartNetwork()` 把结果喊到控制台，
+ *   于是"破坏了顺序"这件事**会被看到**，而不是静默通过。
+ */
+installColdStartRecorder();
+assertNoColdStartNetwork();
 
 const host = document.getElementById("root");
 if (!host) {

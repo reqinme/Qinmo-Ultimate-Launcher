@@ -63,10 +63,10 @@
 }
 
 .shell {
-'  /* ⚠️ **36 px 是规格值**（`UI设计规格.md` §4.5 / L288 / L1389）——
+  /* ⚠️ **36 px 是规格值**（`UI设计规格.md` §4.5 / L288 / L1389）——
      两处都写 36，而它不是一个"看着合适"的数。 */
   --shell-titlebar-h: 36px;
-  --shell-rail-w: 196px;'
+  --shell-rail-w: 196px;
   --shell-secondary-w: 176px;
 }
 

@@ -322,7 +322,7 @@
    * - `medium` = **500**：拉丁文与 Segoe UI 有真的 500，而中文落到 400
    * - `semibold` = **600**：中文有真的 600
    */
-'  /*
+  /*
    * 行高阶梯。
    *
    * ⚠️ **`--line-height-tight` 也是同一个缺陷的另一个实例**：
@@ -338,7 +338,7 @@
   --line-height-normal: 1.5;
   --line-height-relaxed: 1.7;
 
-  --font-weight-regular: 400;'
+  --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
 
