@@ -1,7 +1,7 @@
 {
     "note":  "CANDIDATE LIST, not a verdict. Task-book checks 1-2 need semantic judgement; this script cannot supply it.",
     "files_scanned":  24,
-    "section_refs_defined":  181,
+    "section_refs_defined":  182,
     "dangling_refs":  [
                           "13.1",
                           "13.2",
@@ -12,7 +12,6 @@
                           "13.7",
                           "13.8",
                           "13.9",
-                          "5.4.1",
                           "6.5"
                       ],
     "promise_candidates":  [
@@ -189,12 +188,7 @@
 
            ],
     "p1":  [
-               {
-                   "kind":  "dangling-section-ref",
-                   "severity":  "P1",
-                   "where":  "SESSION.md",
-                   "detail":  "section 5.4.1 has no matching heading"
-               }
+
            ],
     "p2":  [
 
