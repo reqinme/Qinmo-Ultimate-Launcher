@@ -237,93 +237,48 @@ pub fn run_install(args: &InstallArgs) -> i32 {
     let env = Env::new(PlatformTarget::windows("10.0.26200", "x86_64"));
     println!();
 
-    // ── 资产索引：**要先拿到那个文件才能解析它** ──
-    // ⚠️ 它**只用于打印**。`install()` 会自己从实例目录再读一次同一份文件 ——
-    // 把解析结果传进去会让我们有两个真相来源，而它们可以不一致。
-    let mut asset_objects: Option<(usize, usize, u64)> = None;
-    // 它只为了在**包装完之后**报一次去重比例 —— 见下面的打印。
-
+    // ── 资产索引：**它已经搬进编排层了** ──
+    //
+    // ⚠️ 这里原本有 5 行的"准备一个只用于打印的三元组"，而它随着
+    // 那 90 行的实现一起搬走了 —— 因为"去重比例"那个数由编排层算，
+    // 而**在这里留一个空变量只是搬家的残留**。
+    //
+    // 见 `qul_app::install_plan::ensure_asset_index`。
     if args.with_assets {
         println!("【1b】取资产索引（`--with-assets`）");
-        match d.asset_index_ref() {
-            Some(ai) => {
-                let dest = inst
-                    .join("assets")
-                    .join("indexes")
-                    .join(format!("{}.json", ai.id));
-                println!("  索引   : {}  ← {}", ai.id, ai.url);
-                if dest.is_file() {
-                    println!("  ✓ 本机已有");
-                } else if args.offline {
-                    println!("  ✗ 本机没有而 `--offline` 不许联网 —— 跳过资产");
-                } else {
-                    let v = match qul_infra::check::Sha1Verifier::new(&ai.sha1) {
-                        Some(v) => v,
-                        None => {
-                            println!("  ✗ 索引的 sha1 形态不对");
-                            return 1;
-                        }
-                    };
-                    let cancel = CancelToken::new();
-                    match qul_infra::download::download(
-                        transport.as_ref(),
-                        &ai.url,
-                        &dest,
-                        &v,
-                        &qul_infra::download::DownloadConfig::default(),
-                        &cancel,
-                        None,
-                    ) {
-                        qul_infra::download::DownloadOutcome::Done { bytes, .. } => {
-                            println!("  ✓ 下了 {bytes} 字节并校验通过")
-                        }
-                        other => {
-                            println!("  ✗ 取索引失败：{other:?}");
-                            return 1;
-                        }
-                    }
-                }
-                // 解析它
-                match std::fs::read_to_string(&dest)
-                    .map_err(|e| e.to_string())
-                    .and_then(|t| qul_core::assets::AssetIndex::parse(&t))
-                {
-                    Ok(idx) => {
-                        // ⚠️ **这三个数必须都打印。** 它们是"逻辑名数 ≠ 文件数"
-                        // 这个实测事实的直接证据 —— 而只打印第一个数会让
-                        // 去重看起来像没有发生。
-                        println!(
-                            "  ✓ {} 个逻辑名 → **{} 个不同哈希**（去重掉 {} 个，{} 字节）",
-                            idx.objects.len(),
-                            idx.unique_hashes().len(),
-                            idx.objects.len() - idx.unique_hashes().len(),
-                            idx.unique_bytes()
-                        );
-                        asset_objects = Some((
-                            idx.objects.len(),
-                            idx.unique_hashes().len(),
-                            idx.unique_bytes(),
-                        ));
-                    }
-                    Err(e) => {
-                        println!("  ✗ 索引解析失败：{e}");
-                        return 1;
-                    }
-                }
+        // ⚠️ **这一段曾经有 90 行的实现**（含"要先下索引才能解析它"、
+        // 四个分支、去重比例的计算）。而它被搬进了编排层 ——
+        // 因为**界面也要它**，而"要不要装资产"是一条策略。
+        //
+        // 详见 `crates/qul-app/src/install_plan.rs` 的 `ensure_asset_index`。
+        let cancel = CancelToken::new();
+        match qul_app::install_plan::ensure_asset_index(
+            &d,
+            &inst,
+            transport.as_ref(),
+            !args.offline,
+            &cancel,
+        ) {
+            Ok(None) => println!("  ✓ 没有可用的资产索引（老版本，或离线时本机没有）—— 跳过资产"),
+            Ok(Some((names, hashes, bytes))) => {
+                // ⚠️ **这三个数必须都打印。** 它们是"逻辑名数 ≠ 文件数"
+                // 这个实测事实的直接证据 —— 而只打印第一个数会让
+                // 去重看起来像没有发生。
+                println!(
+                    "  ✓ {} 个逻辑名 → {} 个不同哈希（去重掉 {} 个，{} 字节）",
+                    names,
+                    hashes,
+                    names.saturating_sub(hashes),
+                    bytes
+                );
             }
-            None => println!("  这个版本没有资产索引（老版本用 `assets` 字符串）"),
-        }
-        // 去重比例 —— **它是"逻辑名数 ≠ 文件数"这个实测事实的直接证据**。
-        if let Some((names, hashes, bytes)) = asset_objects {
-            println!(
-                "  去重   : {names} 个逻辑名 → {hashes} 个文件（少下 {} 个，{bytes} 字节）",
-                names.saturating_sub(hashes)
-            );
+            Err(e) => {
+                println!("  ✗ {e}");
+                return 1;
+            }
         }
         println!();
     } else {
-        println!("【1b】资产：**默认不算**（`--with-assets` 打开）");
-        println!("  理由：实测 `26.3` 有 5147 个资产对象 —— 算进来会让盘点");
         println!("        从「毫秒级」变成「要算 5000 多个 SHA-1」。");
         println!("        而**资产是可选内容**：缺了游戏能起，只是没声音没语言。");
         println!();

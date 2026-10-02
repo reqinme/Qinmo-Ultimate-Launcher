@@ -191,6 +191,81 @@ pub fn descriptor_for(
     ))
 }
 
+/// **取资产索引**（策略 3 的**前半**）。
+///
+/// ## 🔴 它为什么在编排层：**"要不要装资产"是一个决定，而它有四个分支**
+///
+/// | 情况 | 它做什么 |
+/// |---|---|
+/// | 这个版本没有资产索引 | `Ok(None)` —— **老版本用 `assets` 字符串**，那不是错误 |
+/// | 本机已有那份索引 | 零网络，直接读 |
+/// | 本机没有 + 不许联网 | `Ok(None)` —— **跳过资产**，而不是失败 |
+/// | 本机没有 + 可以联网 | 按元数据的 URL 与 sha1 下它 |
+///
+/// ⚠️ **第三条是 `Ok(None)` 而不是 `Err`** —— 而那是一个**产品判断**：
+/// "离线时没有资产"是**一个可接受的状态**（游戏能起，只是没声音没语言），
+/// 而不是一次失败。
+///
+/// ## 而"要先拿到那个文件才能解析它"这件事决定了它的形状
+///
+/// 资产索引**自己也是一个要下载的文件**，而它的 URL 与 sha1 在版本详情里。
+/// 所以顺序不能反：**先把它下下来，再解析它**。
+/// 一个"先解析索引再下载"的实现会陷入循环 ——
+/// 而那正是这里的返回值是**解析结果**（而不是"要不要下"）的原因。
+///
+/// ## 返回的那个三元组
+///
+/// `(逻辑名数, 不同哈希数, 去重后字节数)` —— 三个都要，因为
+/// **"逻辑名数 ≠ 文件数"**这个实测事实只能靠前两个数一起表达
+///（`26.3` 上它们恰好相等，而协议允许不等）。
+pub fn ensure_asset_index(
+    descriptor: &Descriptor,
+    instance_root: &std::path::Path,
+    transport: &dyn Transport,
+    allow_network: bool,
+    cancel: &CancelToken,
+) -> Result<Option<(usize, usize, u64)>, String> {
+    let Some(ai) = descriptor.asset_index_ref() else {
+        // 老版本用 `assets` 字符串 —— **那不是错误**。
+        return Ok(None);
+    };
+
+    let dest = instance_root
+        .join("assets")
+        .join("indexes")
+        .join(format!("{}.json", ai.id));
+
+    if !dest.is_file() {
+        if !allow_network {
+            // ⚠️ **`Ok(None)` 而不是 `Err`** —— 见上面那段。
+            return Ok(None);
+        }
+        let v = qul_infra::check::Sha1Verifier::new(&ai.sha1)
+            .ok_or_else(|| "资产索引的 sha1 形态不对".to_string())?;
+        match qul_infra::download::download(
+            transport,
+            &ai.url,
+            &dest,
+            &v,
+            &qul_infra::download::DownloadConfig::default(),
+            cancel,
+            None,
+        ) {
+            qul_infra::download::DownloadOutcome::Done { .. } => {}
+            other => return Err(format!("取资产索引失败：{other:?}")),
+        }
+    }
+
+    let text = std::fs::read_to_string(&dest).map_err(|e| format!("读资产索引失败：{e}"))?;
+    let idx =
+        qul_core::assets::AssetIndex::parse(&text).map_err(|e| format!("资产索引解析失败：{e}"))?;
+    Ok(Some((
+        idx.objects.len(),
+        idx.unique_hashes().len(),
+        idx.unique_bytes(),
+    )))
+}
+
 /// **进度去掉噪的一个包装。**
 ///
 /// ## 它解决什么
@@ -373,5 +448,52 @@ mod tests {
         // 会让用户不知道下一步做什么。
         assert!(e.contains("不许联网"), "{e}");
         assert!(e.contains("官方启动器"), "该给出路：{e}");
+    }
+    // ───────────────── `ensure_asset_index` 的四个分支 ─────────────────
+
+    /// 一个**会 panic 的** transport：若它被调用，测试就红。
+    struct Boom;
+    impl Transport for Boom {
+        fn fetch(
+            &self,
+            _r: &qul_core::http::FetchRequest,
+        ) -> Result<qul_core::http::FetchResponse, String> {
+            panic!("这个分支不该联网");
+        }
+    }
+
+    fn desc_with_assets(id: &str) -> Descriptor {
+        let json = format!(
+            r#"{{"id":"{id}","mainClass":"a.B","type":"release","libraries":[],
+                 "assetIndex":{{"id":"34","sha1":"{}","url":"https://e.invalid/34.json"}}}}"#,
+            "a".repeat(40)
+        );
+        Descriptor::parse(&json).expect("能解析")
+    }
+
+    #[test]
+    fn 没有资产索引的版本返回空而不是错误() {
+        // ⚠️ 老版本用 `assets` 字符串（一个索引名），**而那不是错误**。
+        // 一个把它当成失败的实现会让"装老版本"直接红。
+        let d =
+            Descriptor::parse(r#"{"id":"x","mainClass":"a.B","libraries":[]}"#).expect("能解析");
+        let tmp = std::env::temp_dir().join(format!("qul-ai-none-{}", std::process::id()));
+        let r = ensure_asset_index(&d, &tmp, &Boom, false, &CancelToken::new());
+        assert_eq!(r.expect("不该失败"), None);
+    }
+
+    #[test]
+    fn 本机没有索引且不许联网时跳过而不失败() {
+        // ⚠️ **这是一条产品判断，而不是一个容错。**
+        // "离线时没有资产"是**一个可接受的状态**：游戏能起，只是没声音没语言。
+        //
+        // 而这条与上一条的区别值得说清：上一条是"这个版本**没有**索引"，
+        // 这一条是"这个版本有索引，而**我们拿不到**"。两者都返回 `None`
+        // —— 而它们的理由不同，所以这里是两条测试。
+        let d = desc_with_assets("x2");
+        let tmp = std::env::temp_dir().join(format!("qul-ai-off-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let r = ensure_asset_index(&d, &tmp, &Boom, false, &CancelToken::new());
+        assert_eq!(r.expect("离线时该跳过而不是失败"), None);
     }
 }
