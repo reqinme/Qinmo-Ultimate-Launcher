@@ -1,0 +1,166 @@
+/**
+ * 自绘标题栏的样式（`UI设计规格.md` §4.5 · 高 **36 px**）
+ * ============================================================================
+ *
+ * ## 🔴 三条都是**规格里的数字**，不是我定的
+ *
+ * | 项 | 值 | 出处 |
+ * |---|---|---|
+ * | 高度 | **36 px** | §4.5（L288 / L1389 两处都写 36） |
+ * | 品牌 + 搜索 + 岛位 + 三个控制 | 那四个位置 | §4.5 的那张图（L270） |
+ * | 控制按钮的命中区 | **不是 36×36** | ⚠️ 见下 |
+ *
+ * ## ⚠️ 而控制按钮的命中区值得单独说
+ *
+ * 系统标题栏的三个按钮在 Win11 上是 **46×32**（而高度是整条标题栏）。
+ * 一个"按设计系统给圆角方块"的实现会让它们**比系统的难按** ——
+ * 而这正是"自绘标题栏最容易做错的地方"（用户的手记得系统的那个大小）。
+ *
+ * 所以这里：**宽 46 / 高 36（整条）**，而**没有圆角**
+ * 直到 hover —— 那时的背景是**系统的那个形状**（直角填满整格）。
+ *
+ * ## ⚠️ 而关闭按钮的 hover 是**红色**
+ *
+ * 那是 Windows 的既有约定，而它值得跟：一个"三个按钮 hover 都一样"的
+ * 实现会让用户在按关闭之前**多看一眼**（因为红色是那个动作的既有信号）。
+ *
+ * ## ⚠️ 而 1 px 是 §4.5 要的"可指认的"那一条
+ *
+ * 下边那条 `--hairline` 描边是**标题栏与内容的分界**，
+ * 而它和侧栏那条用的是**同一个 token** —— 于是"1 px 描边"这件事
+ * 整个界面**只有一处定义**（`tokens.css` 的 `--hairline`）。
+ */
+
+.titlebar {
+  /* ⚠️ 36 px 是规格值。而它**不是** `--space-*` 的一档 ——
+     那两套刻度是分开的（间距是节奏，而控件高度是命中区）。 */
+  block-size: 36px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-inline-start: var(--space-4);
+  /* ⚠️ **末端不留内边距** —— 三个按钮要贴到窗口右边，与系统标题栏一致。 */
+  padding-inline-end: 0;
+  /* ⚠️ **拖动区不能选中文字** —— 一个没写这行的实现会在拖窗口时
+     把"秦墨"两个字选成高亮。 */
+  user-select: none;
+  /* 而它**必须是可拖的**（见 `TitleBar.tsx` 里 `onPointerDown` 那段）。 */
+  cursor: default;
+  /* 那条 1 px 的分界 —— 与侧栏同一个 token。 */
+  border-block-end: var(--hairline) solid var(--stroke-subtle);
+  background: var(--surface-panel);
+}
+
+.titlebar__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-body-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  /* ⚠️ 品牌文字**本身不是按钮** —— 所以它没有 hover。
+     给它 hover 会让用户以为点了会怎样。 */
+  white-space: nowrap;
+}
+
+/**
+ * 品牌记号：一个**自绘的菱形**。
+ *
+ * ⚠️ **它是 CSS 画的，不是一个图标文件** —— 那条纪律是
+ * "图形全部自绘"（§1.4）。而 `rotate(45deg)` 一个方块是最省的自绘菱形。
+ */
+.titlebar__mark {
+  inline-size: 10px;
+  block-size: 10px;
+  rotate: 45deg;
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+.titlebar__search {
+  /* ⚠️ 它现在**禁用**，而禁用的样子要能被看出来 —— 见 §6.3
+     的"禁用必须带原因"（原因在 `title` 属性里，而那是可聚焦的）。 */
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: var(--hairline) solid var(--stroke-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-disabled);
+  color: var(--text-disabled);
+  font: inherit;
+  font-size: var(--font-body-sm);
+}
+
+/**
+ * 给灵动岛留的那一段。
+ *
+ * ⚠️ **`flex: 1` 是它的全部作用** —— 它把三个控制推到右边，
+ * 而在中间留出一段空间给那个 `position: fixed` 的岛。
+ *
+ * 一个"什么都不放"的实现也能把控制推过去（用 `margin-inline-start: auto`）
+ * —— 而那样的话，"中间那段是给岛的"这件事在源码里**看不见**。
+ */
+.titlebar__slot {
+  flex: 1;
+  /* 而它**不接收指针事件** —— 它是一段留白，而岛的拖动在岛自己身上。 */
+  pointer-events: none;
+}
+
+.titlebar__controls {
+  display: flex;
+  align-items: stretch;
+  /* 整条 36 px 高 —— 与系统标题栏一致（见文件顶部那段）。 */
+  block-size: 100%;
+}
+
+.titlebar__btn {
+  /* ⚠️ 46 px 是 Win11 那个宽度（见文件顶部那段）。 */
+  inline-size: 46px;
+  block-size: 100%;
+  display: grid;
+  place-items: center;
+  /* ⚠️ **没有圆角、没有间隙** —— 系统的三个按钮是连着的直角格。
+     给它们圆角会让 hover 的样子与系统不同。 */
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.titlebar__btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+/**
+ * 🔴 **关闭按钮的 hover 是红的** —— 那是 Windows 的既有约定。
+ *
+ * ⚠️ 而它是**唯一**一个 hover 有颜色的控制：一个"三个都一样"的实现
+ * 会让用户在按关闭之前**多看一眼**（因为红色是那个动作的既有信号）。
+ */
+.titlebar__btn--close:hover {
+  background: var(--state-danger);
+  /* ⚠️ 而它的前景色要**在那个红上仍然够对比** ——
+     用 `--text-on-solid` 而不是 `--text-primary`
+     （后者在深色主题下是浅色，而浅色在红上也还行；
+     但在浅色主题下它与红打起来）。 */
+  color: var(--text-on-accent);
+}
+
+/**
+ * ⚠️ **键盘焦点必须看得见。**
+ *
+ * 这是 §4.5 的"键盘与读屏通过"那条验收里最容易被漏的一处：
+ * 标题栏的三个按钮**在 Tab 顺序的最前面**（它们在 DOM 里最靠前），
+ * 而一个 `outline: none` 的实现会让键盘用户在整条标题栏上**看不见自己在哪**。
+ */
+.titlebar__btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  /* 向内 —— 因为这三个按钮贴着窗口边缘，向外的描边会被裁掉。 */
+  outline-offset: -2px;
+}

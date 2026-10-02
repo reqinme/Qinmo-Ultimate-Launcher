@@ -292,6 +292,56 @@
   --font-title-sm: 16px;
   --font-title: 20px;
 
+  /*
+   * 🔴 **字重阶梯 —— 而它们曾经缺失，而那是本仓库一个真实的静默缺陷。**
+   *
+   * `--font-weight-medium` 与 `--font-weight-semibold` 被 **13 处**使用
+   *（`components.css` / `HomePage.css` / `Island.css` / `Shell.css` /
+   * `styles.css` / `TitleBar.css`），而**全仓库没有一处定义它们**。
+   *
+   * ## 症状为什么一直没人发现
+   *
+   * `font-weight: var(--font-weight-medium)` 在自定义属性**未定义**时，
+   * 那条声明**整条失效**，于是字重回落到 `normal`。
+   * 而 `normal` 与 `medium` 的差别在 13 px 的中文上**几乎看不出来** ——
+   * 所以既不会有人报"这里字重不对"，也不会让任何测试红。
+   *
+   * ## 而它是在写 `TitleBar.css` 时被发现的
+   *
+   * 因为我**逐个核对了新用的 token 是否存在**（那次核对一次列出 6 个不存在的）。
+   *
+   * > 教训：**"我用的 token 都在"这件事必须能被机械核对** ——
+   * > 见 `tools/check-css-tokens.ps1`（同一轮加的）。
+   *
+   * ## 而取值为什么是这两个
+   *
+   * Windows 的中文界面字体（微软雅黑 / Noto Sans SC）在 13 px 下
+   * 只有 `400` 与 `600` 两档是**真实存在**的 —— `500` 会被合成到一个
+   * 假的中间档（浏览器会去借邻近的字重）。所以：
+   *
+   * - `medium` = **500**：拉丁文与 Segoe UI 有真的 500，而中文落到 400
+   * - `semibold` = **600**：中文有真的 600
+   */
+'  /*
+   * 行高阶梯。
+   *
+   * ⚠️ **`--line-height-tight` 也是同一个缺陷的另一个实例**：
+   * `Island.css:105` 用了它，而它**不存在**，于是
+   * `line-height: var(--line-height-tight)` 那条声明整条失效。
+   *
+   * 而这一条的后果比字重那条**更容易看见**（岛的标题行高会变松），
+   * 但它同样没人报 —— 因为"行高松一点"看起来像设计选择。
+   *
+   * 由 `tools/check-css-tokens.ps1` 在 `verify.ps1` 里强制。
+   */
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.7;
+
+  --font-weight-regular: 400;'
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
   /* ── 层级（z-index）：**集中定义**，于是"谁盖住谁"能被一处读懂 ────── */
   --z-base: 0;
   --z-panel: 10;

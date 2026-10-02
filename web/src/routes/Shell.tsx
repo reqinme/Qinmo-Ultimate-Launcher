@@ -10,6 +10,7 @@ import {
 } from "./nav.ts";
 import { Island, IslandLayer, idleContent } from "../island/Island.tsx";
 import { useIsland } from "../island/IslandProvider.tsx";
+import { TitleBar } from "../titlebar/TitleBar.tsx";
 import { IslandView } from "../island/islandMath.ts";
 import "./Shell.css";
 
@@ -71,7 +72,19 @@ export function Shell(): ReactElement {
   const secondary = secondaryOf(current);
 
   return (
-    <div className="shell">
+    // ⚠️ `has-titlebar` 这个类让网格多出标题栏那一行 ——
+    // 而它**写在类上而不是内联样式上**，于是"这个网格有几行"
+    // 在 CSS 里读得出来。
+    //
+    // ⚠️ 而这一条说明**必须是 `//` 而不是 `{/* */}`**：后者是一个 JSX
+    // 表达式，于是 `return (` 后面就有两个根节点 —— 那是语法错误
+    // （而报错信息指向 `)`，指不到这一行）。
+    <div className="shell shell--has-titlebar">
+      {/* 🔴 自绘标题栏（§4.5）。它提供系统标题栏关掉之后失去的三样：
+          拖动区、最小化/最大化/关闭、以及"这是哪个应用"。 */}
+      <div className="shell__titlebar">
+        <TitleBar />
+      </div>
       <nav className="shell__rail" aria-label="主导航">
         {/* 账户卡：**不属于导航**，所以它不在 PRIMARY 里 */}
         <div className="shell__account">

@@ -114,6 +114,10 @@ $checks = @(
        name = 'Tauri security baseline (CSP / capabilities least privilege)'
        protects = 'plan section 5.8: the WebView is not a security boundary, so "front end has zero business logic" must be ENFORCED -- no unsafe-inline/unsafe-eval, no remote origin, no broad fs/shell/http capability'
        kind = 'ps1'; run = { & (Join-Path $dir 'tools\check-tauri-baseline.ps1') } }
+    @{ key = 'tokens'
+       name = 'CSS tokens (every var(--token) resolves to a definition)'
+       protects = 'a REAL defect found while writing TitleBar.css: --font-weight-medium and --font-weight-semibold were used in 13 places and defined in 0. The symptom is SILENT -- an undefined custom property makes the whole declaration invalid, so the weight falls back to normal, and on 13px Chinese text nobody notices. --line-height-tight was the same defect.'
+       kind = 'ps1'; run = { & (Join-Path $dir 'tools\check-css-tokens.ps1') } }
     @{ key = 'clean'
        name = 'Worktree is clean'
        protects = 'generated files being committed by accident'

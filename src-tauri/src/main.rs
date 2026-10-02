@@ -415,6 +415,82 @@ fn cancel_install(running: tauri::State<'_, Arc<Running>>) -> bool {
     })
 }
 
+/// **窗口控制：最小化 / 最大化切换 / 关闭。**
+///
+/// ## 🔴 为什么是三条自定义命令，而不是 `core:window` 那套权限
+///
+/// `capabilities/main-window.json` 的 `permissions` 是**空**的，
+/// 而那是 §5.8 的要求。窗口控制本来可以走 Tauri 内建的
+/// `core:window:allow-minimize` / `allow-close` —— 而**那会把
+/// "前端能做什么"从"我们显式导出的命令"变成"一份插件权限表"**。
+///
+/// §5.8 的原文是：
+///
+/// > 需要文件操作的功能走**自定义命令**而不是通用 fs 插件。
+///
+/// 而这里把同一条推理用在了**窗口**上 —— 理由相同：
+/// **一条自定义命令是一个具名的、可审计的入口，而一份插件权限是一族。**
+/// 三个按钮只需要三个动作，不需要一族。
+///
+/// ## ⚠️ 而"最大化"是一条命令而不是两条
+///
+/// 一个 `maximize()` + `unmaximize()` 的实现会让**前端**决定"现在该做哪一个" ——
+/// 而那个决定要读窗口当前状态（一次 IPC），于是两次 IPC 之间有竞态
+///（用户连点两下 ⇒ 状态与按钮不一致）。
+///
+/// 所以语义是 **toggle**：前端只管说"切换"，而真相在窗口那边。
+/// 返回值是**切换之后**是否最大化 —— 于是前端不必再发一次 IPC 去问。
+#[tauri::command]
+fn window_minimize(window: tauri::Window) -> Result<(), String> {
+    window.minimize().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn window_toggle_maximize(window: tauri::Window) -> Result<bool, String> {
+    let now = window.is_maximized().map_err(|e| e.to_string())?;
+    if now {
+        window.unmaximize().map_err(|e| e.to_string())?;
+    } else {
+        window.maximize().map_err(|e| e.to_string())?;
+    }
+    Ok(!now)
+}
+
+/// **关闭窗口。**
+///
+/// ⚠️ 它走的是 `window.close()`，而那会触发 Tauri 的"关闭请求"流程
+///（`CloseRequested` 事件）—— 于是**将来**要加"有任务在跑，确认吗"
+/// 那道拦截时，这里是**唯一**要改的地方。
+///
+/// 一个直接 `std::process::exit()` 的实现会**跳过**那道流程 ——
+/// 而那道流程正是"关闭窗口 ≠ 取消安装"（§7.3 约束 4）落地的位置。
+#[tauri::command]
+fn window_close(window: tauri::Window) -> Result<(), String> {
+    window.close().map_err(|e| e.to_string())
+}
+
+/// **开始拖动窗口。**
+///
+/// ## ⚠️ 它为什么必需：`decorations: false` 意味着**没有标题栏**
+///
+/// 而标题栏是**系统提供的拖动区**。关掉它之后，如果界面里不画一个，
+/// 窗口就**移不动** —— 而"移不动"不是一个视觉问题，是一个
+/// **只能靠任务栏或 Alt+F4 收场**的可用性问题。
+///
+/// ## 而它为什么是一条命令，而不是 `data-tauri-drag-region`
+///
+/// Tauri 有一个 `data-tauri-drag-region` 属性（界面里加一个属性就行）——
+/// 而它**在 Tauri 2 里走的是 `__TAURI_INTERNALS__.invoke`**，也就是说
+/// 那条路仍然要一次 IPC。
+///
+/// 两者都要一次 IPC，而**自定义命令那一条是可审计的**（它在命令表里，
+/// 而 `data-tauri-drag-region` 是"某个属性被赋予了魔法"）。
+/// 所以这里选前者 —— 与 `window_minimize` 那三条同一个理由（§5.8）。
+#[tauri::command]
+fn window_start_dragging(window: tauri::Window) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
 /// 一个**极小的**互斥包装。
 ///
 /// ⚠️ 它为什么不直接用 `std::sync::Mutex`：`CancelToken` 的持有不会 panic，
@@ -456,7 +532,13 @@ fn main() {
             capabilities,
             instance_summary,
             install,
-            cancel_install
+            cancel_install,
+            // ⚠️ 窗口控制是**自定义命令**而不是 `core:window` 权限 ——
+            // 理由见 `window_minimize` 上面那一段（§5.8 的同一条推理）。
+            window_minimize,
+            window_toggle_maximize,
+            window_close,
+            window_start_dragging
         ])
         .setup(|app| {
             // ── 窗口材质（方案 §3.4 的降级链的第 1 与第 2 档）──────────────
