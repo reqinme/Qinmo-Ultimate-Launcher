@@ -82,7 +82,7 @@ pub enum IslandState {
     Update { version: String },
 }
 
-/// 五阶段（§8 的 M3 行 / `UI设计规格.md:1156`）。
+/// 五阶段（§8 的 M3 行 / §7.2 状态表里 `Launch` 那一行）。
 ///
 /// ⚠️ 它的**顺序就是进度**，所以用 `Ord` 派生出来的比较**是有意义的**
 ///（`Parse < Download < … < Launch`）。一个用字符串表示它的实现

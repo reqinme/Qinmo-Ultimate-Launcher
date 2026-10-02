@@ -130,6 +130,10 @@ $checks = @(
        name = 'CSS grid (a zero-width track needs explicit placement)'
        protects = 'the second REAL layout defect of 2026-10-02: Shell.css collapses its middle column (grid-template-columns: var(--shell-rail-w) 0 1fr) while the children carried no grid-column, so the grid auto-placed them in DOM order and the main region landed in the 0-width column -- the home page rendered as one character per line and the right half of the window was empty. jsdom has no layout engine, so no vitest case can see it, and tsc/eslint/token checkers are all blind to it. Only a human looking at the real window caught it.'
        kind = 'ps1'; run = { & (Join-Path $dir 'tools\check-css-grid.ps1') } }
+    @{ key = 'titlebar'
+       name = 'Titlebar event contract (spec table == code table, cell by cell)'
+       protects = 'the failure mode behind TWO REAL defects: with decorations:false every titlebar behaviour is re-implemented by hand, and what gets forgotten is always ONE ELEMENT x ONE EVENT FAMILY. faa7fa1 excluded pointerdown but not dblclick on the three window controls, so double-clicking CLOSE maximized the window and then closed it. The same shape was found again by contract.test.tsx: a disabled search box never receives React synthetic onDoubleClick, so swallowing it on that element silently did nothing. The contract now exists once as a markdown table in the UI design spec section 4.5.1 and once as TITLEBAR_ITEMS in web/src/titlebar/contract.ts; this check fails if the two copies disagree in any cell, if either side lists an element the other does not, or if a row stops parsing (a silent skip would make it check less and less while still printing OK).'
+       kind = 'ps1'; run = { & (Join-Path $dir 'tools\check-titlebar-contract.ps1') } }
     @{ key = 'clean'
        name = 'Worktree is clean'
        protects = 'generated files being committed by accident'

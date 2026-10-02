@@ -1,7 +1,7 @@
 {
     "note":  "CANDIDATE LIST, not a verdict. Task-book checks 1-2 need semantic judgement; this script cannot supply it.",
     "files_scanned":  24,
-    "section_refs_defined":  182,
+    "section_refs_defined":  187,
     "dangling_refs":  [
                           "13.1",
                           "13.2",
@@ -65,7 +65,7 @@
                                },
                                {
                                    "file":  "docs\\UI设计规格.md",
-                                   "line":  513,
+                                   "line":  594,
                                    "kind":  "left undecided",
                                    "text":  "| 3 | **必须编的地方，显式标成 `〈待定文案〉`**，让用户一眼看出这是占位而不是设计 |"
                                },

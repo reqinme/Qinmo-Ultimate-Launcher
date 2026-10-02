@@ -1,4 +1,56 @@
-# 上次收工：**主页开始像设计稿了** —— §4.6.8 的三个纯 UI 缺口补齐，前端 **281 → 308 项**
+# 上次收工：**标题栏的按键契约有了唯一来源** —— §4.5 从"没有正文的标题"变成一张逐格可核对的表，而它**第一次跑就抓到第三个真 bug**
+
+> 用户给的顺序是「**先流程和数据 → 再做界面骨架 → 然后定义按键契约 → 最后接功能**」，并拍板先做其中**不需要内核数据**的那一块：§4.5 的按键契约。
+>
+> 这一轮把 `docs/UI设计规格.md` §4.5 从**一个没有正文的标题**变成**一张机器能核对的表**（元素 × 事件族 = 8 × 3 = **24 格**），并写下三个决定（右键系统菜单**不做**、`Win+←/→/↑` 是**平台事实**只能人验、高 DPI 命中区按**物理像素**核对）。这张表有两个机器读者：`web/src/titlebar/contract.ts`（代码侧）与 `tools/check-titlebar-contract.ps1`（**逐格比对规格与代码，任何一格不一致就红**）。
+>
+> ⚠️ **表驱动测试第一次跑就抓到第三个"漏了一格"的真 bug**：`disabled` 的搜索框**收不到 React 的合成 `onDoubleClick`** ⇒ "在元素上 `stopPropagation`"这一格**静默失效**，双击搜索框会一路冒到标题栏根部**把窗口最大化**。形状与前一个真 bug（三个窗口控制只排除 `pointerdown`、漏了 `dblclick`）**一模一样**，只是这次藏在 React 的事件系统里。修法是把排除从"元素上挂 handler"改成"**根部一道闸**"（`TitleBar.tsx` 的 `swallowed()`，判据来自 `contract.ts` 的 `swallows()`）——因为 `<header>` **从不被禁用**。
+
+## 这一轮（2026-10-02 深夜）：§4.5 按键契约
+
+### 1. 规格：§4.5 从空标题变成一张表
+
+- `docs/UI设计规格.md` 现在：§4.5 `:373` · **§4.5.1 事件契约表 `:379`（表头 `:389`、8 行数据 `:391-398`）** · §4.5.2 窗口控制按钮 `:414` · §4.5.3 拖动与命中区 `:425` · §4.5.4 Snap Layouts `:435` · §4.5.5 高 DPI 与多显示器 `:447` · `### 4.6` `:454`（§4.6.8 主页插件网格 `:809`）。
+- 原先挂在 §4.6 末尾、**四个没有编号的 `####`**（窗口控制按钮 / 拖动与命中区 / Snap Layouts / 高 DPI 与多显示器）搬回 §4.5 并编号；原位置留一行指路 blockquote（`:900`）。全文 **+43 行**（§7.2 状态表 1154 → **1197**）。
+- 表的格式是**硬约束**（`tools/check-titlebar-contract.ps1` 按行解析）：``| # | 元素 | `pointerdown` | `dblclick` | `contextmenu` | 状态 |``，8 行 = 标题栏空白处 `blank` / 品牌 `brand` / 搜索框 `search` / 产品切换器 `switch` / 灵动岛 `island` / 最小化 `min` / 最大化 `max` / 关闭 `close`。符号：`吞` / `冒` / `不做` / `不适用`；状态：`已实现` / `结构性` / `未实现`。
+- **三个决定**（v2.2，写在表下）：① `contextmenu` **一律"不做"** —— 同一集合系统已由 `Alt+Space` 提供，而要做就得 `SetWindowSubclass` + `WM_NCRBUTTONUP` / `TrackPopupMenu`（一处**能弄坏输入**的改动），**留待 M4.5 之后再评估**；② `Win + ←/→/↑` 是**平台事实**（没为它写一行代码，来自 `decorations: false` + `resizable: true`），只能人验；③ **高 DPI 命中区按物理像素核对**（150% 缩放 ⇒ 逻辑 1280×800 = 物理 1942×1213）。
+- ⚠️ 顺带纠正规格里一处**与代码不符**的描述：§4.5.1 原先写"排除 = 子元素自己 `stopPropagation`"，那个机制**已经不成立**，改成"事件在标题栏**根部**被 `swallowed()` 拦下"（v2.2 那一段写明为什么改）。
+
+### 2. 代码：表是唯一来源，元素只带 `data-titlebar-item`
+
+- 新增 `web/src/titlebar/contract.ts`：`EVENT_FAMILIES` / `Cell`（`swallow|bubble|skip|na`）/ `TitlebarItemStatus`（`done|structural|pending`）/ `TITLEBAR_ITEMS`（8 行 `as const satisfies`，**一行一个元素、字段顺序固定**）/ `TitlebarId` / `EVERY_FAMILY_IS_COVERED`（往族列表加一项就**编译不过**的闩）/ `itemOf(id)`（取不到就抛）/ `itemById(id)` / `swallows(id, family)`。
+- `web/src/titlebar/TitleBar.tsx`：**根部一道闸** —— `swallowed(target, family)` 用 `target.closest("[data-titlebar-item]")` 找 owner 再问 `swallows()`；根部 `onPointerDown`（先 `if (e.button !== 0) return;`）与 `onDoubleClick` 各自先问它。元素侧只留 `data-titlebar-item`，**三处 `{...swallowProps(...)}` 全部撤掉**。
+- 新增 `web/src/titlebar/contract.test.tsx`（20 项，前端 **308 → 328**）：① 表 ↔ DOM 集合**正好相等**（`pending` / `structural` **不在** DOM）② **逐格派发**（遍历 `done` × 两个族：`吞` ⇒ 根部副作用**没发生**、`冒` ⇒ **发生一次**）③ 右键在任何元素上都不引发窗口命令（把"决定 1"变成可断言）④ `swallows()` 逐格等于表。
+
+### 3. 检查：`tools/check-titlebar-contract.ps1`（verify **15 → 16 项**）
+
+- 它就是"**两份拷贝必须逐格相同**"的机器版：规格 md 表 ↔ `contract.ts` 的 `TITLEBAR_ITEMS`。认不出的符号 / 状态**一律抛**；**声明行数 ≠ 解析行数也 FAIL**（漂移的行不许被静默跳过）；另有族名逐位相同、id 双向差集、重复 id。
+- 实测输出 `Titlebar contract: 8 element(s) x 3 event family(ies) = 24 cell(s)` + `OK: every cell of the spec table matches the code table.`
+- **人为踩红**：把 `contract.ts` 里 `max` 的 `dblclick` 由 `swallow` 改成 `bubble` ⇒ `FAIL element 'max' / dblclick: spec says swallow, … says bubble`、exit 1；还原后 SHA-256 **逐字节相同**（`3B2407A3…DDE0F5`），再跑 OK。
+- ⚠️ 它自己踩的坑：第一版把中文文件名**直接写进 `.ps1`**，而 PowerShell 5.1 按系统代码页 **936** 解析 `.ps1` ⇒ 乱码 ⇒ 报"找不到一个不存在的文件名"。现在脚本 **ASCII-only**，中文（规格文件名与 `吞` / `冒` / `不做` / `不适用` 与三个状态）全部用**码点**拼。
+- `tools/verify.ps1` 在 `css-grid` 与 `clean` 之间多一项 `titlebar` ⇒ **16 项**。
+
+### 4. 顺带把"引用会烂掉"的那类东西清了一遍
+
+- `docs/.heading-baseline.json` 里 `UI设计规格.md` 的标题数 **82 → 83**（+5 个 `4.5.x`、−4 个无编号 `####`），用 `tools/check-docs.ps1 -UpdateBaseline` **显式**更新（标题计数变化必须是一次明确动作，而不是顺手改）。
+- 三处**行号**引用转成**节号**（行号会随插入而烂，节号不会）：`web/src/routes/Shell.a11y.test.tsx:209` 的 `UI设计规格.md:850` → **§4.5.4**；`crates/qul-infra/src/install.rs:3` 与 `crates/qul-core/src/island.rs:85` 的 `:1156` → **§7.2 状态表里 `Launch` 那一行**。
+- 本文件里上一轮那几处行号引用也跟着改（`:730` → §4.6.8、`:850` → §4.5.4、`:373` / `:842` → §4.5 / §4.5.3），并给两处"还没做"标上了本轮的结果。
+
+### 5. 收尾数字（2026-10-02 深夜，逐项单跑）
+
+`tsc --noEmit` **0** · `eslint .` **0** · **vitest 20 个文件 / 328 项全过** · `vite build` **1.60 s**（CSS 40.13 kB / gzip 7.01 kB、JS 529.18 kB / gzip 173.43 kB）· `impeccable` **零命中** · `css-classes` OK（9 文件 / 287 定义 / 186 个类名）· `css-grid` OK（9 条声明）· `tokens` OK（129 个定义）· `ladder` OK · **`titlebar` OK（8 × 3 = 24 格）** · `docs -Strict` OK（22 文件 / 635 条标题）· `audit` **P0 / P1 / P2 全 0**（27 条 promise 候选留给人看）· Rust **717 项** / `fmt` 0 / `clippy -D warnings` 0 · 应用重建 **4,098,048 字节**（`Finished 'release' profile in 58.06s`）· 重启后窗口「秦墨」存活、工作集 **27.6 MB**、窗口 **1942×1213 物理**（截图 `%TEMP%\contract-done.png`）。
+
+⚠️ 这一轮同样**没有整跑 `verify.ps1`**（本机 pnpm 12 会让 `web` 项失败**并把 `node_modules` 拆成半个**，见「环境事实」）。
+
+### 6. 这一轮还没做的
+
+- **`Win + ←/→/↑` 贴靠仍待人验**（M4 第四条验收，规格 **§4.5.4** 的降级线）——三步约 20 秒：打开秦墨 → 点标题栏空白处 → 按 `Win + ←` / `Win + →`。契约把这一格写成"**平台事实**、不是我们实现的"，所以它只能人验。
+- 主页正文的**真数据**（横幅状态摘要、最近运行、下载队列、游玩统计、实例体检）—— 属 M5，要先把 `capabilities` / `instance_summary` 接上真内核（`src-tauri/src/main.rs:85` / `:110` **仍是骨架**）。
+- 用户那个顺序里，**下一块是"界面骨架"**（这一轮做的是"按键契约"）。
+
+---
+
+# 上一轮（2026-10-02 晚）：主页开始像设计稿了 —— §4.6.8 的三个纯 UI 缺口补齐，前端 **281 → 308 项**
 
 > **这一轮补的是"纯 UI"，三处都不需要内核数据**：插件头部的 `＋添加插件` / `⚙插件设置` 两个入口、横幅的"画面"层、插件清单 5 → 7 件。
 >
@@ -8,7 +60,7 @@
 
 ## 这一轮（2026-10-02 晚）：主页按 §4.6.8 补三个纯 UI 缺口
 
-依据：`docs/UI设计规格.md:730` §4.6.8（主页插件网格）+ `docs/UI设计规格.md:662-691`（大横幅与**封面图纪律**）+ 用户给的 `docs/_artifacts/home-final.png`。
+依据：§4.6.8（主页插件网格）+ §4.6.1 的**封面图纪律** + 用户给的 `docs/_artifacts/home-final.png`。
 
 ### 1. 两个入口：`＋添加插件` / `⚙插件设置`
 
@@ -48,8 +100,8 @@
 
 ### 6. 这一轮还没做的
 
-- **`Win + ←/→/↑` 贴靠仍待人验**（M4 第四条验收，规格 `docs/UI设计规格.md:850` 的降级线）——三步约 20 秒。
-- `docs/UI设计规格.md:373` 的 §4.5 正文（空标题）与 `:842` 右键系统菜单的处置，**待用户拍板**。
+- **`Win + ←/→/↑` 贴靠仍待人验**（M4 第四条验收，规格 **§4.5.4** 的降级线）——三步约 20 秒。
+- `docs/UI设计规格.md` §4.5 的正文（当时是空标题）与 §4.5.3 右键系统菜单的处置，**当时待用户拍板** ⇒ **已在后面那一轮做完**（见文件顶部：§4.5 有了正文与三个决定，右键那一格**决定为"不做"**并写进规格）。
 - 主页正文的**真数据**（横幅状态摘要、最近运行、下载队列、游玩统计、实例体检）—— 属 M5，要先把 `capabilities` / `instance_summary` 接上真内核。
 
 ---
@@ -97,7 +149,7 @@
   - 把 `Shell.css` 里四处 `grid-column` 注释掉 ⇒ `FAIL` 并**指名 `routes\Shell.css:62`**（`grid-template-columns: var(--shell-rail-w) 0 1fr`），exit 1；
   - 在 `styles.css` 里重新加一条 `.panel` ⇒ R1 报出**两个所有者**（`components\components.css:440` / `styles.css:178`）；
   - 在 TSX 里写一个 `zzz-not-defined` ⇒ R2 指名 `routes\ComponentsPage.tsx:50`。
-- 两条已注册进 `tools/verify.ps1`（`ladder` 与 `clean` 之间）：**13 → 15 项**。
+- 两条已注册进 `tools/verify.ps1`（`ladder` 与 `clean` 之间）：**13 → 15 项**（下一轮又加了 `titlebar` ⇒ **16 项**）。
 
 ### 5. 两条如实记下的话
 
@@ -115,8 +167,8 @@
 ### 7. 这一轮还没做的
 
 - **主页按设计稿补纯 UI 缺口** ⇒ **已在下一轮做完**（见文件顶部那一轮：两个入口 + 横幅的画面层 + 插件清单 5 → 7 件）。
-- **`Win + ←/→/↑` 贴靠仍待人验**（M4 第四条验收，规格 `docs/UI设计规格.md:850` 的降级线）。
-- `docs/UI设计规格.md:373` 的 §4.5 正文（空标题）与 L842 右键系统菜单的处置，**待用户拍板**。
+- **`Win + ←/→/↑` 贴靠仍待人验**（M4 第四条验收，规格 **§4.5.4** 的降级线）。
+- `docs/UI设计规格.md` §4.5 的正文（当时是空标题）与 §4.5.3 右键系统菜单的处置 ⇒ **已在下一轮做完**：§4.5 有了正文与三个决定，右键那一格**决定为"不做"**并写进了规格。
 
 ---
 
@@ -152,7 +204,7 @@
 | 15 | `ec183e8` | M4 验收 ②：**键盘与读屏**（`web/src/routes/Shell.a11y.test.tsx` 6 项 + `scrollTo` 桩） | ⚠️ **`Win + ←/→/↑` 贴靠要人验**（测试只能钉住前提：`resizable === true` / `decorations === false` / `maximizable !== false`）；教训：**探测桩不能靠名字或字符串**——jsdom 确实装了 `scrollTo` 且它是**真函数**，只在运行时报 `Not implemented` |
 | 16 | `faa7fa1` | 标题栏两条规格：**双击最大化/还原**（而它抓出一个真 bug）+ 排除交互元素 | 三个窗口控制只排除了 `pointerDown`、**没排除 `doubleClick`** ⇒ 双击「关闭」冒泡到标题栏 ⇒ **先最大化再关闭**（**排除了一种事件、漏了另一种**）；`disabled` 的搜索框**仍会收到 `pointerdown`**（disabled 拦的是 click 与 focus） |
 
-**测试与构建的当前位置**（上一轮在本机逐项重跑过）：前端 **281 项 / 18 个文件** 全过（5.60 s）· `tsc --noEmit` 0 · `eslint .` 0 · `vite build` 1.56 s（CSS **37.61 kB**、JS **526.11 kB** / gzip 172.44 kB）· Rust **717** 项 · `clippy -D warnings` 0 · `impeccable` **零命中** · `docs` / `audit` / `tokens` / `ladder` / `tauri` / `vocab` / `vocab-probe` / `fmt` 全 OK · 产品 `Cargo.lock` **18** 包 · `src-tauri/Cargo.lock` **420** 包 · 应用 `qul-desktop.exe` **3.90 MB**（这一轮重建后是 **4,088,320 字节**）/ 安装包 `秦墨_0.0.0_x64-setup.exe` **1.85 MB**。`verify.ps1` 现在是 **15 项**（这一轮加了 `css-classes` 与 `css-grid`）。
+**测试与构建的当前位置**（上一轮在本机逐项重跑过）：前端 **281 项 / 18 个文件** 全过（5.60 s）· `tsc --noEmit` 0 · `eslint .` 0 · `vite build` 1.56 s（CSS **37.61 kB**、JS **526.11 kB** / gzip 172.44 kB）· Rust **717** 项 · `clippy -D warnings` 0 · `impeccable` **零命中** · `docs` / `audit` / `tokens` / `ladder` / `tauri` / `vocab` / `vocab-probe` / `fmt` 全 OK · 产品 `Cargo.lock` **18** 包 · `src-tauri/Cargo.lock` **420** 包 · 应用 `qul-desktop.exe` **3.90 MB**（这一轮重建后是 **4,088,320 字节**）/ 安装包 `秦墨_0.0.0_x64-setup.exe` **1.85 MB**。`verify.ps1` 现在是 **15 项**（这一轮加了 `css-classes` 与 `css-grid`；再下一轮加了 `titlebar` ⇒ **16 项**）。
 
 ⚠️ **`tools/verify.ps1` 的整跑在本机有两个独立麻烦**：上一轮（13 项时）实测 `11 ok, 1 failed, 1 skipped`（exit 1），**失败的是 `web` 而原因不在代码**（见下面「环境事实」里的 pnpm 版本那条），而且**跑它会把 `node_modules` 拆成半个**（要靠 `pnpm dlx pnpm@10 install --frozen-lockfile` 修回来）——所以这一轮**没有整跑**，两条新检查是按项单跑 + 人为踩红的。另外 `test` 一项是**第二次才过**（脚本自己标 `OK*` 并警告 *"A retry that succeeds is a transient failure, not a passing test"*）——**本机 Rust 套件那次瞬时失败的原因还没查**，这条不该被忘掉。
 
@@ -166,10 +218,10 @@
 | 键盘与读屏通过 | ⏳ **差一条人验** | `ec183e8` 的四件可验性；第 ④ 件（`Win + ←/→/↑` 贴靠）**jsdom 测不了**——没有窗口管理器 |
 | 三层材质的不透明度阶梯 / 1 px 描边 / 留白节奏**可指认** | ✅ | `61a259b` 的 `ladder` 检查：**它把三个数字打出来并核对**，不是"感觉还行" |
 
-**另外两件 M4 正文的事还没做**（都不是编码问题）：
+**另外两件 M4 正文的事还没做**（都不是编码问题）——**两件都已在后面那一轮做掉**（§4.5 有了正文；右键那一格决定为"不做"并写进规格）：
 
-1. **`docs/UI设计规格.md` §4.5 是一个没有正文的标题**（L373 → L375 直接跳 §4.6），实际内容散在 L270 图 / L288 表格行 / L834–L857 三小节（拖动与命中区 / Snap Layouts / 高 DPI 与多显示器）。**补哪一节是需要用户确认的设计决定。**
-2. **§4.5 L842「空白处右键 → 系统窗口菜单（移动 / 大小 / 最小化 / 关闭）」没做。** 代价要 `TrackPopupMenu` / `SendMessage(WM_NCRBUTTONUP)`，即碰 `WM_NCHITTEST` / 非客户区那一层，需要 `SetWindowSubclass` 子类化（一处**能弄坏输入**的改动）——**下一轮先量代价再决定，不先写**。
+1. **`docs/UI设计规格.md` §4.5 是一个没有正文的标题**（L373 → L375 直接跳 §4.6），实际内容散在 L270 图 / L288 表格行 / L834–L857 三小节（拖动与命中区 / Snap Layouts / 高 DPI 与多显示器）。⇒ **已补**：§4.5.1 事件契约表 + 三个决定，那三小节也搬回 §4.5 编号（§4.5.3 / §4.5.4 / §4.5.5）。
+2. **§4.5 L842「空白处右键 → 系统窗口菜单（移动 / 大小 / 最小化 / 关闭）」没做。** 代价要 `TrackPopupMenu` / `SendMessage(WM_NCRBUTTONUP)`，即碰 `WM_NCHITTEST` / 非客户区那一层，需要 `SetWindowSubclass` 子类化（一处**能弄坏输入**的改动）⇒ **已决定：不做**（同一集合系统已由 `Alt+Space` 提供），并写进 §4.5.1 的"决定 1"与 §4.5.3，留待 M4.5 之后再评估。
 
 ## 下一步第一件事
 
@@ -191,7 +243,7 @@
 
 ## 这一轮顺手修掉的一个真缺陷：§5.4 的子节编号与真正的 §5.5 **撞号**
 
-- **症状是"写下的那一刻就指不到"**：`docs/UI设计规格.md` 的 §5.4（视觉强度阶梯）下面那五个子节，此前被编成 `5.5.1`–`5.5.5`，而**紧接着就是真正的 `### 5.5 日志分级色（令牌化）`**（现 `docs/UI设计规格.md:1069`）。父节是 5.4、子节却叫 5.5.x ⇒ 任何按节号写的引用都落空；`tools/audit-milestone.ps1` 一直把它记成 **P1 dangling**（原文：`section 5.4.1 has no matching heading`）。
+- **症状是"写下的那一刻就指不到"**：`docs/UI设计规格.md` 的 §5.4（视觉强度阶梯）下面那五个子节，此前被编成 `5.5.1`–`5.5.5`，而**紧接着就是真正的 `### 5.5 日志分级色（令牌化）`**（现 §5.5）。父节是 5.4、子节却叫 5.5.x ⇒ 任何按节号写的引用都落空；`tools/audit-milestone.ps1` 一直把它记成 **P1 dangling**（原文：`section 5.4.1 has no matching heading`）。
 - **它是怎么被发现的**：新版 SESSION.md 里引了 `§5.4.3`（承 `03f2cd7` 的原文），于是 `audit` 的 P1 从 **1 变 2** —— 顺着这条 P1 去查，才看出这不是"我引错了号"，而是**规格自己编号撞号**。它与 `5a902cc` 那个"13 处用了、0 处定义"同属一类：**出错的地方不报错，报错的地方在别处**。
 - **修法与安全边界**：五条子节标题改成 `5.4.1`–`5.4.5`，**标题文字一字未动**。改之前先 grep 全仓（排除 `target/` `node_modules/` `repos/` `_archive/`）确认 `5.5.x` **只出现在这五行标题里**，别处无人引用 ⇒ 改编号不会连带打断别的引用。`docs/.heading-baseline.json` 记的是**每个文件的标题条数**（不是标题文字），条数没变 ⇒ 不需要 `-UpdateBaseline`。§5.4 标题下留了一条说明它为什么被改。
 - **结果**：`audit` 的 **P1 从 2 → 0**（P0 / P2 也都是 0）、`check-docs.ps1 -Strict` 仍 OK、`docs` 总账不变（22 个文件 / 634 条标题）。
