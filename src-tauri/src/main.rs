@@ -439,7 +439,10 @@ fn cancel_install(running: tauri::State<'_, Arc<Running>>) -> bool {
 ///（用户连点两下 ⇒ 状态与按钮不一致）。
 ///
 /// 所以语义是 **toggle**：前端只管说"切换"，而真相在窗口那边。
-/// 返回值是**切换之后**是否最大化 —— 于是前端不必再发一次 IPC 去问。
+/// 返回值是**切换之后**是否最大化 —— 于是前端不必为了**自己刚点的那一下**
+/// 再发一次 IPC 去问。
+///
+/// ⚠️ 而这只覆盖"我们自己点"那一路 —— 见下面的 `window_is_maximized`。
 #[tauri::command]
 fn window_minimize(window: tauri::Window) -> Result<(), String> {
     window.minimize().map_err(|e| e.to_string())
@@ -454,6 +457,29 @@ fn window_toggle_maximize(window: tauri::Window) -> Result<bool, String> {
         window.maximize().map_err(|e| e.to_string())?;
     }
     Ok(!now)
+}
+
+/// **窗口现在是不是最大化。**
+///
+/// ## ⚠️ 它为什么必需：`window_toggle_maximize` 的返回值只覆盖了一半的路径
+///
+/// 上面那条 toggle 解决的是"**我们自己点**完之后，按钮会不会与窗口不一致"。
+/// 而**最大化不只由我们改变**：
+///
+/// | 谁改的 | 经过那三条命令吗 |
+/// |---|---|
+/// | 标题栏那个按钮、标题栏空白处双击 | ✅ |
+/// | `Win + ↑`、把窗口拖到屏幕顶端 | ❌ |
+///
+/// 后者会让按钮上那个图形变成一个**谎**（窗口已经最大化，而它还画着
+/// "点了能最大化"那个方框）。所以前端要有一个**问**的入口。
+///
+/// ⚠️ 而"在 `resize` 里自己翻一个布尔值"是错的：贴靠到屏幕左半边**也会**
+/// 改变尺寸，而它**不是**最大化 —— 那会把图形翻成"还原"，同样是个谎。
+/// 真相只能由窗口回答。
+#[tauri::command]
+fn window_is_maximized(window: tauri::Window) -> Result<bool, String> {
+    window.is_maximized().map_err(|e| e.to_string())
 }
 
 /// **关闭窗口。**
@@ -537,6 +563,9 @@ fn main() {
             // 理由见 `window_minimize` 上面那一段（§5.8 的同一条推理）。
             window_minimize,
             window_toggle_maximize,
+            // ⚠️ 这一条不是"按钮需要它"，是"按钮**不许撒谎**"需要它 ——
+            // 系统也能最大化窗口（`Win + ↑`），而那条路不经过我们。
+            window_is_maximized,
             window_close,
             window_start_dragging
         ])

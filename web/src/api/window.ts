@@ -51,6 +51,32 @@ export async function windowToggleMaximize(): Promise<boolean> {
   return raw === true;
 }
 
+/**
+ * 窗口**现在**是不是最大化。
+ *
+ * ## ⚠️ 为什么"切换"那条命令的返回值还不够
+ *
+ * `windowToggleMaximize` 返回的是**切换之后**的状态，于是"我们自己点"
+ * 那一路不需要再问一次。而**最大化不只由我们改变**：
+ *
+ * | 谁改的 | 经过 `onClick` 吗 |
+ * |---|---|
+ * | 标题栏那个按钮 / 标题栏空白处双击 | ✅ |
+ * | `Win + ↑` / 把窗口拖到屏幕顶端 | ❌ |
+ *
+ * 后者会让按钮上那个图形变成一个**谎**（窗口已经最大化，而它还画着
+ * "点了能最大化"那个方框）。所以 `TitleBar` 在挂载时、以及每次 `resize`
+ * 之后问一次 —— 见 `TitleBar.tsx` 里那段 `useEffect`。
+ *
+ * ⚠️ 它**不需要**新的插件权限：窗口控制走的是自定义命令（与那四条同一个
+ * 理由，见本文件顶部那段与 §5.8）。
+ */
+export async function windowIsMaximized(): Promise<boolean> {
+  if (!isTauri()) return false;
+  const raw: unknown = await invoke("window_is_maximized");
+  return raw === true;
+}
+
 /** 关闭窗口。 */
 export async function windowClose(): Promise<void> {
   if (!isTauri()) return;

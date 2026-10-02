@@ -37,6 +37,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../api/window.ts", () => ({
   windowMinimize: vi.fn(async () => {}),
   windowToggleMaximize: vi.fn(async () => true),
+  // ⚠️ 与 `TitleBar.test.tsx` 同一个理由：`TitleBar` 挂载时会问窗口状态。
+  windowIsMaximized: vi.fn(async () => false),
   windowClose: vi.fn(async () => {}),
   windowStartDragging: vi.fn(async () => {}),
 }));

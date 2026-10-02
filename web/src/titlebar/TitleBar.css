@@ -128,8 +128,21 @@
   background: transparent;
   color: var(--text-secondary);
   font: inherit;
-  font-size: 10px;
-  line-height: 1;
+  /* ⚠️ **这里原本有一条 `font-size: 10px`，它在 v2.3 被删掉了。**
+     那一条是给三个**文字字形**（`─ ▢ ✕`）定的字号，而它们已经换成
+     自绘 SVG（`glyphs.tsx`）：文字字形的大小取决于字体，而四个图形
+     现在由 viewBox 决定。留着它会让下一个读到这里的人以为按钮里还有文字。 */
+}
+
+/**
+ * 🔴 **四个窗口图形**（`glyphs.tsx`，自绘）。
+ *
+ * ⚠️ 这一条不是装饰：`<svg>` 默认是 `display: inline`，于是它在
+ * `place-items: center` 的格子里会多出**一行基线**的间隙 ——
+ * 图形看起来比按钮中心低 1–2 px，而那是"说不上哪里不对"的来源。
+ */
+.titlebar__glyph {
+  display: block;
 }
 
 .titlebar__btn:hover {

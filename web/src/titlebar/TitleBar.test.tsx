@@ -36,6 +36,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../api/window.ts", () => ({
   windowMinimize: vi.fn(async () => {}),
   windowToggleMaximize: vi.fn(async () => true),
+  // ⚠️ 这一条是 `TitleBar` 挂载时/`resize` 之后用来问窗口的 —— mock 少了它，
+  // 组件拿到的就是 `undefined`，而 `void undefined()` 会在**收集之后的第一个
+  // 微任务**里炸（症状会指到一个与图形无关的测试上）。
+  windowIsMaximized: vi.fn(async () => false),
   windowClose: vi.fn(async () => {}),
   windowStartDragging: vi.fn(async () => {}),
 }));
@@ -143,14 +147,19 @@ describe("② 双击空白处 = 最大化 / 还原（L841 · 规格写「必须�
     expect(mockedClose).toHaveBeenCalled();
   });
 
-  it("而切换之后**图标跟着真相走**（用的是命令的返回值）", async () => {
+  it("而双击之后**图标跟着真相走**（用的是那条命令的返回值）", async () => {
     // ⚠️ `windowToggleMaximize` 返回的是**切换之后**是否最大化 ——
-    // 而那不是前端猜的。这条断言钉的是"组件用了那个返回值"。
+    // 而那不是前端猜的。这条断言钉的是"**空白处双击这条路**也用了那个返回值"。
+    //
+    // 🔴 而断言本身在 v2.3 改了：以前它找的是 `role="img"` 那个图形
+    //（`MorphGlyph` 塞进按钮里的）—— 于是按钮的可访问名变成了**图形名**，
+    // 而不是动作名。现在图形是 `aria-hidden` 的，可访问名回到动作上，
+    // 于是这里断言的是**按钮名的变化**；"哪个状态画哪个图形"由
+    // `glyphs.test.tsx` 管（那才是它该在的地方）。
     mockedToggle.mockResolvedValue(true);
     render(<TitleBar />);
     fireEvent.doubleClick(bar());
-    // 图标从三根横线（MENU）变成那个叉（CLOSE）—— 而它们的可读名字不同。
-    expect(await screen.findByRole("img", { name: "最大化" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "还原" })).toBeTruthy();
   });
 });
 

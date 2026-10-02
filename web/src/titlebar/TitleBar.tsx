@@ -46,15 +46,16 @@
  * 而 `Win + ←/→/↑` 那一条**必须验**（它是降级线的验收）。
  */
 
-import { useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import {
   windowClose,
+  windowIsMaximized,
   windowMinimize,
   windowStartDragging,
   windowToggleMaximize,
 } from "../api/window.ts";
-import { swallows, type EventFamily } from "./contract.ts";
-import { MorphGlyph } from "./MorphGlyph.tsx";
+import { swallows, type EventFamily, type TitlebarId } from "./contract.ts";
+import { WindowGlyph, type WindowGlyphName } from "./glyphs.tsx";
 import "./TitleBar.css";
 
 /**
@@ -62,12 +63,28 @@ import "./TitleBar.css";
  *
  * ⚠️ **而它们的 `aria-label` 是有意写成中文动作的** ——
  * 读屏用户听到的是"最小化"，而不是"─"。
+ *
+ * 🔴 **`glyph` 是 `glyphs.tsx` 里的图形名，不是字形字符。**
+ *
+ * ⚠️ 而这里曾经有两个错，它们长在同一个字段上：
+ *
+ * | 错 | 症状 | 谁看见的 |
+ * |---|---|---|
+ * | 最大化那一格画的是 `MorphGlyph`（**菜单 ⇄ 关闭**） | `─ ☰ ✕`，最大化后 `─ ✕ ✕` | **用户**（规格 §4.5.2 要的是 `─ ▢ ✕`） |
+ * | 三个 id 只靠 `as const` "对得上契约表" | 写错一个字母**不是**编译错误 | 没有人 |
+ *
+ * 所以现在是 `satisfies`：`key` 必须是契约表的 `TitlebarId`，
+ * `glyph` 必须是 `glyphs.tsx` 的 `WindowGlyphName` —— **拼错即编译错误**。
  */
 const CONTROLS = [
-  { key: "min", glyph: "─", label: "最小化" },
-  { key: "max", glyph: "▢", label: "最大化" },
-  { key: "close", glyph: "✕", label: "关闭" },
-] as const;
+  { key: "min", glyph: "minimize", label: "最小化" },
+  { key: "max", glyph: "maximize", label: "最大化" },
+  { key: "close", glyph: "close", label: "关闭" },
+] as const satisfies readonly {
+  readonly key: TitlebarId;
+  readonly glyph: WindowGlyphName;
+  readonly label: string;
+}[];
 
 /**
  * 🔴 **"这一格该吞吗"** —— 标题栏根部那道闸。
@@ -91,6 +108,39 @@ function swallowed(target: EventTarget | null, family: EventFamily): boolean {
 
 export function TitleBar(): ReactElement {
   const [maximized, setMaximized] = useState(false);
+
+  // 🔴 **"最大化"不只由我们那三条命令改变。**
+  //
+  // `Win + ↑`、把窗口拖到屏幕顶端、以及系统那套贴靠都会最大化窗口 ——
+  // 而那些动作**不经过** `onClick`，于是 `maximized` 会变成一个**谎**：
+  // 窗口已经最大化，而按钮画的还是那个"点了能最大化"的 `▢`。
+  //
+  // 所以状态**在挂载时问一次，并在每次尺寸变化之后再问一次**。
+  // `resize` 在 WebView2 里由宿主尺寸变化触发（最大化 / 还原 / 贴靠都会），
+  // 而真相来自窗口那边（`window_is_maximized`），不是前端猜的。
+  //
+  // ⚠️ 两个细节都是刻意的：
+  //
+  // 1. **不是"只在挂载时问一次"** —— 那比不修更坏：它把"点两下之后一致"
+  //    变成了"只有我们自己点的时候才一致"。
+  // 2. **拖边框会在一次拖动里发几十个 `resize`**，所以那一路用 150 ms 的
+  //    去抖（§7.3 的节流纪律：一次拖动不该变成几十次 IPC）。
+  useEffect(() => {
+    let pending = 0;
+    const ask = (): void => {
+      void windowIsMaximized().then(setMaximized);
+    };
+    const later = (): void => {
+      window.clearTimeout(pending);
+      pending = window.setTimeout(ask, 150);
+    };
+    ask();
+    window.addEventListener("resize", later);
+    return () => {
+      window.clearTimeout(pending);
+      window.removeEventListener("resize", later);
+    };
+  }, []);
 
   return (
     <header
@@ -189,7 +239,10 @@ export function TitleBar(): ReactElement {
             key={c.key}
             type="button"
             className={`titlebar__btn titlebar__btn--${c.key}`}
-            aria-label={c.label}
+            // ⚠️ **最大化之后这个名字要变成"还原"** —— 因为那才是那个按钮
+            // **那时**做的事（§4.5.2 的"图标换为还原"是给眼睛的，
+            // 这一行是同一件事给读屏）。
+            aria-label={c.key === "max" && maximized ? "还原" : c.label}
             // ⚠️ **它的 id 就是 `c.key`**（`min` / `max` / `close`）——
             // 而 `CONTROLS` 是 `as const`，于是这三个 id 与契约表的
             // `TitlebarId` 对得上：**写错一个字母是编译错误**。
@@ -219,20 +272,21 @@ export function TitleBar(): ReactElement {
             }}
           >
             {/*
-              ⚠️ **最大化的图标要跟着真相走**（`maximized` 来自那条命令的
-              返回值）。一个永远画 ▢ 的实现会让"已经是最大化"看不出来。
+              ⚠️ **图标跟着真相走**（`maximized` = 窗口那边的返回值，
+              加上挂载时与每次 `resize` 之后的那次查询）。
 
-              🔴 **而它现在是一个会连续变形的图标**（`MorphGlyph`）——
-              三根横线**插值**成那两条对角线，而不是淡出再淡入。
+              🔴 **而这一格曾经是 `MorphGlyph`（`morphicons` 尖刺的产物）** ——
+              它画的是"菜单 ⇄ 关闭"，于是最大化按钮画成了**汉堡三横线**。
+              规格 §4.5.2 要的是 `─ ▢ ✕`，而那个 `▢` **从来没有被画过**；
+              看见它的是用户的眼睛，而不是任何一条测试（见 `glyphs.tsx`）。
 
-              ⚠️ 而 `framer-motion` 做不到这一件：它动画 `transform` 与
-              `opacity`，而**不插值 SVG 的 `d` 属性**。
-              见 `MorphGlyph.tsx` 与 `docs/来源记录.md` §6。
+              ⚠️ 所以现在这一格在"未最大化 / 已最大化"之间切**两个不同的图形**
+              （`maximize` ⇄ `restore`），而四个图形全部自绘。
             */}
             {c.key === "max" ? (
-              <MorphGlyph active={maximized} label={c.label} />
+              <WindowGlyph name={maximized ? "restore" : "maximize"} />
             ) : (
-              <span aria-hidden="true">{c.glyph}</span>
+              <WindowGlyph name={c.glyph} />
             )}
           </button>
         ))}

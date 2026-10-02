@@ -1,4 +1,48 @@
-# 上次收工：**标题栏的按键契约有了唯一来源** —— §4.5 从"没有正文的标题"变成一张逐格可核对的表，而它**第一次跑就抓到第三个真 bug**
+# 上次收工：**右上角那个"最大化"按钮终于画的是方形** —— 它此前画的是汉堡菜单 ☰（用户一眼看出来的），而现在"图形 ↔ 状态"也是可踩红的
+
+> 用户验完贴靠之后说（m01393）：「**in + ←/→/↑这个没问题，但是它界面右上角的缩放按钮不对吧？**」——这是**人眼抓到的第四个真 bug**，而当时所有自动检查（`tsc` / `eslint` / `vitest` 328 项 / `impeccable` / `css-tokens` / `css-classes` / `css-grid`）**一个都看不见它**。
+>
+> 根因一句话：`web/src/titlebar/TitleBar.tsx` 在"最大化"那一格渲染的是 `MorphGlyph`，而 `MorphGlyph` 是 `morphicons` 的**尖刺实测**、只有两个图形（`MENU` 三横线 / `CLOSE` 叉）。于是**没最大化时那一格画的是汉堡菜单 ☰、最大化之后画的是叉 ✕**，规格 §4.5.2 要的那个方框**从来没有被画出来过**。测试全绿是因为：`MorphGlyph.test.tsx` 钉的是尖刺自己的两条路径，而 `TitleBar.test.tsx` 里**连一条 `svg` 断言都没有**。
+>
+> 这一轮把四个图形**自绘**出来、把"哪个状态画哪个图形"写成**规格里的一张表 + 一条能踩红的检查**（`check-titlebar-contract.ps1` 的第二条），并补上一条真 IPC（`window_is_maximized`）——因为窗口状态还会被双击标题栏、`Win+←/→/↑`、系统菜单改掉。
+
+## 这一轮（2026-10-02 深夜）：§4.5.2 的四个图形
+
+### 1. 规格：§4.5.2 里多了一张**给机器读的**图形名表（v2.3）
+
+- `docs/UI设计规格.md` §4.5.2（`:416` 起，状态表 `:420-425`）在「最大化时 | `▢` 图标换为"还原"双框图标」那一行之后，多了**四个图形的名字**：`minimize` 一根横线 · `maximize` 一个方框 · `restore` 两个错位的方框 · `close` 两条对角线。
+- 两段 `> ⚠️` 写明：① **为什么 v2.3 要补它**（就是这一轮那个真缺陷 —— 规格里写着"一个方框"，而屏幕上画的是三条横线，四个月里没有任何检查看得见）；② **状态来源口径**（`maximized` 跟着**窗口**走，不是"我们自己翻的布尔值" —— 贴靠与系统菜单也会改尺寸，而它们**不是最大化**）。
+- 这一段**没有新增任何标题** ⇒ `docs/.heading-baseline.json` 不用动，`check-docs -Strict` 仍是 22 文件 / 635 条标题。
+
+### 2. 代码：自绘四个图形，状态去问窗口
+
+- 新增 `web/src/titlebar/glyphs.tsx`：`WINDOW_GLYPH_NAMES`（`minimize` / `maximize` / `restore` / `close`）+ `WINDOW_GLYPH_PATHS`（每个名字一组 `d`）+ `WindowGlyph({ name })`，渲染 `<svg class="titlebar__glyph" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">`。文件头把那个缺陷与"三个自动检查为什么都没看见"写下来。
+- `web/src/titlebar/TitleBar.tsx`：`CONTROLS` 的 `glyph` 从**文字字形**（`─ ▢ ✕`）换成**图形名**，并用 `as const satisfies readonly { readonly key: TitlebarId; readonly glyph: WindowGlyphName; readonly label: string }[]` 钉住（**名字拼错即编译错误**）；`max` 那一格按状态在 `maximize` / `restore` 之间切，`aria-label` 在最大化时变「**还原**」。
+- **新增一条真 IPC**：`web/src/api/window.ts` 的 `windowIsMaximized()` ↔ `src-tauri/src/main.rs` 的 `#[tauri::command] fn window_is_maximized(window: tauri::Window) -> Result<bool, String>`（注册在 `window_toggle_maximize` 与 `window_close` 之间）。为什么要它：`windowToggleMaximize` 的返回值只覆盖"**我们自己点的那一下**"，而窗口状态还能被双击标题栏、`Win+←/→/↑`、系统菜单改掉 ⇒ 前端在**挂载时**与 **`resize`（去抖 150 ms）后**各问一次窗口。
+- `web/src/titlebar/TitleBar.css`：删掉 `.titlebar__btn` 里的 `font-size: 10px; line-height: 1;`（那是给文字字形的，留着会让下一个人以为按钮里还有文字），新增 `.titlebar__glyph { display: block; }`（`<svg>` 默认 `display: inline`，在 `place-items: center` 里会多出基线空隙）。
+- 测试：新增 `web/src/titlebar/glyphs.test.tsx`（10 项）——其中一条**显式断言** `max` 静止态**不是**那三条汉堡横线（回归测试）、一条派发 `resize` 证明会重问窗口、一条证明**贴靠不会被读成最大化**；`TitleBar.test.tsx` 里那条 `findByRole("img", { name: "最大化" })` 改成 `findByRole("button", { name: "还原" })`（那个 `role="img"` 正是 `MorphGlyph` 塞进按钮里的 —— 也就是说按钮的**可访问名此前一直是"图形名"而不是"动作名"**）；两个 mock 工厂都补上 `windowIsMaximized`。前端 **328 → 338 项**。
+
+### 3. 检查：`tools/check-titlebar-contract.ps1` 现在查**两件事**
+
+- 第二条：规格 §4.5.2 的图形名表 ↔ `glyphs.tsx` 的 `WINDOW_GLYPH_NAMES`，比**数量与顺序**（逐位报 `glyph #N: 4.5.2 says 'X', … says 'Y'`），并要求**每个名字在路径表里都有图形**（"没有图形的名字会渲染一个空 svg —— 而'看不见'正是这个脚本存在的理由"）。输出多一行 `Window glyphs:     4 name(s): minimize, maximize, restore, close`。
+- **人为踩红**：把规格表里的 `restore` 改成 `unmaximize` ⇒ `FAIL  glyph #3: 4.5.2 says 'unmaximize', web\src\titlebar\glyphs.tsx says 'restore'`、exit 1；还原后 SHA-256 **逐字节相同**（`8E95A799…A4272C`），再跑 OK。
+- `tools/verify.ps1` 里 `titlebar` 那一项的 `name` / `protects` 改成"**THREE REAL defects**"版本（含 *"the maximize button drew the WRONG PICTURE … the user eye found it"*）；**仍是 16 项**。
+
+### 4. 收尾数字（2026-10-02 深夜，逐项单跑）
+
+`tsc --noEmit` **0** · `eslint .` **0** · **vitest 21 个文件 / 338 项全过** · `vite build` **1.35 s**（CSS 40.13 kB / gzip 7.02 kB、JS **511.18 kB** / gzip 165.41 kB）· `impeccable` **零命中** · `css-classes` OK（9 文件 / **288** 定义 / **187** 个类名）· `css-grid` OK（9 条）· `tokens` OK（129）· `ladder` OK · **`titlebar` OK（8 × 3 = 24 格 + 4 个图形名）** · `docs -Strict` OK（22 文件 / 635 条标题）· `audit` **P0 / P1 / P2 全 0**（27 条 promise 候选留给人看）· Rust **717 项** / `fmt` 0 / `clippy -D warnings` 0 · 应用重建 **4,063,744 字节**（`Finished 'release' profile in 51.50s`）· 重启后窗口「秦墨」存活（PID 9024）、**1942×1213 物理**、截图 `%TEMP%\glyph-fixed.png`（与修复前 `%TEMP%\contract-done.png` 的同一角对照：`─ ☰ ✕` → `─ ▢ ✕`）。
+
+⚠️ 这一轮同样**没有整跑 `verify.ps1`**（本机 pnpm 12 会让 `web` 项失败**并把 `node_modules` 拆成半个**，见「环境事实」）。
+
+### 5. 这一轮之后的状态
+
+- ✅ **M4 第四条验收（键盘与读屏）由用户人验通过**（m01393：「in + ←/→/↑这个没问题」）⇒ 方案 §8 的 M4 四条验收**全部闭合**。
+- ⚠️ `MorphGlyph` / `morphicons` 现在**没有使用者**了：它是当初"值不值得加"的尖刺实测（`docs/来源记录.md` §6），而 §4.5.2 要的四个图形是**瞬时切换**、不需要变形。三选一（待用户拍）：① 让 `max` 那一格重新用它做 `▢ ⇄ ⧉` 的变形动画（要给它补两条路径，并重新回答"动效是不是必要"）② 留作尖刺产物、`MorphGlyph.test.tsx` 那 4 项继续跑但**注明它没有使用者** ③ 连依赖一起撤掉（要动 `package.json` + `pnpm-lock.yaml`）。
+- 用户那个顺序里，**下一块是"界面骨架"**（或先做"流程和数据"：把 `capabilities` / `instance_summary` 接上真内核）。
+
+---
+
+# 上一轮（2026-10-02 深夜）：**标题栏的按键契约有了唯一来源** —— §4.5 从"没有正文的标题"变成一张逐格可核对的表，而它**第一次跑就抓到第三个真 bug**
 
 > 用户给的顺序是「**先流程和数据 → 再做界面骨架 → 然后定义按键契约 → 最后接功能**」，并拍板先做其中**不需要内核数据**的那一块：§4.5 的按键契约。
 >
@@ -44,7 +88,7 @@
 
 ### 6. 这一轮还没做的
 
-- **`Win + ←/→/↑` 贴靠仍待人验**（M4 第四条验收，规格 **§4.5.4** 的降级线）——三步约 20 秒：打开秦墨 → 点标题栏空白处 → 按 `Win + ←` / `Win + →`。契约把这一格写成"**平台事实**、不是我们实现的"，所以它只能人验。
+- ✅ **`Win + ←/→/↑` 贴靠已由用户人验通过**（m01393：「in + ←/→/↑这个没问题」）⇒ **M4 第四条验收闭合**，规格 **§4.5.4** 的降级线因此达标。（同一句里用户还指出右上角"缩放按钮"不对 —— 那是**另一件事**，已在下一轮修掉。）
 - 主页正文的**真数据**（横幅状态摘要、最近运行、下载队列、游玩统计、实例体检）—— 属 M5，要先把 `capabilities` / `instance_summary` 接上真内核（`src-tauri/src/main.rs:85` / `:110` **仍是骨架**）。
 - 用户那个顺序里，**下一块是"界面骨架"**（这一轮做的是"按键契约"）。
 
@@ -100,7 +144,7 @@
 
 ### 6. 这一轮还没做的
 
-- **`Win + ←/→/↑` 贴靠仍待人验**（M4 第四条验收，规格 **§4.5.4** 的降级线）——三步约 20 秒。
+- ✅ **`Win + ←/→/↑` 贴靠已人验通过**（m01393）⇒ M4 第四条验收闭合（规格 **§4.5.4** 的降级线达标）。
 - `docs/UI设计规格.md` §4.5 的正文（当时是空标题）与 §4.5.3 右键系统菜单的处置，**当时待用户拍板** ⇒ **已在后面那一轮做完**（见文件顶部：§4.5 有了正文与三个决定，右键那一格**决定为"不做"**并写进规格）。
 - 主页正文的**真数据**（横幅状态摘要、最近运行、下载队列、游玩统计、实例体检）—— 属 M5，要先把 `capabilities` / `instance_summary` 接上真内核。
 
@@ -167,7 +211,7 @@
 ### 7. 这一轮还没做的
 
 - **主页按设计稿补纯 UI 缺口** ⇒ **已在下一轮做完**（见文件顶部那一轮：两个入口 + 横幅的画面层 + 插件清单 5 → 7 件）。
-- **`Win + ←/→/↑` 贴靠仍待人验**（M4 第四条验收，规格 **§4.5.4** 的降级线）。
+- ✅ **`Win + ←/→/↑` 贴靠已人验通过**（m01393）⇒ M4 第四条验收闭合。
 - `docs/UI设计规格.md` §4.5 的正文（当时是空标题）与 §4.5.3 右键系统菜单的处置 ⇒ **已在下一轮做完**：§4.5 有了正文与三个决定，右键那一格**决定为"不做"**并写进了规格。
 
 ---
@@ -201,7 +245,7 @@
 | 12 | `24f8185` | M4 验收 ①：**冷启动期间零网络请求**（四通道记录器，含 `PerformanceResourceTiming` 的 `buffered: true`，能看见装记录器**之前**的加载） | `web/src/main.tsx` **第一行**装记录器、`render` 前 `assertNoColdStartNetwork()`，而它**不抛**只 `console.error`——"因性能问题让应用崩掉是**更坏**的取舍" |
 | 13 | `f3fd6a2` | 用户推荐的两个仓库：`guillermolg00/morphicons` ✅ **采用** / `zhangjw-THU/Emoji` ❌ **不采用** | 采用理由**只有一条**：它**插值 SVG 的 `d` 属性**，而 `framer-motion` **不插值路径**（MIT、0 运行时依赖、+18.29 KB / gzip +8.37 KB、零 CSS 副作用）；测试断言渲染出的 `d` 里**含有我们自己写的坐标**（`M4 7` / `M4 12` / `M4 17`）⇒ "顺便用了它自带图标集"的实现会红。不采用的三条独立理由：**无许可 ⇒ 不可查**、内容是 GitHub 的素材、徽章指向另一个仓库（衍生）。**"MIT" 不是"可以直接用"**，后续推荐照样要过许可 / 依赖数 / 体积三条 |
 | 14 | `61a259b` | M4 验收 ③：**材质阶梯可指认**（`tools/check-material-ladder.ps1`：面板 8–12% / 卡片高于面板 / 浮层不透明 / `--hairline` 正好 1 px（2x DPI 下 0.5 px）/ 每档 `--space-N` 是 4 的倍数 / 间距单调递增） | 四个反证**全部踩红**（卡片降到 5% / 描边 1.5 px / 间距 6 px / 浮层半透明）；它只读 `tokens.css` 的**第一个 `:root` 块**（浅色主题的 `--surface-card: rgb(255 255 255 / 72%)` 不在区间内）；verify 12 → 13 项 |
-| 15 | `ec183e8` | M4 验收 ②：**键盘与读屏**（`web/src/routes/Shell.a11y.test.tsx` 6 项 + `scrollTo` 桩） | ⚠️ **`Win + ←/→/↑` 贴靠要人验**（测试只能钉住前提：`resizable === true` / `decorations === false` / `maximizable !== false`）；教训：**探测桩不能靠名字或字符串**——jsdom 确实装了 `scrollTo` 且它是**真函数**，只在运行时报 `Not implemented` |
+| 15 | `ec183e8` | M4 验收 ②：**键盘与读屏**（`web/src/routes/Shell.a11y.test.tsx` 6 项 + `scrollTo` 桩） | ✅ **`Win + ←/→/↑` 贴靠已由用户人验通过**（m01393；测试只能钉住前提：`resizable === true` / `decorations === false` / `maximizable !== false`）；教训：**探测桩不能靠名字或字符串**——jsdom 确实装了 `scrollTo` 且它是**真函数**，只在运行时报 `Not implemented` |
 | 16 | `faa7fa1` | 标题栏两条规格：**双击最大化/还原**（而它抓出一个真 bug）+ 排除交互元素 | 三个窗口控制只排除了 `pointerDown`、**没排除 `doubleClick`** ⇒ 双击「关闭」冒泡到标题栏 ⇒ **先最大化再关闭**（**排除了一种事件、漏了另一种**）；`disabled` 的搜索框**仍会收到 `pointerdown`**（disabled 拦的是 click 与 focus） |
 
 **测试与构建的当前位置**（上一轮在本机逐项重跑过）：前端 **281 项 / 18 个文件** 全过（5.60 s）· `tsc --noEmit` 0 · `eslint .` 0 · `vite build` 1.56 s（CSS **37.61 kB**、JS **526.11 kB** / gzip 172.44 kB）· Rust **717** 项 · `clippy -D warnings` 0 · `impeccable` **零命中** · `docs` / `audit` / `tokens` / `ladder` / `tauri` / `vocab` / `vocab-probe` / `fmt` 全 OK · 产品 `Cargo.lock` **18** 包 · `src-tauri/Cargo.lock` **420** 包 · 应用 `qul-desktop.exe` **3.90 MB**（这一轮重建后是 **4,088,320 字节**）/ 安装包 `秦墨_0.0.0_x64-setup.exe` **1.85 MB**。`verify.ps1` 现在是 **15 项**（这一轮加了 `css-classes` 与 `css-grid`；再下一轮加了 `titlebar` ⇒ **16 项**）。
@@ -215,7 +259,7 @@
 | 全流程一次点通 | ✅ | `03f2cd7`：主页按钮 → `startInstall` → 内核 → `Channel` → `bridge` → `useIslandQueue` → 岛。⚠️ `HomeRoute.test.tsx` 钉的是**接线**；那条链本身由 `bridge` / `useIslandQueue` 的测试负责 |
 | 冷启动期间不等待任何网络请求（§7 口径） | ✅ | `24f8185`：`web/src/boot/coldStart.ts` 四通道记录器 + `main.tsx` 启动前断言；`coldStart.test.ts` 第 ③ 组是**验收**（import 应用模块图断言求值不发请求，并反证 `console.error` 会喊） |
 | 质感验收五类**零命中** | ✅ | `impeccable`（`repos/impeccable`，61 条确定性规则）已接进 `verify.ps1`，每次跑；`03f2cd7` 那次它**真的拦下了一个**形状（而修法不是加豁免） |
-| 键盘与读屏通过 | ⏳ **差一条人验** | `ec183e8` 的四件可验性；第 ④ 件（`Win + ←/→/↑` 贴靠）**jsdom 测不了**——没有窗口管理器 |
+| 键盘与读屏通过 | ✅ | `ec183e8` 的四件可验性 + **用户 m01393 人验通过**（`Win + ←/→/↑` 贴靠正常；jsdom 没有窗口管理器，这一条只能人跑）。同一句里用户抓到的"右上角缩放按钮画错"已在下一轮修掉 |
 | 三层材质的不透明度阶梯 / 1 px 描边 / 留白节奏**可指认** | ✅ | `61a259b` 的 `ladder` 检查：**它把三个数字打出来并核对**，不是"感觉还行" |
 
 **另外两件 M4 正文的事还没做**（都不是编码问题）——**两件都已在后面那一轮做掉**（§4.5 有了正文；右键那一格决定为"不做"并写进规格）：
@@ -227,13 +271,13 @@
 
 **M5（微软身份）之前，先把 `capabilities` 与 `instance_summary` 从骨架接上真内核调用**——它们现在返回硬编码的一份，而 `qul-core` 已经有 23 个模块可以支撑真的结论。（这是 `03f2cd7` 自己留下的待办。）
 
-顺带清掉 M4 的三件尾巴：**人验 `Win + ←/→/↑`**（三步约 20 秒）· **§4.5 补正文**（等用户拍板）· **L842 右键系统菜单**（先量代价）。
+顺带清掉 M4 的三件尾巴 —— **三件都已清**：`Win + ←/→/↑` **已人验通过**（m01393）· §4.5 正文**已补**（§4.5.1 契约表 + 三个决定）· L842 右键系统菜单**已决定为"不做"**并写进规格（§4.5.1 决定 1 / §4.5.3）。
 
 ## 卡在哪
 
 | 卡点 | 性质 |
 |---|---|
-| **`Win + ←/→/↑` 贴靠** | **等人验**：jsdom 没有窗口管理器，这条只能人跑（打开秦墨 → 点标题栏空白处 → 按 `Win + ←` / `Win + →` 应贴到屏幕左右半边）。不动则 §4.5 的降级线未达到，要查 `WM_NCHITTEST` 那条路 |
+| **`Win + ←/→/↑` 贴靠** | ✅ **已人验通过**（m01393）：`Win + ←` / `Win + →` 正常贴到屏幕左右半边 ⇒ **§4.5.4 的降级线达标**，不必去碰 `WM_NCHITTEST` 那条路 |
 | **§4.5 的正文** | **等用户拍板**：规格里 §4.5 是空标题，补哪一节是设计决定 |
 | **L842 右键系统菜单** | **未做（不是"不用做"）**：代价未量，且要碰非客户区（`SetWindowSubclass`） |
 | **M4.5 百宝箱** | 未开工：工具集合骨架 + 首批 6 件（`docs/方案-重新立意版.md:1192`） |

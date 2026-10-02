@@ -1,8 +1,12 @@
 # =============================================================================
-# check-titlebar-contract.ps1 -- the titlebar event contract is written TWICE
+# check-titlebar-contract.ps1 -- the titlebar contract is written TWICE
 #                                (a markdown table in the UI design spec and a
 #                                TypeScript table in web/src/titlebar/contract.ts)
 #                                and the two must agree cell by cell
+#
+#                                Since v2.3 this script covers TWO tables:
+#                                  * the event contract   (spec 4.5.1 -> contract.ts)
+#                                  * the four glyph names (spec 4.5.2 -> glyphs.tsx)
 # =============================================================================
 #
 # WHY THIS EXISTS
@@ -20,10 +24,17 @@
 #   - The same shape once more, found by the table-driven test: a DISABLED
 #     search box never receives React's synthetic `onDoubleClick`, so
 #     "swallow it on that element" silently did nothing. One cell again.
+#   - v2.3, the other half of the same component: the maximize button drew the
+#     wrong PICTURE. TitleBar rendered `MorphGlyph` (the morphicons spike --
+#     "menu" morphing into "close") in the maximize slot, so the three controls
+#     read `- menu x` instead of the spec's `- square x`, and there was no
+#     `square` anywhere. Nothing noticed: the glyph test asserted the SPIKE's
+#     paths, and TitleBar.test never touched an svg. The USER's eye found it.
 #
-#   So the table is now checked from both sides:
-#     * web/src/titlebar/contract.test.tsx  -- table -> real DOM behaviour
-#     * this script                          -- spec table -> code table
+#   So both halves are now checked from both sides:
+#     * web/src/titlebar/contract.test.tsx  -- event table -> real DOM behaviour
+#     * web/src/titlebar/glyphs.test.tsx    -- glyph table -> the rendered `d`
+#     * this script                          -- spec tables  -> code tables
 #
 # WHAT IT ASSERTS
 #
@@ -35,6 +46,11 @@
 #   5. Every row on BOTH sides parsed. A row whose format drifted is a FAILURE,
 #      not a silent skip -- otherwise this script would quietly check less and
 #      less while still printing OK.
+#   6. The four window-control GLYPH names listed under spec 4.5.2 are exactly
+#      the names of WINDOW_GLYPH_NAMES in web/src/titlebar/glyphs.tsx, in the
+#      same order -- and every declared name has a shape, because a name with no
+#      paths renders an empty <svg>: perfectly invisible, and invisible is the
+#      failure mode this file exists to kill.
 #
 # WHAT IT DELIBERATELY DOES NOT DO
 #
@@ -235,10 +251,63 @@ foreach ($id in @(($specById.Keys + $codeById.Keys) | Sort-Object -Unique)) {
     }
 }
 
+# --- check 2: the four window-control glyph names (see the header) -----------
+#
+# v2.3: the maximize button drew the WRONG PICTURE -- it rendered the morphicons
+# spike ("menu" morphing into "close") in that slot, so the spec's square was
+# never drawn at all. The glyph names are now a second two-copy contract:
+# this script checks spec 4.5.2 -> glyphs.tsx, and glyphs.test.tsx checks
+# glyphs.tsx -> the `d` attributes that actually reach the DOM.
+$glyphHeadAt = -1
+for ($i = 0; $i -lt $specLines.Count; $i++) {
+    if ($specLines[$i] -match '^####\s+4\.5\.2\s') { $glyphHeadAt = $i; break }
+}
+if ($glyphHeadAt -lt 0) { throw "check-titlebar-contract: no '#### 4.5.2' heading in $specRel" }
+
+$specGlyphs = New-Object 'System.Collections.Generic.List[string]'
+for ($i = $glyphHeadAt + 1; $i -lt $specLines.Count; $i++) {
+    if ($specLines[$i] -match '^####\s') { break }
+    $m = [regex]::Match($specLines[$i], '^\|\s*`([a-z]+)`\s*\|')
+    if ($m.Success) { $specGlyphs.Add($m.Groups[1].Value) | Out-Null }
+}
+if ($specGlyphs.Count -eq 0) {
+    $failures.Add("$specRel 4.5.2 has no table row whose first cell is a backticked glyph name") | Out-Null
+}
+
+$glyphTsRel = 'web\src\titlebar\glyphs.tsx'
+$glyphTsPath = Join-Path $dir $glyphTsRel
+if (-not (Test-Path $glyphTsPath)) { throw "check-titlebar-contract: missing $glyphTsPath" }
+$glyphTs = [System.IO.File]::ReadAllText($glyphTsPath, [System.Text.Encoding]::UTF8)
+
+$namesBlock = [regex]::Match($glyphTs, 'WINDOW_GLYPH_NAMES\s*=\s*\[(.*?)\]\s*as const', 'Singleline')
+if (-not $namesBlock.Success) { throw "check-titlebar-contract: cannot find WINDOW_GLYPH_NAMES in $glyphTsRel" }
+$codeGlyphs = @([regex]::Matches($namesBlock.Groups[1].Value, '"([a-z]+)"') | ForEach-Object { $_.Groups[1].Value })
+if ($codeGlyphs.Count -eq 0) { throw "check-titlebar-contract: WINDOW_GLYPH_NAMES in $glyphTsRel names nothing" }
+
+if ($specGlyphs.Count -ne $codeGlyphs.Count) {
+    $failures.Add("glyph names: 4.5.2 lists $($specGlyphs.Count) ($($specGlyphs -join ', ')), ${glyphTsRel} declares $($codeGlyphs.Count) ($($codeGlyphs -join ', '))") | Out-Null
+}
+else {
+    for ($k = 0; $k -lt $specGlyphs.Count; $k++) {
+        if ($specGlyphs[$k] -ne $codeGlyphs[$k]) {
+            $failures.Add("glyph #$($k + 1): 4.5.2 says '$($specGlyphs[$k])', ${glyphTsRel} says '$($codeGlyphs[$k])'") | Out-Null
+        }
+    }
+}
+
+# A declared name with no shape renders an EMPTY <svg>: invisible, and
+# "invisible to the checks" is the exact failure mode this file exists to kill.
+foreach ($g in $codeGlyphs) {
+    if ($glyphTs -notmatch ('(?m)^\s*' + $g + ':\s*\[')) {
+        $failures.Add("${glyphTsRel} declares the glyph '$g' but WINDOW_GLYPH_PATHS has no '${g}: [' entry -- it would draw nothing") | Out-Null
+    }
+}
+
 $checked = $specRows.Count * $specFamilies.Count
 
 Write-Host ''
 Write-Host ("Titlebar contract: {0} element(s) x {1} event family(ies) = {2} cell(s)" -f $specRows.Count, $specFamilies.Count, $checked)
+Write-Host ("Window glyphs:     {0} name(s): {1}" -f $codeGlyphs.Count, ($codeGlyphs -join ', '))
 
 if ($failures.Count -gt 0) {
     Write-Host ''
@@ -254,5 +323,5 @@ if ($failures.Count -gt 0) {
     exit 1
 }
 
-Write-Host 'OK: every cell of the spec table matches the code table.'
+Write-Host 'OK: every cell of the spec table matches the code table, and the window glyph names agree.'
 exit 0
