@@ -14,6 +14,16 @@ rust-version = "1.89"
 
 [dependencies]
 tauri = { version = "2.12", features = [] }
+# 🔴 **命令层要 import 内核的公共模型**（方案 §3.5："Tauri 命令层（薄壳）"）。
+#
+# 这是"薄壳"这个词的**机制**，而不是一句自我评价：
+# 下面 `capabilities` 那条命令返回的类型**就是** `qul_core::island::IslandState`、
+# 而"该有哪些能力"由内核的 Provider 决定 —— 命令层**不自己编一份清单**。
+#
+# ⚠️ 路径依赖而不是版本依赖：它是**同一个仓库里的**东西，
+# 而"发布到 crates.io 再引用"会让"改了内核却忘了更新版本"变成一个
+# **能编译而行为是旧的**的 bug。
+qul-core = { path = "../crates/qul-core" }
 # ⚠️ **它是我们确实要的**，而不是顺手加的：方案 §3.4 的材质降级链
 # （Mica → Acrylic → Tabbed → 纯色）要靠它。
 window-vibrancy = "0.8"

@@ -1,6 +1,6 @@
 {
     "note":  "CANDIDATE LIST, not a verdict. Task-book checks 1-2 need semantic judgement; this script cannot supply it.",
-    "files_scanned":  23,
+    "files_scanned":  24,
     "section_refs_defined":  181,
     "dangling_refs":  [
                           "13.1",
