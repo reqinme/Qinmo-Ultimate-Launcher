@@ -53,6 +53,7 @@ import {
   windowStartDragging,
   windowToggleMaximize,
 } from "../api/window.ts";
+import { MorphGlyph } from "./MorphGlyph.tsx";
 import "./TitleBar.css";
 
 /**
@@ -129,11 +130,22 @@ export function TitleBar(): ReactElement {
               }
             }}
           >
-            {/* ⚠️ 最大化的图标要跟着**真相**走（`maximized` 来自返回值）。
-                一个永远画 ▢ 的实现会让"已经是最大化"看不出来。 */}
-            <span aria-hidden="true">
-              {c.key === "max" && maximized ? "❐" : c.glyph}
-            </span>
+            {/*
+              ⚠️ **最大化的图标要跟着真相走**（`maximized` 来自那条命令的
+              返回值）。一个永远画 ▢ 的实现会让"已经是最大化"看不出来。
+
+              🔴 **而它现在是一个会连续变形的图标**（`MorphGlyph`）——
+              三根横线**插值**成那两条对角线，而不是淡出再淡入。
+
+              ⚠️ 而 `framer-motion` 做不到这一件：它动画 `transform` 与
+              `opacity`，而**不插值 SVG 的 `d` 属性**。
+              见 `MorphGlyph.tsx` 与 `docs/来源记录.md` §6。
+            */}
+            {c.key === "max" ? (
+              <MorphGlyph active={maximized} label={c.label} />
+            ) : (
+              <span aria-hidden="true">{c.glyph}</span>
+            )}
           </button>
         ))}
       </div>
