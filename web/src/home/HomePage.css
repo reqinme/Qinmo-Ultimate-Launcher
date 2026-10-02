@@ -29,6 +29,144 @@
   background: var(--surface-card);
   /* ⚠️ **图形全部自绘**（§4.6.8 的相邻要求：不用官方任何素材）。
      所以这里没有背景图 —— 而层次完全靠令牌。 */
+  /* 画面层（`.home__cover`）是绝对定位的，所以要一个定位上下文；
+     `overflow: hidden` 让它被圆角裁掉；`isolation: isolate` 把它
+     **关在横幅自己的层叠上下文里** —— 少了这一条，`z-index: -1`
+     会跑到横幅背景下面去（于是画面整层不可见）。 */
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  /* ⚠️ 配色的**默认档**一定写在 `.home__hero` 上，而不是 `.home__cover` 上：
+     写在后者会**覆盖掉从横幅继承下来的档号**（元素自身的声明优先于继承），
+     于是 12 档全变成第 0 档 —— 一个"颜色永远一样"的静默缺陷。 */
+  --cover-step: 0;
+}
+
+/* ── 横幅的"画面"层（**纯自绘** · §4.6.1 的封面图纪律）──────────────────
+ *
+ * 红线原文：*"横幅与卡片里的封面图，一律自绘或用户自有；禁止使用
+ * Mojang / Microsoft 的官方素材、十六进制素材包、商店截图。"*
+ *
+ * 所以这一层**没有一个像素来自素材**：一条渐变 + 一个斜切的几何带 +
+ * 一个圆斑，全部由令牌着色。档号由 JS 给（`cover.ts` 按实例 id 稳定算），
+ * **颜色只写在这里** —— 一个在 TS 里拼 `hsl(...)` 的实现会被
+ * `eslint.config.js` 的字面颜色规则踩红。
+ */
+
+.home__cover {
+  position: absolute;
+  inset: 0;
+  /* ⚠️ `-1` 而不是 `0`：这一层要在**文字下面**，而横幅自己还有一层
+     `--surface-card` 背景 —— 负 z-index 是"画在背景之上、内容之下"
+     的写法（`isolation: isolate` 保证它不跑到横幅外面去）。 */
+  z-index: -1;
+  background: linear-gradient(120deg, var(--accent-5), var(--accent-4));
+  /* 22%：横幅上的字仍是 `--text-primary`，而这层底色不会把它压到读不出来。 */
+  opacity: 0.22;
+  filter: hue-rotate(calc(var(--cover-step) * 30deg));
+}
+
+/* 一条斜切的带。 */
+.home__cover::before {
+  content: "";
+  position: absolute;
+  inset-block-start: -30%;
+  inset-inline-end: -12%;
+  inline-size: 58%;
+  block-size: 160%;
+  background: var(--accent-6);
+  opacity: 0.5;
+  clip-path: polygon(38% 0, 100% 0, 62% 100%, 0 100%);
+  /* ⚠️ 档号也**轻轻挪一下几何形状** —— 只靠色相的话，相邻两档在
+     低透明度下很像，而"靠颜色认实例"要求它们分得开。 */
+  transform: rotate(calc(var(--cover-step) * 3deg));
+}
+
+/* 一个圆斑。 */
+.home__cover::after {
+  content: "";
+  position: absolute;
+  inset-block-end: -45%;
+  inset-inline-start: calc(6% + var(--cover-step) * 2%);
+  inline-size: 18em;
+  block-size: 18em;
+  border-radius: var(--radius-full);
+  background: var(--accent-4);
+  opacity: 0.45;
+}
+
+/* 🔴 **"还没有实例"那一档** —— §4.6.1 的第三档"中性渐变 + 明确标注占位"。
+ * 它**必须和 12 档一样有规则**：少一条，横幅就会拿默认的强调色，
+ * 而那是拿"某个实例的颜色"表示"没有实例"。 */
+.home__hero[data-cover-tone="none"] .home__cover {
+  background: linear-gradient(120deg, var(--gray-3), var(--gray-1));
+  filter: none;
+}
+
+.home__hero[data-cover-tone="none"] .home__cover::before,
+.home__hero[data-cover-tone="none"] .home__cover::after {
+  display: none;
+}
+
+/* 占位标注（§4.6.1 要求**显式**标注"占位"，不能让人以为那是真实画面）。 */
+.home__coverNote {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-end: var(--space-2);
+  font-size: var(--font-caption);
+  color: var(--text-disabled);
+}
+
+/* 12 档。⚠️ **这里的条数与 `cover.ts` 的 `COVER_TONES` 必须对得上** ——
+ * `web/src/home/cover.test.ts` 会同时读 `cover.ts` 与这个样式表来断言
+ * 集合相等（"TS 加到 16 档、CSS 只写了 12 条"是一个**静默**缺陷：
+ * 12..15 档会拿到默认色，没有报错、没有测试失败，只有颜色不对）。 */
+.home__hero[data-cover-tone="0"] {
+  --cover-step: 0;
+}
+
+.home__hero[data-cover-tone="1"] {
+  --cover-step: 1;
+}
+
+.home__hero[data-cover-tone="2"] {
+  --cover-step: 2;
+}
+
+.home__hero[data-cover-tone="3"] {
+  --cover-step: 3;
+}
+
+.home__hero[data-cover-tone="4"] {
+  --cover-step: 4;
+}
+
+.home__hero[data-cover-tone="5"] {
+  --cover-step: 5;
+}
+
+.home__hero[data-cover-tone="6"] {
+  --cover-step: 6;
+}
+
+.home__hero[data-cover-tone="7"] {
+  --cover-step: 7;
+}
+
+.home__hero[data-cover-tone="8"] {
+  --cover-step: 8;
+}
+
+.home__hero[data-cover-tone="9"] {
+  --cover-step: 9;
+}
+
+.home__hero[data-cover-tone="10"] {
+  --cover-step: 10;
+}
+
+.home__hero[data-cover-tone="11"] {
+  --cover-step: 11;
 }
 
 .home__products {
@@ -119,6 +257,47 @@
   background: var(--surface-selected);
   color: var(--text-primary);
   border-color: var(--accent);
+}
+
+/* 插件头部右侧的两个入口 —— §4.6.8 原文：*"插件头部（＋添加 / ⚙设置）
+ * **固定在滚动区之外** —— 否则插件一多，这两个按钮就被滚走了"*。
+ * 它们和预设组一样在 `.home__gridWrap` 之外（`.home__pluginBar` 里）。 */
+.home__pluginTools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* ── 两个对话框里的插件行（`＋添加插件` 与 `⚙插件设置` 共用）──────────── */
+
+.home__settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  /* 对话框里的四列（名字 / 开关 / 形态 / 移到最前）挤在一起会看不清。 */
+  min-inline-size: 26em;
+}
+
+.home__settingsRow {
+  display: grid;
+  /* ⚠️ 四列都**不是**零宽轨道（`1fr auto auto auto`）——
+     一个 `0` 或 `auto` 混 0 的写法会让某一列被压成 0 宽，
+     而那正是这一轮在 `.shell` 上抓到的那个 bug 的形状。 */
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.home__settingsName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* §4.6.8：「空态不占半屏」—— 在对话框里就是一行字。 */
+.home__settingsEmpty {
+  margin: 0;
+  color: var(--text-secondary);
 }
 
 /* ── 插件区（**只有这块滚**）────────────────────────────────────────── */

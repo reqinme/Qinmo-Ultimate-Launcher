@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
+import { coverTone } from "./cover.ts";
 import { HomePage, type HeroSummary } from "./HomePage.tsx";
 import { PluginShape, PluginSpan, type PluginCatalogue } from "./plugins.ts";
 
@@ -267,5 +268,125 @@ describe("占宽（§4.6.8 的 12 列网格）", () => {
     );
     expect(spans).toContain("span 6"); // 最近运行是 1/2 档
     expect(spans.filter((s) => s === "span 3").length).toBe(2);
+  });
+});
+
+// ============================================================================
+// 🔴 横幅的"画面"层（§4.6.1 的封面图纪律）
+// ============================================================================
+
+describe("横幅画面：**自绘**、配色稳定、没有实例时**显式标注占位**", () => {
+  it("画面层在，而且是 `aria-hidden`（它不承载信息）", () => {
+    const { container } = ui();
+    expect(container.querySelector(".home__cover")).not.toBeNull();
+    expect(container.querySelector(".home__cover")?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("有实例 ⇒ `data-cover-tone` 就是 `coverTone(id)`（**颜色由 id 稳定决定**）", () => {
+    // ⚠️ 它断言的是**接线**：组件把 `hero.coverId` 交给 `coverToneAttr`。
+    // 而"同一个 id 永远同色"本身在 `cover.test.ts` 里验（那才是纯函数的事）。
+    const { container } = ui({ hero: { ...HERO, coverId: "26.3" } });
+    expect(container.querySelector(".home__hero")?.getAttribute("data-cover-tone")).toBe(
+      String(coverTone("26.3")),
+    );
+    // 有实例时**不该**出现"占位"标注 —— 那会让人以为真实画面还没做。
+    expect(container.querySelector(".home__coverNote")).toBeNull();
+  });
+
+  it("🔴 没有实例 ⇒ `none`，**并且明确标注占位**", () => {
+    // §4.6.1 的三档做法里最后一档：*"没有图时用中性渐变 + 明确标注'占位'"*。
+    const { container } = ui();
+    expect(container.querySelector(".home__hero")?.getAttribute("data-cover-tone")).toBe("none");
+    expect(container.querySelector(".home__coverNote")?.textContent).toContain("占位");
+  });
+});
+
+// ============================================================================
+// 🔴 两个入口：＋添加插件 / ⚙插件设置
+// ============================================================================
+
+/** 插件头部那两个按钮之一（按可见文字找）。 */
+function toolButton(container: HTMLElement, text: string): HTMLElement {
+  const hit = [...container.querySelectorAll(".home__pluginTools button")].find((b) =>
+    (b.textContent ?? "").includes(text),
+  );
+  if (hit === undefined) throw new Error(`找不到「${text}」按钮`);
+  return hit as HTMLElement;
+}
+
+/** 对话框里的那些行（Radix 把它渲染到 `document.body` 的 portal 里）。 */
+function settingsRows(): string[] {
+  const dialog = document.querySelector(String.raw`[role="dialog"]`);
+  return [...(dialog?.querySelectorAll(".home__settingsRow") ?? [])].map(
+    (r) => r.getAttribute("data-plugin") ?? "",
+  );
+}
+
+describe("插件头部的两个入口（§4.6.8：＋添加插件 / ⚙插件设置）", () => {
+  it("两个按钮都在，且**都在滚动区之外**", () => {
+    // 原文：*"插件头部（＋添加 / ⚙设置）**固定在滚动区之外** ——
+    // 否则插件一多，这两个按钮就被滚走了"*。
+    const { container } = ui();
+    const tools = container.querySelector(".home__pluginTools");
+    expect(tools).not.toBeNull();
+    expect(container.querySelector(".home__gridWrap .home__pluginTools")).toBeNull();
+    const labels = [...(tools?.querySelectorAll("button") ?? [])].map((b) => b.textContent ?? "");
+    expect(labels.some((l) => l.includes("添加插件"))).toBe(true);
+    expect(labels.some((l) => l.includes("插件设置"))).toBe(true);
+  });
+
+  it("🔴 `⚙插件设置` 列出**含未显示**的全部（规则 1 的后半句）", () => {
+    // ⚠️ 这一条就是"关掉就再也找不回来"的机器版：夹具里的「游玩统计」
+    // 是 `shown: false`（网格里没有它），而它**必须**出现在这个列表里。
+    const { container } = ui();
+    fireEvent.click(toolButton(container, "插件设置"));
+    expect(document.querySelector(String.raw`[role="dialog"]`)).not.toBeNull();
+    expect(settingsRows()).toEqual(["最近运行", "快速启动", "下载队列", "游玩统计"]);
+  });
+
+  it("`＋添加插件` **只列当前没显示的**那些", () => {
+    const { container } = ui();
+    fireEvent.click(toolButton(container, "添加插件"));
+    expect(settingsRows()).toEqual(["游玩统计"]);
+  });
+
+  it("🔴 拨开关能让被关掉的那块**回到网格**（规则 1 的另一半）", () => {
+    const { container } = ui();
+    expect(container.querySelector('[data-plugin="游玩统计"]')).toBeNull();
+    fireEvent.click(toolButton(container, "添加插件"));
+    const sw = document.querySelector(String.raw`[role="dialog"] [role="switch"]`);
+    expect(sw).not.toBeNull();
+    fireEvent.click(sw as HTMLElement);
+    expect(container.querySelector('[data-plugin="游玩统计"]')).not.toBeNull();
+  });
+
+  it("`移到最前` 真的把它挪到第一位（而**不改它的占宽**）", () => {
+    const { container } = ui();
+    fireEvent.click(toolButton(container, "插件设置"));
+    const row = document.querySelector(String.raw`[role="dialog"] [data-plugin="下载队列"]`);
+    const front = [...(row?.querySelectorAll("button") ?? [])].find((b) =>
+      (b.textContent ?? "").includes("移到最前"),
+    );
+    fireEvent.click(front as HTMLElement);
+    const order = [...container.querySelectorAll(".home__tile")].map((t) =>
+      t.getAttribute("data-plugin"),
+    );
+    expect(order[0]).toBe("下载队列");
+    // ⚠️ "移到最前"与"改占宽"是两件事 —— 一个顺手把 span 重置的实现
+    // 会让"移到最前"变成"顺手改小"。
+    expect(
+      (container.querySelector('[data-plugin="下载队列"]') as HTMLElement).style.gridColumn,
+    ).toBe("span 3");
+  });
+
+  it("全都在主页上时给**一行**空态提示（§4.6.8：「空态不占半屏」）", () => {
+    const all: PluginCatalogue = {
+      all: cat().all.map((p) => ({ ...p, shown: true })),
+    };
+    const { container } = ui({ catalogue: all });
+    fireEvent.click(toolButton(container, "添加插件"));
+    const empty = document.querySelector(String.raw`[role="dialog"] .home__settingsEmpty`);
+    expect(empty?.textContent).toContain("都已经在主页上");
+    expect(settingsRows()).toEqual([]);
   });
 });

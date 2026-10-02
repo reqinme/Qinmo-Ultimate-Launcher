@@ -19,8 +19,11 @@ import {
   PluginSpan,
   Preset,
   applyPreset,
+  bringPluginToFront,
   duplicateEntryPoints,
   movePlugin,
+  setPluginShape,
+  setPluginShown,
   settingsPlugins,
   spanForDropWidth,
   visiblePlugins,
@@ -202,6 +205,73 @@ describe("一键预设（丰富 / 精简 / 极简）", () => {
     const b = JSON.stringify(applyPreset(cat, Preset.Simplified).all);
     const c = JSON.stringify(applyPreset(cat, Preset.Minimal).all);
     expect(new Set([a, b, c]).size).toBe(3);
+  });
+});
+
+// ============================================================================
+// 插件设置面板用的三个变换（**规则 1 的另一半**）
+// ============================================================================
+
+describe("设置面板的三个变换（`setPluginShown` / `setPluginShape` / `bringPluginToFront`）", () => {
+  it("🔴 关掉一块之后**清单还是 5 块**（「找得回来」的那一半）", () => {
+    // ⚠️ 规则 1 有两半：主页不画它（[`visiblePlugins`]），
+    // 而**设置里仍然列着**（[`settingsPlugins`]）。
+    // 一个把 `all` 缩小的 `setPluginShown` 会让第二半静默失效。
+    const next = setPluginShown(catalogue(), "stats", true);
+    expect(next.all.length).toBe(5);
+    expect(visiblePlugins(next).length).toBe(4);
+    expect(settingsPlugins(next).map((p) => p.id)).toContain("stats");
+    // 而"关掉一块"同样只是把它从**可见**那一边拿走
+    const off = setPluginShown(catalogue(), "recent", false);
+    expect(off.all.length).toBe(5);
+    expect(settingsPlugins(off).length).toBe(5);
+  });
+
+  it("`setPluginShown` 只动**那一块**（其余逐字节不变）", () => {
+    const cat = catalogue();
+    const next = setPluginShown(cat, "downloads", false);
+    expect(next.all.filter((p) => p.id !== "downloads")).toEqual(
+      cat.all.filter((p) => p.id !== "downloads"),
+    );
+  });
+
+  it("`setPluginShape` 改形态而占宽一个字节不动", () => {
+    const cat = catalogue();
+    const next = setPluginShape(cat, "recent", PluginShape.Minimal);
+    const before = cat.all.find((p) => p.id === "recent");
+    const after = next.all.find((p) => p.id === "recent");
+    expect(after?.shape).toBe(PluginShape.Minimal);
+    expect(after?.span).toBe(before?.span);
+    expect(next.all.length).toBe(cat.all.length);
+  });
+
+  it("⚠️ 不认识的 id ⇒ 原样返回（不是抛，也不是加一块）", () => {
+    const cat = catalogue();
+    expect(setPluginShown(cat, "nope", true).all).toEqual(cat.all);
+    expect(setPluginShape(cat, "nope", PluginShape.Minimal).all).toEqual(cat.all);
+    expect(bringPluginToFront(cat, "nope")).toBe(cat);
+  });
+
+  it("`bringPluginToFront` 把它挪到第 0 位，而**占宽不变**", () => {
+    const cat = catalogue();
+    // `downloads` 是 1/4 档 —— 而"移到最前"不该顺手把它改成默认档。
+    const next = bringPluginToFront(cat, "downloads");
+    expect(next.all[0]?.id).toBe("downloads");
+    expect(next.all[0]?.span).toBe(PluginSpan.Quarter);
+    expect(next.all.length).toBe(5);
+  });
+
+  it("`bringPluginToFront` 在**已经在最前**时原样返回（不造新数组）", () => {
+    const cat = catalogue();
+    expect(bringPluginToFront(cat, "recent")).toBe(cat);
+  });
+
+  it("🔴 三个变换都**不改成员集合**（只换顺序 / 标志 / 形态）", () => {
+    const cat = catalogue();
+    const ids = (c: PluginCatalogue): string[] => c.all.map((p) => p.id).sort();
+    expect(ids(setPluginShown(cat, "stats", true))).toEqual(ids(cat));
+    expect(ids(setPluginShape(cat, "stats", PluginShape.Minimal))).toEqual(ids(cat));
+    expect(ids(bringPluginToFront(cat, "health"))).toEqual(ids(cat));
   });
 });
 

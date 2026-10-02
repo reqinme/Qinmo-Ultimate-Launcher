@@ -117,10 +117,23 @@ const PRODUCTS = [
 ];
 
 /**
- * 插件清单。
+ * 插件清单 —— **§4.6.8 的七件齐了**。
  *
- * ⚠️ **注意最后一块 `shown: false`** —— 它刻意留着不显示，
- * 而它是规则 1 的活证据：**它仍然在这份清单里**，所以设置页列得出它。
+ * | 插件 | 占宽 | 为什么是这个档 |
+ * |---|---|---|
+ * | 最近运行 | 1/2（`span 6`） | 它有四张卡要横排（规格的表） |
+ * | 快速启动 | 1/4（`span 3`） | 小件 |
+ * | 下载队列 | 1/4（`span 3`） | 小件 |
+ * | 游玩统计 | 1/4（`span 3`） | 小件（**当前未显示**） |
+ * | 实例体检 | 1/3（`span 4`） | **默认档**（它要写"为什么这个实例不能用"） |
+ * | 我的分组 | 1/3（`span 4`） | 默认档 |
+ * | 产品状态 | 1/4（`span 3`） | 规格的表把它归在"小件"那一列 |
+ *
+ * ⚠️ **注意那两块 `shown: false`** —— 它们刻意留着不显示，
+ * 而它们是规则 1 的活证据：**它们仍然在这份清单里**，所以
+ * `⚙插件设置` 列得出它们、`＋添加插件` 也放得回去。
+ * 一个"关掉就从数组里删掉"的夹具会让这一页看起来是对的，
+ * 而把那个最该防的错法演示成正确做法。
  */
 const FIXTURE_CATALOGUE: PluginCatalogue = {
   all: [
@@ -129,5 +142,7 @@ const FIXTURE_CATALOGUE: PluginCatalogue = {
     { id: "下载队列", shown: true, span: PluginSpan.Quarter, shape: PluginShape.Rich },
     { id: "游玩统计", shown: false, span: PluginSpan.Quarter, shape: PluginShape.Rich },
     { id: "实例体检", shown: false, span: PluginSpan.Third, shape: PluginShape.Rich },
+    { id: "我的分组", shown: true, span: PluginSpan.Third, shape: PluginShape.Rich },
+    { id: "产品状态", shown: true, span: PluginSpan.Quarter, shape: PluginShape.Rich },
   ],
 };

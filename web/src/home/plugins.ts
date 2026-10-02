@@ -169,6 +169,52 @@ export function movePlugin(
 }
 
 /**
+ * 打开/关掉一块插件（**规则 1 的落点**）。
+ *
+ * ⚠️ **它只改 `shown`，不动 `all` 的长度与成员** —— `shown: false`
+ * 不是"从清单里删掉"，而是"主页不画它"。一个
+ * `{ all: cat.all.filter(...) }` 的实现会让被关掉的那块**永远回不来**，
+ * 而那正是规则 1 存在的理由。
+ *
+ * ⚠️ 而**找不回来的另一半**是"设置里仍然列着"：那个面拿到的是
+ * [`settingsPlugins`]（= `all`），不是 [`visiblePlugins`]。
+ */
+export function setPluginShown(
+  cat: PluginCatalogue,
+  id: string,
+  shown: boolean,
+): PluginCatalogue {
+  return { all: cat.all.map((p) => (p.id === id ? { ...p, shown } : p)) };
+}
+
+/** 改一块插件的形态（丰富 / 极简）。⚠️ 同样**不动清单的长度与成员**。 */
+export function setPluginShape(
+  cat: PluginCatalogue,
+  id: string,
+  shape: PluginShape,
+): PluginCatalogue {
+  return { all: cat.all.map((p) => (p.id === id ? { ...p, shape } : p)) };
+}
+
+/**
+ * 把一块插件**移到最前**（§4.6.8 的 ⋮ 菜单三项之一）。
+ *
+ * ⚠️ 它**不改占宽** —— "改顺序"与"改占宽"是两件事，
+ * 而拖动那一条路（[`movePlugin`]）才同时做两件。
+ * 一个在这里顺手把 `span` 重置成默认档的实现会让"移到最前"变成"顺手改小"。
+ */
+export function bringPluginToFront(cat: PluginCatalogue, id: string): PluginCatalogue {
+  const from = cat.all.findIndex((p) => p.id === id);
+  // 已经在最前（或找不到）⇒ 原样返回，而不是造一份新数组。
+  if (from <= 0) return cat;
+  const next = [...cat.all];
+  const [moved] = next.splice(from, 1);
+  if (moved === undefined) return cat;
+  next.unshift(moved);
+  return { all: next };
+}
+
+/**
  * 规则 3 的**机器版**：找出做同一件事的两个插件。
  *
  * ⚠️ 规格原文：*"若两个插件做同一件事（例如'最近运行'与'快速启动'都能启动），
