@@ -24,6 +24,20 @@ tauri = { version = "2.12", features = [] }
 # 而"发布到 crates.io 再引用"会让"改了内核却忘了更新版本"变成一个
 # **能编译而行为是旧的**的 bug。
 qul-core = { path = "../crates/qul-core" }
+# 🔴 **命令层调编排层，而不是自己编排。**
+#
+# 那件事在 M4 期间被两次"撞墙"逼出来（见 `docs/灵动岛接线-边界分析.md`）：
+# 第一次我试图在命令层直接调 `qul_infra::install::install` —— 而它要
+# `Descriptor` / `Env` / `Transport` 三样**决策**，于是我在命令层里
+# 复制了一份"先缓存再联网"的策略。
+#
+# 现在那些策略在 `qul-app` 里，而这一层只做**翻译**：
+# 调 `install_to_instance`，把 `StageSink` 的消息翻成 `IslandState`。
+#
+# 而 `qul-infra` 仍然直接依赖，因为**transport 的选择是调用方的**
+#（`WinHttpTransport` / `NoNetwork`）—— 那正是 CLI 那边也保留的三处。
+qul-app = { path = "../crates/qul-app" }
+qul-infra = { path = "../crates/qul-infra" }
 # ⚠️ **它是我们确实要的**，而不是顺手加的：方案 §3.4 的材质降级链
 # （Mica → Acrylic → Tabbed → 纯色）要靠它。
 window-vibrancy = "0.8"

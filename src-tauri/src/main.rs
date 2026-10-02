@@ -32,7 +32,15 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use qul_core::island::{IslandState, LaunchStage};
+use qul_core::retry::CancelToken;
+use qul_app::install_plan::{
+    self, default_data_root, instance_dir, InstallError, InstallOutcome,
+};
 use serde::Serialize;
+use std::collections::BTreeMap;
+use std::sync::Arc;
+use tauri::ipc::Channel;
 
 /// 一个能力的结论。
 ///
@@ -74,8 +82,8 @@ fn off(reason: &str) -> Capability {
 /// **而它刻意保留了真实的禁用态**（带原因）：一个"全部 enabled: true"的骨架
 /// 会让"禁用必须带原因"这条规则**在开发时看不到**。
 #[tauri::command]
-fn capabilities() -> std::collections::BTreeMap<String, Capability> {
-    let mut m = std::collections::BTreeMap::new();
+fn capabilities() -> BTreeMap<String, Capability> {
+    let mut m = BTreeMap::new();
     m.insert("launch".to_owned(), on());
     m.insert("preflight".to_owned(), on());
     m.insert("mods".to_owned(), on());
@@ -112,14 +120,344 @@ struct InstanceSummary {
     name: String,
 }
 
+/// **把内核的进度翻译成灵动岛的状态**（`StageSink` → `Channel<IslandState>`）。
+///
+/// ## 🔴 而这个结构体是"薄壳"这个词最具体的一次体现
+///
+/// 它**只做翻译**：
+///
+/// | 它做 | 它不做 |
+/// |---|---|
+/// | 把 `Stage` 映射成 `LaunchStage` | 判断"该不该进入某个阶段" |
+/// | 把每条进度 `send` 出去 | 节流（那是 [`install_plan::ThrottledSink`] 的事） |
+/// | 记住当前阶段（用于 `files` 那条） | 算百分比（那是内核的事） |
+///
+/// ## ⚠️ 而 `files` 那一条**必须自己知道当前阶段**
+///
+/// 因为 `StageSink` 的两个方法是**分开**的：`stage()` 说"到哪一步了"，
+/// 而 `files()` 只说"下了几个"。于是"下载进度"这条消息**需要把两者拼起来**
+/// —— 而拼的工作只能在这里做（内核不该知道界面要什么形状）。
+///
+/// 一个"`files` 时也发 `Launch { stage: Download }`"的实现会在**校验**阶段里
+/// 显示"下载中" —— 而那是**错的阶段**，且它看起来像下载没结束。
+struct ChannelSink {
+    ch: Channel<IslandState>,
+    /// 当前阶段。`files` 那条消息需要它。
+    ///
+    /// ⚠️ 用 `Mutex` 而不是 `Cell`：`StageSink` 的方法签名是 `&self`，
+    /// 而 `ChannelSink` 需要在多线程下被 `&` 共享（下载线程会调它）。
+    stage: std::sync::Mutex<LaunchStage>,
+}
+
+impl ChannelSink {
+    fn new(ch: Channel<IslandState>) -> Self {
+        Self {
+            ch,
+            stage: std::sync::Mutex::new(LaunchStage::Parse),
+        }
+    }
+}
+
+/// `qul_infra::install::Stage` → `qul_core::island::LaunchStage`。
+///
+/// ⚠️ **而这是一次恒等映射** —— 两侧的五个变体名逐字相同
+///（`parse` / `download` / `verify` / `extract` / `launch`）。
+///
+/// 那件事**不是巧合**：内核的 `LaunchStage` 就是照 `install` 的五阶段定的。
+/// 而这里仍然写成一个**函数**而不是 `as` 转换，因为：
+/// ① 两侧是**不同的类型**（一个在 `qul-infra`，一个在 `qul-core`）；
+/// ② 哪天某一侧加了一个阶段，这里会**编译失败** —— 而那正是我们想要的。
+fn to_launch_stage(s: install_plan::Stage) -> LaunchStage {
+    match s {
+        install_plan::Stage::Parse => LaunchStage::Parse,
+        install_plan::Stage::Download => LaunchStage::Download,
+        install_plan::Stage::Verify => LaunchStage::Verify,
+        install_plan::Stage::Extract => LaunchStage::Extract,
+        install_plan::Stage::Launch => LaunchStage::Launch,
+    }
+}
+
+impl install_plan::StageSink for ChannelSink {
+    fn stage(&self, stage: install_plan::Stage, _message: &str) {
+        let ls = to_launch_stage(stage);
+        if let Ok(mut g) = self.stage.lock() {
+            *g = ls;
+        }
+        // ⚠️ **发送失败是静默的** —— 而这是对的。
+        //
+        // "发送失败"只意味着一件事：**前端已经不在了**（窗口关了）。
+        // 而那时安装**不该**中断：它是用户明确要的，而"关掉窗口"
+        // 不等于"取消安装"（§7.3 约束 4：**可关闭但任务不丢失**）。
+        //
+        // 真正的取消只走 `cancel_install` 那条命令 —— 它调内核的 `CancelToken`。
+        let _ = self.ch.send(IslandState::Launch { stage: ls });
+    }
+
+    fn files(&self, done: usize, total: usize, _current: &str) {
+        // ⚠️ 只有**下载**阶段才把"下了几个"翻成岛的进度。
+        //
+        // 在别的阶段里，`files` 的含义不同（校验时它是"校验了几个"，
+        // 解压时是"解压了几个"），而把那些都显示成"下载 x/y"
+        // 会让用户在**校验**时以为还在下载。
+        let stage = self
+            .stage
+            .lock()
+            .map(|g| *g)
+            .unwrap_or(LaunchStage::Parse);
+        if stage != LaunchStage::Download {
+            return;
+        }
+        let _ = self.ch.send(IslandState::Download {
+            done_bytes: done as u64,
+            total_bytes: total as u64,
+            // ⚠️ **`None` 而不是 `0`。**
+            //
+            // `speed_bps` / `eta_secs` 是 `Option`，而它们的理由写在
+            // `qul-core/src/island.rs`：**速度要在有足够样本之后才算得出来**。
+            // 而这里给它 `None` 是**诚实**的 —— 命令层不测速
+            //（那一层没有那个信息，而编一个 0 会让界面显示"0 B/s"，
+            // 而那与"下载卡住了"在视觉上无法区分）。
+            speed_bps: None,
+            eta_secs: None,
+        });
+    }
+}
+
+/// **开始安装一个版本，并把进度流给前端。**
+///
+/// ## 🔴 它用 `Channel<IslandState>` 而**不是**全局事件
+///
+/// | | 全局事件（`app.emit`） | **`Channel`** |
+/// |---|---|---|
+/// | 作用域 | **所有窗口** | **这一次调用的这一个前端** |
+/// | 多个安装同时跑 | 事件会**混在一起** | 各自一条流 |
+///
+/// §7.1 的硬规则是「**任意时刻只有一个岛、一个主状态**」——
+/// 而"两个安装的进度混在一条全局事件流里"会让那条规则**在消息层就被破坏**。
+///
+/// ## 而它**不阻塞 UI**
+///
+/// 安装是同步的重活（下载 + 校验 + 解压），所以它跑在阻塞线程池上 ——
+/// 于是界面在装的时候照旧能响应（灵动岛的动画、取消按钮）。
+///
+/// ## 而**失败也走同一个 channel**
+///
+/// 一个"失败就 `Err`"的实现会让岛**停在最后那个进度上** ——
+/// 因为 §7.2 的 `Error` 是**灵动岛的一个状态**，而"失败"该出现的位置是**岛上**。
+/// 所以这里先 `send(Error { .. })`，然后才返回 `Err`（那个 `Err` 是给退出码与日志的）。
+#[tauri::command]
+async fn install(
+    version_id: String,
+    on_event: Channel<IslandState>,
+    running: tauri::State<'_, Arc<Running>>,
+) -> Result<InstallSummary, String> {
+    let cancel = Arc::new(CancelToken::new());
+    running.cancel.with(|c| *c = Some(Arc::clone(&cancel)));
+
+    // 第一条：让岛**立刻**从"无事发生"变成"在做某事"。
+    //
+    // ⚠️ 这不是装饰 —— 一个"等第一份进度才推第一条"的实现会让岛
+    // 在**最不确定的那几秒**里显示空闲，而那正是用户在看它的时候。
+    let _ = on_event.send(IslandState::Launch {
+        stage: LaunchStage::Parse,
+    });
+
+    let sink = ChannelSink::new(on_event.clone());
+    let vid = version_id.clone();
+
+    let result = tauri::async_runtime::spawn_blocking(move || -> Result<InstallOutcome, String> {
+        let data_root = default_data_root();
+        let inst = instance_dir(&data_root, &vid);
+        // ⚠️ `Env::new(PlatformTarget)` 而**不是** `Env::detect()` ——
+        // 后者不存在。而"当前平台是什么"由 `PlatformTarget` 决定，
+        // 于是它是一次**显式的构造**，而不是一次隐式的环境探测。
+        // 那让"在 Windows 上模拟 Linux"成为一个**参数**（M9 会用到）。
+        // ⚠️ **`PlatformTarget::windows(version, arch)` 要两个参数，而它们是
+        // 元数据里的 `rules` 会去问的东西**（§2：`rules` 按 os.version / os.arch 判断）。
+        //
+        // 所以这里传的是**真实的 Windows 版本与架构**，而**不是常量**：
+        //
+        // - `arch`：用 `std::env::consts::ARCH` —— 它是**编译目标的架构**，
+        //   而那正是这个二进制会跑在什么上（`x86_64` / `aarch64`）。
+        // - `version`：⚠️ **这里传 `"10.0"` 是一个已知的简化。**
+        //   元数据里的规则会问 `os.version`（例如"只在 10.0 以上放行"），
+        //   而"这台机器到底是什么版本"要调 `RtlGetVersion` 之类的东西。
+        //   本项目的基线上写的是 Windows 10 1809+，所以 `"10.0"` 是**保守且正确**
+        //   的那个取值。而**它该由 `qul-infra` 在一个函数里给出来**
+        //   （那是一件 IO 事实，不是编排决策）—— 记在这里，M5 起补。
+        let env = qul_core::descriptor::Env::new(qul_core::descriptor::PlatformTarget::windows(
+            "10.0",
+            std::env::consts::ARCH,
+        ));
+
+        // ① 版本详情：**先本机缓存，再联网**（编排层的那条策略）。
+        //
+        // ⚠️ 这里传的 `cache_root` 是**官方启动器那个** `.minecraft`
+        // —— 而它是"别人的事实"，所以它作为一个**参数**出现，
+        // 而"我们自己的数据根"由 `default_data_root()` 决定。
+        let minecraft = std::path::Path::new(
+            &std::env::var("APPDATA").unwrap_or_default(),
+        )
+        .join(".minecraft");
+        // ⚠️ transport 现在恒为 WinHTTP —— 而"离线模式"在 M4 的界面里
+        // 还没有开关。而**这不是一个缺口**：`offline` 是一个参数，
+        // 接上那个开关时只改这一行。
+        let transport = qul_infra::winhttp::WinHttpTransport::new();
+        let (descriptor, _src) = install_plan::descriptor_for(
+            &vid,
+            &minecraft,
+            &transport,
+            true,
+            MANIFEST_URL,
+        )?;
+
+        // ② 五阶段流水线。**节流在编排层**（CLI 那边也用它）。
+        let throttled = install_plan::ThrottledSink::wrap(&sink);
+        let r = install_plan::install_to_instance(
+            &descriptor,
+            &env,
+            &vid,
+            &inst,
+            false,
+            true,
+            None,
+            &transport,
+            &cancel,
+            &throttled,
+        );
+        r.map_err(|e| match e {
+            InstallError::Checksum { want, got, .. } => format!(
+                "校验失败：期望 {}… 实际 {}…",
+                &want[..8.min(want.len())],
+                &got[..8.min(got.len())]
+            ),
+            other => other.to_string(),
+        })
+    })
+    .await
+    .map_err(|e| format!("安装线程没能启动：{e}"))?;
+
+    running.cancel.with(|c| *c = None);
+
+    match result {
+        Ok(out) => {
+            let _ = on_event.send(IslandState::Idle);
+            // ⚠️ **三个数都来自那个真实的盘点结果**，而不是编的：
+            //   `needs.len()` = 这个版本一共需要几个文件
+            //   `present`     = 其中磁盘上已有且 sha1 正确的
+            //   `downloaded`  = 这一次真的下了几个
+            // 一个只报"总数"的实现会让用户看不出"这次装了什么"。
+            Ok(InstallSummary {
+                version: version_id,
+                needed: out.inventory.needs.len(),
+                present: out.inventory.present,
+                downloaded: out.downloaded,
+                migrated: out.migrated,
+            })
+        }
+        Err(human) => {
+            // 🔴 **失败也走同一个 channel** —— 见上面那段。
+            let _ = on_event.send(IslandState::Error {
+                // ⚠️ `NetHttpStatus` 是那一族里最接近的一个 —— 而
+                // **它不是"网络错误"的通称**（那正是这套错误码要避免的东西）。
+                //
+                // 真实做法（M5 起）应当是**从 `InstallError` 分类出错误码**
+                //（`Network` / `IoDiskFull` / `IoDataRootNotWritable` / …）——
+                // 而那需要 `InstallError` 携带一个错误码，而它现在不带。
+                //
+                // 所以这里**诚实地用最接近的那个**，并留下这条：
+                // 一个完整的实现要能从失败反推出**可分类**的错误码。
+                code: qul_core::error::ErrorCode::NetHttpStatus,
+                human: human.clone(),
+            });
+            Err(human)
+        }
+    }
+}
+
+/// 版本清单的入口 URL。
+///
+/// ⚠️ **方案 §11.5 的纪律是"所有 URL 取自元数据"，而它是那个纪律的唯一例外**
+/// —— 因为它是**入口**：没有它就没有元数据。
+///
+/// 而它**由命令层（调用方）持有**，不由编排层硬编码 ——
+/// 那样测编排层时才能指向一个假的清单。
+const MANIFEST_URL: &str = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
+
+#[derive(Serialize)]
+struct InstallSummary {
+    version: String,
+    /// 这个版本一共需要几个文件
+    needed: usize,
+    /// 其中**磁盘上已有且 sha1 正确**的
+    present: usize,
+    /// 这一次真的下了几个
+    downloaded: usize,
+    /// 其中从已有安装迁移过来的（它们与下载的一样过了 SHA-1）
+    migrated: usize,
+}
+
+/// **取消正在跑的那次安装。**
+///
+/// ⚠️ 它是 §7.3 约束 4（"可关闭但**任务不丢失**"）的另一半：
+/// "收起"由前端做（它不碰队列），而"真的停下来"必须是**内核的 `CancelToken`**
+/// —— 一个在命令层自己加 `AtomicBool` 的实现会让下载线程
+/// **不会**在下一个检查点停下来。
+#[tauri::command]
+fn cancel_install(running: tauri::State<'_, Arc<Running>>) -> bool {
+    running.cancel.with(|c| {
+        if let Some(t) = c {
+            t.cancel();
+            true
+        } else {
+            false
+        }
+    })
+}
+
+/// 一个**极小的**互斥包装。
+///
+/// ⚠️ 它为什么不直接用 `std::sync::Mutex`：`CancelToken` 的持有不会 panic，
+/// 所以"锁被毒化"在这里不可能发生，而 `unwrap_or_else(|e| e.into_inner())`
+/// 把那件事表达成一次（而不是每处 `lock()` 写一遍）。
+mod parking_lot_lite {
+    pub struct Mutex<T>(std::sync::Mutex<T>);
+    impl<T> Mutex<T> {
+        pub const fn new(v: T) -> Self {
+            Self(std::sync::Mutex::new(v))
+        }
+        pub fn with<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
+            let mut g = self.0.lock().unwrap_or_else(|e| e.into_inner());
+            f(&mut g)
+        }
+    }
+    impl<T: Default> Default for Mutex<T> {
+        fn default() -> Self {
+            Self::new(T::default())
+        }
+    }
+}
+
+/// 一次正在跑的安装（**给取消用**）。
+#[derive(Default)]
+struct Running {
+    cancel: parking_lot_lite::Mutex<Option<Arc<CancelToken>>>,
+}
+
 fn main() {
     tauri::Builder::default()
         // 🔴 **命令表就是"界面能做什么"的完整清单。**
         //
         // 而它与 `capabilities/main-window.json` 的关系是：
         // 那里授予的是**插件权限**（我们一个都没要），而这里是**我们自己导出的命令**。
-        // 所以"前端能做什么"的答案是这两者的交集 —— 而它就是下面这两个。
-        .invoke_handler(tauri::generate_handler![capabilities, instance_summary])
+        // 所以"前端能做什么"的答案是这两者的交集。
+        .manage(Arc::new(Running::default()))
+        .invoke_handler(tauri::generate_handler![
+            capabilities,
+            instance_summary,
+            install,
+            cancel_install
+        ])
         .setup(|app| {
             // ── 窗口材质（方案 §3.4 的降级链的第 1 与第 2 档）──────────────
             //

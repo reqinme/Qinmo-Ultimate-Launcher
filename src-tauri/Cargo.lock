@@ -2357,6 +2357,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "qul-app"
+version = "0.0.0"
+dependencies = [
+ "qul-core",
+ "qul-infra",
+ "serde",
+]
+
+[[package]]
 name = "qul-core"
 version = "0.0.0"
 dependencies = [
@@ -2369,12 +2378,23 @@ dependencies = [
 name = "qul-desktop"
 version = "0.0.0"
 dependencies = [
+ "qul-app",
  "qul-core",
+ "qul-infra",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "window-vibrancy",
+]
+
+[[package]]
+name = "qul-infra"
+version = "0.0.0"
+dependencies = [
+ "qul-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
