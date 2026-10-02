@@ -118,6 +118,10 @@ $checks = @(
        name = 'CSS tokens (every var(--token) resolves to a definition)'
        protects = 'a REAL defect found while writing TitleBar.css: --font-weight-medium and --font-weight-semibold were used in 13 places and defined in 0. The symptom is SILENT -- an undefined custom property makes the whole declaration invalid, so the weight falls back to normal, and on 13px Chinese text nobody notices. --line-height-tight was the same defect.'
        kind = 'ps1'; run = { & (Join-Path $dir 'tools\check-css-tokens.ps1') } }
+    @{ key = 'ladder'
+       name = 'Material ladder (opacity steps / 1px stroke / 4px whitespace rhythm)'
+       protects = 'the M4 acceptance criterion in plan section 8, which says the three-layer material opacity ladder, the 1px stroke, and the whitespace rhythm MUST BE POINTABLE -- not "it looks about right". This prints the actual numbers and checks them against UI spec section 3.1: container panel 8-12%, content card higher than the panel, the overlay opaque, --hairline exactly 1px (and 0.5px at 2x DPI so it stays 1 PHYSICAL pixel), every --space-N a multiple of 4px.'
+       kind = 'ps1'; run = { & (Join-Path $dir 'tools\check-material-ladder.ps1') } }
     @{ key = 'clean'
        name = 'Worktree is clean'
        protects = 'generated files being committed by accident'
