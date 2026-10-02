@@ -1,6 +1,7 @@
 import { useState, type ReactElement } from "react";
 import { HomePage, type HeroSummary } from "../home/HomePage.tsx";
 import { PluginShape, PluginSpan, type PluginCatalogue } from "../home/plugins.ts";
+import { useIsland } from "../island/IslandProvider.tsx";
 
 /**
  * 主页（**M4 主干** · §4.6.8）
@@ -24,12 +25,37 @@ import { PluginShape, PluginSpan, type PluginCatalogue } from "../home/plugins.t
 export function HomeRoute(): ReactElement {
   const [catalogue, setCatalogue] = useState<PluginCatalogue>(FIXTURE_CATALOGUE);
   const [product, setProduct] = useState("a");
+  // 🔴 **那一个真的按钮。** 它推到 `Shell` 里渲染的那个岛
+  //（见 `IslandProvider.tsx`：状态在路由之外，所以两层都看得见）。
+  const island = useIsland();
 
   const hero: HeroSummary = {
-    headline: "还没有实例",
-    detail: "建一个实例之后，这里会显示它的状态与主操作。",
+    headline: island.run.busy ? "正在准备 26.3" : "还没有实例",
+    detail: island.run.busy
+      ? "进度在右上角的灵动岛上。"
+      : "点「启动」会装好 26.3 并把它拉起来 —— 进度都在岛上。",
     actions: [
-      { label: "新建实例", primary: true },
+      // ⚠️ **同一个位置在忙与闲时做不同的事**（启动 / 停止），
+      // 而不是并排放两个按钮。
+      //
+      // 理由是 §4.6.8 的规则 3：**同一件事一个入口**。
+      // 而"停止"与"启动"是**同一件事的两个方向**（都是"让这次运行
+      // 开始 / 结束"），所以它们共用一个位置。
+      island.run.busy
+        ? {
+            label: "停止",
+            primary: true,
+            onClick: () => {
+              void island.cancel();
+            },
+          }
+        : {
+            label: "启动 26.3",
+            primary: true,
+            onClick: () => {
+              void island.start("26.3");
+            },
+          },
       { label: "打开数据目录" },
       { label: "导入整合包" },
     ],
@@ -40,7 +66,29 @@ export function HomeRoute(): ReactElement {
       <p className="page__note" data-fixture="true">
         ⚠️ 横幅文案与插件正文是<strong>夹具</strong>；而<strong>结构、三条硬规则、
         一键预设、拖动与就地操作</strong>现在就是真的。
+        {/* ⚠️ **而这一条说的是"哪个部分是真的"** —— 一个"整页都是夹具"
+            的提示会让那一个真的按钮也被当成摆设。 */}
+        <br />
+        ✅ <strong>「{island.run.busy ? "停止" : "启动 26.3"}」是真的</strong>
+        ：它会调内核走完五阶段，而进度显示在右上角的灵动岛上。
       </p>
+      {/* 🔴 **失败要说出来。**
+          ⚠️ 而它**不一定**在岛上：失败发生在**前端**时（例如在浏览器里
+          没有后端），后端**什么都没发**，于是这里那一句是唯一的信息。
+          —— 那正是 `useIslandQueue` 里"失败时只设 `run.error`"那条注释说的。 */}
+      {island.run.error !== null && (
+        <p className="page__error" role="alert">
+          启动没能进行：{island.run.error}
+        </p>
+      )}
+      {island.run.last !== null && (
+        <p className="page__note">
+          ✅ 上一步完成：需要 {island.run.last.needed} 个文件，
+          本机已有 {island.run.last.present} 个，
+          这次下了 {island.run.last.downloaded} 个，
+          其中 {island.run.last.migrated} 个是从已有安装迁移的。
+        </p>
+      )}
       <HomePage
         products={PRODUCTS}
         activeProduct={product}

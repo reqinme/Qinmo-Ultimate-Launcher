@@ -24,6 +24,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { router } from "./routes/router.tsx";
 import { queryClient } from "./api/query.ts";
 import { useAppearance } from "./appearance/useAppearance.ts";
+import { IslandProvider } from "./island/IslandProvider.tsx";
 import "./tokens.css";
 import "./styles.css";
 
@@ -53,7 +54,19 @@ createRoot(host).render(
     */}
     <AppearanceBoot>
       <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
+        {/*
+          🔴 **灵动岛的 Provider 在 `RouterProvider` 之外。**
+
+          它决定了"`HomeRoute` 的按钮能不能推到 `Shell` 里渲染的那个岛" ——
+          而答案是能，因为两者都在**这一层之下**。
+
+          ⚠️ 而它**不能反过来**（Provider 在 `RouterProvider` 里面）：
+          `RouterProvider` 的子树**不继承**外层的 context，于是
+          每一页调 `useIsland()` 都会抛。见 `IslandProvider.tsx` 里那张表。
+        */}
+        <IslandProvider>
+          <RouterProvider router={router} />
+        </IslandProvider>
       </QueryClientProvider>
     </AppearanceBoot>
   </StrictMode>,

@@ -9,6 +9,7 @@ import {
   type PrimaryKey,
 } from "./nav.ts";
 import { Island, IslandLayer, idleContent } from "../island/Island.tsx";
+import { useIsland } from "../island/IslandProvider.tsx";
 import { IslandView } from "../island/islandMath.ts";
 import "./Shell.css";
 
@@ -55,7 +56,17 @@ export function Shell(): ReactElement {
   // 而"收起"是一个**本地 UI 状态**（它是用户的选择），不是队列状态 ——
   // 所以由外壳持有，而内核的队列一个字节都不受影响（§7.3 约束 4）。
   const [islandCollapsed, setIslandCollapsed] = useState(false);
-  const islandContent = idleContent("离线账户", "官方源");
+  // 🔴 **状态来自那一层全局接线，而不是这里的夹具。**
+  //
+  // ⚠️ 而 `idleContent` **仍然有用**：它在"还没开始"时给出
+  // "源 + 账户"那两个**真实信息**（而那正是 §7.2 的 `Idle` 该有的样子 ——
+  // "极小胶囊：源 + 账户"）。一个用一句固定的"就绪"代替它的实现
+  // 会让那两条信息**永远消失**。
+  const island = useIsland();
+  const islandContent =
+    island.content.kind === "idle"
+      ? idleContent("离线账户", "官方源")
+      : island.content;
   const current = primaryFromPath(pathname);
   const secondary = secondaryOf(current);
 

@@ -189,3 +189,65 @@
   color: var(--text-disabled);
   font-size: var(--font-body-sm);
 }
+
+/**
+ * 一条**错误说明**。
+ *
+ * ⚠️ 它为什么存在：`HomeRoute` 在启动失败时会渲染一句解释，
+ * 而那一句**必须看起来像一个错误** —— 一个用 `.page__note` 的
+ * 实现会让"没能启动"与"这是一条说明"在视觉上**一模一样**。
+ *
+ * ## 而它用 `--state-danger` 而不是写死一个红
+ *
+ * 那个 token 已经把"浅色 / 深色主题各取哪一档"这件事决定了
+ *（`tokens.css` 里 `--state-danger: var(--danger-5)`，而 `danger-5` 是
+ * 那三档里对两个主题都够对比度的那一个）。写死一个 `#f85149` 会在
+ * 浅色主题下**不够对比**，而那时它看起来像一条普通的说明。
+ *
+ * ## 而左边那条竖线是**冗余编码**
+ *
+ * 颜色之外还有形状 —— §5.4.3 的判据（"信息性的用法要能被
+ * 不只靠颜色分辨出来"）。一个只靠颜色的错误提示对色觉障碍用户
+ * **等于没有**。
+ *
+ * ## ⚠️ 而那个"形状"改过一次，因为 `impeccable` 拦了第一版
+ *
+ * 第一版用的是一条**左边框**（`border-inline-start: 3px solid`），
+ * 而检查器的话是：
+ *
+ * > `[side-tab] border-inline-start:3px solid`
+ * > *"Thick colored border on one side of a card —— the most recognizable
+ * > tell of AI-generated UIs."*
+ *
+ * **而它是对的。** 那条竖线在最近两年的模板里被用烂了，而它在这里
+ * **不是必需的** —— 同样的"形状"信息可以由一个 `::before` 的实心点给出，
+ * 而点是一个**真正被大量产品用过**的形态（系统通知、GitHub 的 inline alert）。
+ *
+ * 所以现在：**一圈细边框**（四边、不是一边）+ **一个实心点**。
+ * 而两者都表达"这是一条要注意的东西"，而**都不靠那种模板味**。
+ */
+.page__error {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  margin: 0 0 var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border: var(--hairline) solid var(--state-danger);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--state-danger) 10%, transparent);
+  color: var(--text-primary);
+  max-inline-size: 60ch;
+}
+
+/** 那一颗实心点。**它才是"这是错误"的那个不靠颜色的信号。** */
+.page__error::before {
+  content: "";
+  flex: none;
+  inline-size: 8px;
+  block-size: 8px;
+  /* ⚠️ `translateY` 让它与第一行文字的**中线**对齐，而不是与顶边。
+     一个 `align-items: center` 的实现会在文案换行时让点漂到中间去。 */
+  translate: 0 1px;
+  border-radius: 50%;
+  background: var(--state-danger);
+}
